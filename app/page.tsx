@@ -114,12 +114,12 @@ export default function Home() {
     setDraftReady(true);
   }, []);
   useEffect(() => {
-    if (!draftReady) return;
+    if (!draftReady || pendingDraft) return;
     try {
       if (text.trim() || attachments.length) localStorage.setItem(DRAFT_KEY, JSON.stringify({ text, attachments, organize, link, updatedAt: new Date().toISOString() }));
       else localStorage.removeItem(DRAFT_KEY);
     } catch { /* Draft storage is best effort when attachments are too large. */ }
-  }, [text, attachments, organize, link, draftReady]);
+  }, [text, attachments, organize, link, draftReady, pendingDraft]);
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 30_000); return () => window.clearInterval(timer); }, []);
 
   const filtered = useMemo(() => entries.filter(entry => `${entry.title}${entry.content}${entry.tags.join("")}`.toLowerCase().includes(search.toLowerCase())), [entries, search]);
