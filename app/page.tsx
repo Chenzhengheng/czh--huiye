@@ -18,6 +18,8 @@ type Entry = {
   attachments?: Attachment[];
 };
 type Draft = { title: string; content: string; tags: string[]; aiLink: boolean };
+ type SavedDraft = { text: string; attachments: Attachment[]; organize: boolean; link: boolean; updatedAt: string };
+ const DRAFT_KEY = "huiye-writing-draft-v1";
 
 const seedEntries: Entry[] = [
   { id: 1, date: "4月12日 · 22:18", title: "为什么知道方法，却还是迟迟不开始？", content: "读到“行动会反过来塑造动机”时有点疑惑。如果目标已经足够清楚，为什么我还是会拖延？现在猜测是任务拆得不够小，但还没有真实验证。", tags: ["阅读思考", "待验证"], source: "《行动的勇气》· 手写导入", aiLink: true, status: "open" },
@@ -77,6 +79,8 @@ export default function Home() {
   const [view, setView] = useState<View>("write");
   const [entries, setEntries] = useState<Entry[]>(seedEntries);
   const [text, setText] = useState("");
+  const [pendingDraft, setPendingDraft] = useState<SavedDraft | null>(null);
+  const [draftReady, setDraftReady] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [organize, setOrganize] = useState(true);
   const [link, setLink] = useState(true);
@@ -105,6 +109,17 @@ export default function Home() {
     }
   }, []);
   useEffect(() => { localStorage.setItem("ai-diary-entries", JSON.stringify(entries)); }, [entries]);
+  useEffect(() => {
+    try { const saved = localStorage.getItem(DRAFT_KEY); if (saved) { const draft = JSON.parse(saved) as SavedDraft; if (draft.text.trim() || draft.attachments?.length) setPendingDraft(draft); } } catch { /* Ignore a broken draft. */ }
+    setDraftReady(true);
+  }, []);
+  useEffect(() => {
+    if (!draftReady) return;
+    try {
+      if (text.trim() || attachments.length) localStorage.setItem(DRAFT_KEY, JSON.stringify({ text, attachments, organize, link, updatedAt: new Date().toISOString() }));
+      else localStorage.removeItem(DRAFT_KEY);
+    } catch { /* Draft storage is best effort when attachments are too large. */ }
+  }, [text, attachments, organize, link, draftReady]);
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 30_000); return () => window.clearInterval(timer); }, []);
 
   const filtered = useMemo(() => entries.filter(entry => `${entry.title}${entry.content}${entry.tags.join("")}`.toLowerCase().includes(search.toLowerCase())), [entries, search]);
@@ -145,6 +160,12 @@ export default function Home() {
       setStage("review");
     }, 900);
   }
+
+  function restoreDraft() {
+    if (!pendingDraft) return;
+    setText(pendingDraft.text); setAttachments(pendingDraft.attachments || []); setOrganize(pendingDraft.organize); setLink(pendingDraft.link); setPendingDraft(null); notify("已恢复刚才的记录");
+  }
+  function discardDraft() { localStorage.removeItem(DRAFT_KEY); setPendingDraft(null); notify("已丢弃未保存的记录"); }
 
   function saveEntry(useAi: boolean) {
     const entry: Entry = {
@@ -207,6 +228,7 @@ export default function Home() {
       {view === "chat" && <div className="page chat-page"><div className="eyebrow">带着过去，聊聊现在</div><h1>和 AI 聊聊</h1><p className="lead">AI 只会引用你允许关联的记录，并告诉你它从哪里找到这些内容。</p><div className="chat-box">{messages.length === 0 ? <div className="chat-empty"><span className="orb">✦</span><h2>现在有什么想理一理的吗？</h2><p>不必组织语言。你可以从眼前的困惑开始。</p><div className="prompts"><button onClick={() => sendChat("我以前思考过拖延这件事吗？")}>我以前思考过拖延这件事吗？</button><button onClick={() => sendChat("最近的我，有什么变化？")}>最近的我，有什么变化？</button></div></div> : <div className="messages">{messages.map((message, index) => <div key={index} className={`message ${message.role}`}><span>{message.role === "ai" ? "回页" : "我"}</span><p>{message.text}</p>{message.role === "ai" && <div className="sources">引用了 3 篇你允许关联的记录 · 可查看原文</div>}</div>)}</div>}<div className="chat-input"><textarea value={chatInput} onChange={event => setChatInput(event.target.value)} placeholder="从一个念头开始…" onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendChat(); } }} /><button onClick={() => sendChat()}>↑</button></div></div></div>}
       <nav className="mobile-nav">{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><i>{item.icon}</i><span>{item.label}</span></button>)}</nav>
     </section>
+    {pendingDraft && <div className="modal-back"><div className="draft-restore"><span className="orb">✦</span><small>检测到未保存的记录</small><h2>要继续刚才的思考吗？</h2><p>{pendingDraft.text.trim() ? `${pendingDraft.text.slice(0, 66)}${pendingDraft.text.length > 66 ? "…" : ""}` : "你刚才添加了图片附件。"}</p><div><button onClick={discardDraft}>丢弃</button><button className="primary" onClick={restoreDraft}>恢复记录</button></div></div></div>}
     {stage === "organizing" && <div className="modal-back"><div className="organizing"><span className="orb pulse">✦</span><h2>AI 正在轻轻整理你的日记</h2><p>原文已经保存，你现在就可以安心离开。</p><div className="progress"><i /></div></div></div>}
     {stage === "review" && <div className="modal-back"><div className="comparison-modal"><div className="comparison-head"><div><span className="spark">✦</span><div><small>AI 整理完成</small><h2>看看它有没有保留你的原意</h2></div></div><button onClick={() => setStage("idle")}>×</button></div><div className="comparison-grid"><section className="comparison-original"><div className="comparison-label"><span>原文</span><small>你的原始记录，不会被改写</small></div><article>{reviewOriginal}</article></section><section className="comparison-suggestion"><div className="comparison-label"><span>整理建议</span><small>可以直接在右侧修改</small></div><label>建议标题</label><input value={review.title} onChange={event => setReview({ ...review, title: event.target.value })} /><label>整理后的正文</label><textarea style={{ height: reviewRows * 31 + (reviewLines < 15 ? 42 : 72), minHeight: 0, overflowY: reviewLines >= 15 ? "auto" : "hidden", paddingBottom: reviewLines >= 15 ? 48 : 12 }} value={review.content} onChange={event => setReview({ ...review, content: event.target.value })} /><label>标签</label><TagEditor tags={review.tags} onChange={tags => setReview({ ...review, tags })} /></section></div><div className="comparison-note">接受整理稿不会覆盖原文；两份内容都会被保留。</div><div className="comparison-actions"><button onClick={() => saveEntry(false)}>保留原文</button><button className="primary" onClick={() => saveEntry(true)}>接受整理稿</button></div></div></div>}
     {selected && edit && <div className="modal-back"><div className="review edit-modal"><div className="review-head"><div><span className="spark">□</span><div><small>{formatTimestamp(selected, now)} · {selected.source}</small><h2>查看与编辑日记</h2></div></div><button onClick={closeEdit}>×</button></div><div className="review-body"><label>标题</label><input value={edit.title} disabled={showOriginal} onChange={event => setEdit({ ...edit, title: event.target.value })} /><label>{showOriginal ? "原文（只读）" : "正文"}</label><textarea style={{ height: editRows * 29 + (editLines < 15 ? 40 : 70), minHeight: 0, overflowY: editLines >= 15 ? "auto" : "hidden", paddingBottom: editLines >= 15 ? 52 : 11 }} readOnly={showOriginal} value={showOriginal ? selected.originalContent || selected.content : edit.content} onChange={event => setEdit({ ...edit, content: event.target.value })} /><div className="edit-tags-row"><div><label>标签</label><TagEditor tags={edit.tags} onChange={tags => setEdit({ ...edit, tags })} /></div>{selected.originalContent && selected.originalContent !== selected.content && <button type="button" className="original-switch" onClick={() => setShowOriginal(!showOriginal)}>{showOriginal ? "返回整理稿" : "查看原文"}</button>}</div><Toggle checked={edit.aiLink} onChange={() => setEdit({ ...edit, aiLink: !edit.aiLink })} label="允许 AI 关联" hint="关闭后，这篇记录不会参与未来召回" /></div><div className="review-note">{showOriginal ? "你正在查看最初写下的版本；切回整理稿后才能继续编辑。" : selected.originalContent && selected.originalContent !== selected.content ? "原文版本被单独保留，可随时切换查看。" : "当前内容就是原始版本。"}</div><div className="review-actions edit-actions"><button onClick={() => { if (window.confirm(`确定删除《${selected.title}》吗？删除后无法恢复。`)) { setEntries(current => current.filter(entry => entry.id !== selected.id)); closeEdit(); notify("日记已删除"); } }} className="danger">删除日记</button><span><button onClick={() => download([selected], selected.title)}>导出本篇</button><button className="primary" disabled={showOriginal} onClick={saveEdit}>保存修改</button></span></div></div></div>}
