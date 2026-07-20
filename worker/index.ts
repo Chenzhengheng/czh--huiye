@@ -35,6 +35,19 @@ const ORGANIZE_PROMPT = `你是“回页”的轻量整理助手。
 
 如果用户已有明确标题，原样保留；“未命名记录”“快速记录”等通用标题视为无标题。标签必须来自原文明确出现或可直接对应的具体概念；最多 3 个；不确定时宁可少给。`;
 
+const OUTPUT_CONTRACT = `
+STRICT OUTPUT FIELD BOUNDARIES (highest priority): Return a JSON object only, matching the schema. The title belongs only in "title". The cleaned diary body belongs only in "organized_content". Tags belong only in "tags". "organized_content" must contain only the diary body that the user could accept directly: never include a title, field names, labels, headings such as \"suggested title\" or \"minimal draft\", a tags line, parenthetical notes, explanations, or rationale.
+`;
+
+function cleanOrganizedContent(value: string): string {
+  const body = value.trim();
+  const hasEmbeddedFields = /^(?:(?:\u5efa\u8bae\u6807\u9898|\u6807\u9898)\s*[:\uff1a][^\n]*\n+)?(?:\u6700\u5c0f\u6574\u7406\u7a3f|\u6574\u7406\u540e\u7684\u6b63\u6587|\u6b63\u6587)\s*[:\uff1a]/.test(body);
+  if (!hasEmbeddedFields) return body;
+  return body
+    .replace(/^(?:(?:\u5efa\u8bae\u6807\u9898|\u6807\u9898)\s*[:\uff1a][^\n]*\n+)?(?:\u6700\u5c0f\u6574\u7406\u7a3f|\u6574\u7406\u540e\u7684\u6b63\u6587|\u6b63\u6587)\s*[:\uff1a]\s*/, "")
+    .replace(/\n{2,}(?:\u6807\u7b7e|tags?)\s*[:\uff1a][\s\S]*$/i, "")
+    .trim();
+}
 const ORGANIZE_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -51,7 +64,8 @@ async function organizeDiary(request: Request, env: Env): Promise<Response> {
   let input: { title?: string; content?: string; systemPrompt?: string };
   try { input = await request.json(); } catch { return Response.json({ error: "请求格式不正确。" }, { status: 400 }); }
   const content = input.content?.trim();
-  const systemPrompt = typeof input.systemPrompt === "string" && input.systemPrompt.trim().length > 100 && input.systemPrompt.length <= 12000 ? input.systemPrompt.trim() : ORGANIZE_PROMPT;
+  const requestedPrompt = typeof input.systemPrompt === "string" && input.systemPrompt.trim().length > 100 && input.systemPrompt.length <= 12000 ? input.systemPrompt.trim() : ORGANIZE_PROMPT;
+  const systemPrompt = `${requestedPrompt}\n\n${OUTPUT_CONTRACT}`;
   if (!content) return Response.json({ error: "没有可整理的正文。" }, { status: 400 });
 
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -71,7 +85,8 @@ async function organizeDiary(request: Request, env: Env): Promise<Response> {
   const result = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
   try {
     const organized = JSON.parse(result.choices?.[0]?.message?.content || "") as { title: string; organized_content: string; tags: string[] };
-    return Response.json({ title: organized.title, content: organized.organized_content, tags: organized.tags.slice(0, 3) });
+    const cleanedContent = cleanOrganizedContent(organized.organized_content);
+    return Response.json({ title: organized.title, content: cleanedContent || content, tags: organized.tags.slice(0, 3) });
   } catch { return Response.json({ error: "AI 返回了无法读取的结果，请重试。" }, { status: 502 }); }
 }
 
