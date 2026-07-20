@@ -39,6 +39,15 @@ const OUTPUT_CONTRACT = `
 STRICT OUTPUT FIELD BOUNDARIES (highest priority): Return a JSON object only, matching the schema. The title belongs only in "title". The cleaned diary body belongs only in "organized_content". Tags belong only in "tags". "organized_content" must contain only the diary body that the user could accept directly: never include a title, field names, labels, headings such as \"suggested title\" or \"minimal draft\", a tags line, parenthetical notes, explanations, or rationale.
 `;
 
+const ORGANIZATION_STANDARD = `
+整理质量标准：
+- “最小整理”不等于原样复写。只要不改变原意，可以通过分段、留白和列表，降低重新进入这段思考的阅读成本。
+- 识别原文已经存在的转折、举例、拆解、并列项与推理阶段；在这些位置前后留出呼吸感。用户明确写出的“第一、第二、第三”等并列项可以改为列表。
+- 不创造新的总结性小标题；如果需要阅读锚点，只能使用用户原文已有的词，如“举例”“再往下拆解”。
+- 标题应指出这篇记录的真实张力、问题或推理路径，不要把两个概念机械并列。若无法给出贴切标题，宁可使用原有标题或“未命名记录”。
+- 标签是未来找回这篇记录的检索路标，不是原句截取；只给 1–3 个具体、可辨认的概念。
+- 保留用户的犹豫、括号、限定和自我保留，例如“这里我瞎说的”；不要把它们修成确定结论。
+`;
 function cleanOrganizedContent(value: string): string {
   const body = value.trim();
   const hasEmbeddedFields = /^(?:(?:\u5efa\u8bae\u6807\u9898|\u6807\u9898)\s*[:\uff1a][^\n]*\n+)?(?:\u6700\u5c0f\u6574\u7406\u7a3f|\u6574\u7406\u540e\u7684\u6b63\u6587|\u6b63\u6587)\s*[:\uff1a]/.test(body);
@@ -65,7 +74,7 @@ async function organizeDiary(request: Request, env: Env): Promise<Response> {
   try { input = await request.json(); } catch { return Response.json({ error: "请求格式不正确。" }, { status: 400 }); }
   const content = input.content?.trim();
   const requestedPrompt = typeof input.systemPrompt === "string" && input.systemPrompt.trim().length > 100 && input.systemPrompt.length <= 12000 ? input.systemPrompt.trim() : ORGANIZE_PROMPT;
-  const systemPrompt = `${requestedPrompt}\n\n${OUTPUT_CONTRACT}`;
+  const systemPrompt = `${requestedPrompt}\n\n${ORGANIZATION_STANDARD}\n\n${OUTPUT_CONTRACT}`;
   if (!content) return Response.json({ error: "没有可整理的正文。" }, { status: 400 });
 
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
