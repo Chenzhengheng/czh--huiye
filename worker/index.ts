@@ -1,12 +1,12 @@
-﻿/** Cloudflare Worker entry point for 回页. */
+/** Cloudflare Worker entry point for 回页. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
 
 interface Env {
   ASSETS: Fetcher;
   DB: D1Database;
-  OPENAI_API_KEY?: string;
-  OPENAI_MODEL?: string;
+  OPENROUTER_API_KEY?: string;
+  OPENROUTER_MODEL?: string;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -47,28 +47,29 @@ const ORGANIZE_SCHEMA = {
 };
 
 async function organizeDiary(request: Request, env: Env): Promise<Response> {
-  if (!env.OPENAI_API_KEY) return Response.json({ error: "AI 服务尚未配置。请先在服务端填入 API Key。" }, { status: 503 });
+  if (!env.OPENROUTER_API_KEY || !env.OPENROUTER_MODEL) return Response.json({ error: "AI 服务尚未配置。请先在服务端填入 OpenRouter Key 和模型名。" }, { status: 503 });
   let input: { title?: string; content?: string };
   try { input = await request.json(); } catch { return Response.json({ error: "请求格式不正确。" }, { status: 400 }); }
   const content = input.content?.trim();
   if (!content) return Response.json({ error: "没有可整理的正文。" }, { status: 400 });
 
-  const response = await fetch("https://api.openai.com/v1/responses", {
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
-    headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${env.OPENROUTER_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: env.OPENAI_MODEL || "gpt-5.6",
-      input: [
+      model: env.OPENROUTER_MODEL,
+      messages: [
         { role: "system", content: ORGANIZE_PROMPT },
         { role: "user", content: `现有标题：${input.title || "未命名记录"}\n\n原文：\n${content}` },
       ],
-      text: { format: { type: "json_schema", name: "diary_organization", strict: true, schema: ORGANIZE_SCHEMA } },
+      response_format: { type: "json_schema", json_schema: { name: "diary_organization", strict: true, schema: ORGANIZE_SCHEMA } },
+      provider: { require_parameters: true },
     }),
   });
   if (!response.ok) return Response.json({ error: "AI 整理暂时没有完成，请稍后再试。" }, { status: 502 });
-  const result = await response.json() as { output_text?: string };
+  const result = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
   try {
-    const organized = JSON.parse(result.output_text || "") as { title: string; organized_content: string; tags: string[] };
+    const organized = JSON.parse(result.choices?.[0]?.message?.content || "") as { title: string; organized_content: string; tags: string[] };
     return Response.json({ title: organized.title, content: organized.organized_content, tags: organized.tags.slice(0, 3) });
   } catch { return Response.json({ error: "AI 返回了无法读取的结果，请重试。" }, { status: 502 }); }
 }
