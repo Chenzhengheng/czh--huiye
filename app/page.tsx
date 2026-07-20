@@ -103,6 +103,7 @@ export default function Home() {
   const [stage, setStage] = useState<"idle" | "organizing" | "review">("idle");
   const [review, setReview] = useState<Draft>({ title: "", content: "", tags: [], aiLink: true });
   const [reviewOriginal, setReviewOriginal] = useState("");
+  const [originalEdit, setOriginalEdit] = useState("");
   const [reviewEntryId, setReviewEntryId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState("");
@@ -147,13 +148,13 @@ export default function Home() {
   const selected = entries.find(entry => entry.id === selectedId) ?? null;
   const writeLines = visualLineCount(text);
   const writeRows = Math.min(15, Math.max(6, writeLines + 3));
-  const editLines = visualLineCount(edit?.content || "", 55);
+  const editLines = visualLineCount(showOriginal ? originalEdit : (edit?.content || ""), 55);
   const editRows = Math.min(15, Math.max(6, editLines + 3));
   const reviewLines = visualLineCount(review.content, 52);
   const reviewRows = Math.min(15, Math.max(5, reviewLines + 3));
 
   const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(""), 2600); };
-  const closeEdit = () => { setSelectedId(null); setEdit(null); setShowOriginal(false); };
+  const closeEdit = () => { setSelectedId(null); setEdit(null); setOriginalEdit(""); setShowOriginal(false); };
   const originalToSave = text.trim() || "今天有一些还没整理好的想法，先把它留在这里。";
 
   async function pasteText() {
@@ -233,11 +234,16 @@ export default function Home() {
   }
 
   function saveEdit() {
-    if (!selected || !edit || showOriginal) return;
-    setEntries(current => current.map(entry => entry.id === selected.id ? { ...entry, ...edit } : entry));
-    closeEdit(); notify("修改已保存");
+    if (!selected || !edit) return;
+    setEntries(current => current.map(entry => {
+      if (entry.id !== selected.id) return entry;
+      if (showOriginal) {
+        return { ...entry, title: edit.title, content: entry.originalContent ? entry.content : originalEdit, originalContent: originalEdit, tags: edit.tags, aiLink: edit.aiLink };
+      }
+      return { ...entry, ...edit };
+    }));
+    closeEdit(); notify(showOriginal ? "原文修改已保存" : "修改已保存");
   }
-
   function download(list: Entry[], name = "我的回页日记") {
     if (!list.length) return notify("请先选择要导出的日记");
     const markdown = list.map(entry => `# ${entry.title}\n\n${formatTimestamp(entry, now)} · ${entry.source}\n\n${entry.content}\n\n${entry.tags.map(tag => `#${tag}`).join(" ")}`).join("\n\n---\n\n");
@@ -272,7 +278,7 @@ export default function Home() {
     {pendingDraft && <div className="modal-back"><div className="draft-restore"><span className="orb">✦</span><small>检测到未保存的记录</small><h2>要继续刚才的思考吗？</h2><p>{pendingDraft.text.trim() ? `${pendingDraft.text.slice(0, 66)}${pendingDraft.text.length > 66 ? "…" : ""}` : "你刚才添加了图片附件。"}</p><div><button onClick={discardDraft}>丢弃</button><button className="primary" onClick={restoreDraft}>恢复记录</button></div></div></div>}
     {stage === "organizing" && <div className="modal-back"><div className="organizing"><span className="orb pulse">✦</span><h2>AI 正在轻轻整理你的日记</h2><p>原文已经保存，你现在就可以安心离开。</p><div className="progress"><i /></div></div></div>}
     {stage === "review" && <div className="modal-back"><div className="comparison-modal"><div className="comparison-head"><div><span className="spark">✦</span><div><small>AI 整理完成</small><h2>看看它有没有保留你的原意</h2></div></div><button onClick={() => setStage("idle")}>×</button></div><div className="comparison-grid"><section className="comparison-original"><div className="comparison-label"><span>原文</span><small>你的原始记录，不会被改写</small></div><article>{reviewOriginal}</article></section><section className="comparison-suggestion"><div className="comparison-label"><span>整理建议</span><small>可以直接在右侧修改</small></div><label>建议标题</label><input value={review.title} onChange={event => setReview({ ...review, title: event.target.value })} /><label>整理后的正文</label><textarea style={{ height: reviewRows * 31 + (reviewLines < 15 ? 42 : 72), minHeight: 0, overflowY: reviewLines >= 15 ? "auto" : "hidden", paddingBottom: reviewLines >= 15 ? 48 : 12 }} value={review.content} onChange={event => setReview({ ...review, content: event.target.value })} /><label>标签</label><TagEditor tags={review.tags} onChange={tags => setReview({ ...review, tags })} /></section></div><div className="comparison-note">接受整理稿不会覆盖原文；两份内容都会被保留。</div><div className="comparison-actions"><button onClick={() => saveEntry(false)}>保留原文</button><button className="primary" onClick={() => saveEntry(true)}>接受整理稿</button></div></div></div>}
-    {selected && edit && <div className="modal-back" onMouseDown={closeEdit}><div className="review edit-modal" onMouseDown={event => event.stopPropagation()}><div className="review-head"><div><span className="spark">□</span><div><small>{formatTimestamp(selected, now)} · {selected.source}</small><h2>查看与编辑日记</h2></div></div><button onClick={closeEdit}>×</button></div><div className="review-body"><label>标题</label><input value={edit.title} disabled={showOriginal} onChange={event => setEdit({ ...edit, title: event.target.value })} /><label>{showOriginal ? "原文（只读）" : "正文"}</label><textarea style={{ height: editRows * 29 + (editLines < 15 ? 40 : 70), minHeight: 0, overflowY: editLines >= 15 ? "auto" : "hidden", paddingBottom: editLines >= 15 ? 52 : 11 }} readOnly={showOriginal} value={showOriginal ? selected.originalContent || selected.content : edit.content} onChange={event => setEdit({ ...edit, content: event.target.value })} /><div className="edit-tags-row"><div><label>标签</label><TagEditor tags={edit.tags} onChange={tags => setEdit({ ...edit, tags })} /></div>{selected.originalContent && selected.originalContent !== selected.content && <button type="button" className="original-switch" onClick={() => setShowOriginal(!showOriginal)}>{showOriginal ? "返回整理稿" : "查看原文"}</button>}</div><Toggle checked={edit.aiLink} onChange={() => setEdit({ ...edit, aiLink: !edit.aiLink })} label="允许 AI 关联" hint="关闭后，这篇记录不会参与未来召回" /></div><div className="ai-organize-inline"><button type="button" onClick={() => beginReview(selected)}>{selected.originalContent && selected.originalContent !== selected.content ? "重新整理" : "让 AI 整理"}</button><small>原文会一直保留；只在你点击后发送给 AI。</small></div><div className="review-note">{showOriginal ? "你正在查看最初写下的版本；切回整理稿后才能继续编辑。" : selected.originalContent && selected.originalContent !== selected.content ? "原文版本被单独保留，可随时切换查看。" : "当前内容就是原始版本。"}</div><div className="review-actions edit-actions"><button onClick={() => { if (window.confirm(`确定删除《${selected.title}》吗？删除后无法恢复。`)) { setEntries(current => current.filter(entry => entry.id !== selected.id)); closeEdit(); notify("日记已删除"); } }} className="danger">删除日记</button><span><button onClick={() => download([selected], selected.title)}>导出本篇</button><button className="primary" disabled={showOriginal} onClick={saveEdit}>保存修改</button></span></div></div></div>}
+    {selected && edit && <div className="modal-back" onMouseDown={closeEdit}><div className="review edit-modal" onMouseDown={event => event.stopPropagation()}><div className="review-head"><div><span className="spark">□</span><div><small>{formatTimestamp(selected, now)} · {selected.source}</small><h2>查看与编辑日记</h2></div></div><button onClick={closeEdit}>×</button></div><div className="review-body"><label>标题</label><input value={edit.title} onChange={event => setEdit({ ...edit, title: event.target.value })} /><label>{showOriginal ? "原文" : "正文"}</label><textarea style={{ height: editRows * 29 + (editLines < 15 ? 40 : 70), minHeight: 0, overflowY: editLines >= 15 ? "auto" : "hidden", paddingBottom: editLines >= 15 ? 52 : 11 }} value={showOriginal ? originalEdit : edit.content} onChange={event => showOriginal ? setOriginalEdit(event.target.value) : setEdit({ ...edit, content: event.target.value })} /><div className="edit-tags-row"><div><label>标签</label><TagEditor tags={edit.tags} onChange={tags => setEdit({ ...edit, tags })} /></div>{selected.originalContent && selected.originalContent !== selected.content && <button type="button" className="original-switch" onClick={() => setShowOriginal(!showOriginal)}>{showOriginal ? "返回整理稿" : "查看原文"}</button>}</div><Toggle checked={edit.aiLink} onChange={() => setEdit({ ...edit, aiLink: !edit.aiLink })} label="允许 AI 关联" hint="关闭后，这篇记录不会参与未来召回" /></div><div className="ai-organize-inline"><button type="button" onClick={() => beginReview(selected)}>{selected.originalContent && selected.originalContent !== selected.content ? "重新整理" : "让 AI 整理"}</button><small>原文会一直保留；只在你点击后发送给 AI。</small></div><div className="review-note">{showOriginal ? "你正在查看原文；可直接修改并保存，整理稿会继续保留。" : selected.originalContent && selected.originalContent !== selected.content ? "原文版本被单独保留，可随时切换查看。" : "当前内容就是原始版本。"}</div><div className="review-actions edit-actions"><button onClick={() => { if (window.confirm(`确定删除《${selected.title}》吗？删除后无法恢复。`)) { setEntries(current => current.filter(entry => entry.id !== selected.id)); closeEdit(); notify("日记已删除"); } }} className="danger">删除日记</button><span><button onClick={() => download([selected], selected.title)}>导出本篇</button><button className="primary" onClick={saveEdit}>保存修改</button></span></div></div></div>}
     {exportOpen && <div className="modal-back"><div className="review export-modal"><div className="review-head"><div><span className="spark">↓</span><div><small>Markdown 导出</small><h2>选择你想带走的日记</h2></div></div><button onClick={() => setExportOpen(false)}>×</button></div><div className="export-tools"><button onClick={() => setExportIds(entries.map(entry => entry.id))}>全选</button><button onClick={() => setExportIds([])}>清空</button><span>已选 {exportIds.length} 篇</span></div><div className="export-list">{entries.map(entry => <label key={entry.id}><input type="checkbox" checked={exportIds.includes(entry.id)} onChange={() => setExportIds(ids => ids.includes(entry.id) ? ids.filter(id => id !== entry.id) : [...ids, entry.id])} /><span><strong>{entry.title}</strong><small>{formatTimestamp(entry, now)} · {entry.tags.join("、") || "无标签"}</small></span></label>)}</div><div className="review-actions"><button onClick={() => setExportOpen(false)}>取消</button><button className="primary" disabled={!exportIds.length} onClick={() => download(entries.filter(entry => exportIds.includes(entry.id)))}>导出所选</button></div></div></div>}
     {toast && <div className="toast">✦ {toast}</div>}
   </main>;
