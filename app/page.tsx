@@ -342,6 +342,7 @@ export default function Home() {
   function openEntry(entry: Entry) {
     setSelectedId(entry.id);
     setEdit({ title: entry.title, content: entry.content, tags: entry.tags, aiLink: entry.aiLink });
+    setOriginalEdit(entry.originalContent || entry.content);
     setShowOriginal(false); setPreviewMarkdown(false);
   }
 
@@ -350,7 +351,8 @@ export default function Home() {
     setEntries(current => current.map(entry => {
       if (entry.id !== selected.id) return entry;
       if (showOriginal) {
-        return { ...entry, title: edit.title, content: entry.originalContent ? entry.content : originalEdit, originalContent: originalEdit, tags: edit.tags, aiLink: edit.aiLink };
+        const preservedOriginal = originalEdit.trim() ? originalEdit : (entry.originalContent || entry.content);
+        return { ...entry, title: edit.title, content: entry.originalContent ? entry.content : preservedOriginal, originalContent: preservedOriginal, tags: edit.tags, aiLink: edit.aiLink };
       }
       return { ...entry, ...edit };
     }));
