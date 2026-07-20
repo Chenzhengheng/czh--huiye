@@ -80,3 +80,7 @@ AI 不替用户想得更完整；它只让用户未来更容易重新进入自�
 - 固定 JSON 输出：`title`、`organized_content`、`tags`；
 - 字段隔离要求：正文绝不携带标题、标签、注释或解释；
 - 用户可编辑的个性化 prompt，但不得覆盖产品级的字段边界与原文保护规则。
+
+## 7. 样例库与回归测试
+
+人工认可的完整样例统一收录在 [AI_ORGANIZATION_EXAMPLES.md](AI_ORGANIZATION_EXAMPLES.md)。调 prompt 或换模型时，必须用它们逐篇对照：是否保留原意、是否有阅读呼吸、标题和标签是否可用、是否出现越界补充。
