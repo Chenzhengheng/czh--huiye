@@ -48,9 +48,10 @@ const ORGANIZE_SCHEMA = {
 
 async function organizeDiary(request: Request, env: Env): Promise<Response> {
   if (!env.OPENROUTER_API_KEY || !env.OPENROUTER_MODEL) return Response.json({ error: "AI 服务尚未配置。请先在服务端填入 OpenRouter Key 和模型名。" }, { status: 503 });
-  let input: { title?: string; content?: string };
+  let input: { title?: string; content?: string; systemPrompt?: string };
   try { input = await request.json(); } catch { return Response.json({ error: "请求格式不正确。" }, { status: 400 }); }
   const content = input.content?.trim();
+  const systemPrompt = typeof input.systemPrompt === "string" && input.systemPrompt.trim().length > 100 && input.systemPrompt.length <= 12000 ? input.systemPrompt.trim() : ORGANIZE_PROMPT;
   if (!content) return Response.json({ error: "没有可整理的正文。" }, { status: 400 });
 
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -59,7 +60,7 @@ async function organizeDiary(request: Request, env: Env): Promise<Response> {
     body: JSON.stringify({
       model: env.OPENROUTER_MODEL,
       messages: [
-        { role: "system", content: ORGANIZE_PROMPT },
+        { role: "system", content: systemPrompt },
         { role: "user", content: `现有标题：${input.title || "未命名记录"}\n\n原文：\n${content}` },
       ],
       response_format: { type: "json_schema", json_schema: { name: "diary_organization", strict: true, schema: ORGANIZE_SCHEMA } },

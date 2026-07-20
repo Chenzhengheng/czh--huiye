@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-type View = "write" | "pool" | "echo" | "chat";
+type View = "write" | "pool" | "echo" | "chat" | "settings";
 type Attachment = { name: string; type: string; data: string };
 type Entry = {
   id: number;
@@ -20,6 +20,20 @@ type Entry = {
 type Draft = { title: string; content: string; tags: string[]; aiLink: boolean };
  type SavedDraft = { text: string; attachments: Attachment[]; organize: boolean; link: boolean; updatedAt: string };
  const DRAFT_KEY = "huiye-writing-draft-v1";
+ const PROMPT_KEY = "huiye-organization-prompt-v1";
+ const DEFAULT_ORGANIZE_PROMPT = `你是“回页”的轻量整理助手。
+
+你的职责是降低用户未来回看日记时的管理成本和阅读成本。你不是作者、导师、心理咨询师或总结者；你不替用户思考，不替用户下结论。
+
+用户原文是唯一事实来源。原文优先；整理稿必须尽可能保留用户原本的表达、语气、顺序与思考轨迹。AI 应该尽量隐形。
+
+任务：为未命名或标题过于通用的记录提供建议标题；生成一份最小整理稿；提供 0–3 个标签建议。
+
+不得添加原文中不存在的事实、因果、案例、动机、结论、建议或技术细节；不得删除有信息或思考价值的句子；不得改变原文推理顺序；不得消除犹豫、保留意见、括号、疑问、矛盾、跳跃、未完成句或自我提醒；不得将并列想法强行组织成完整论证；不得进行心理分析、人格判断、价值评判、鼓励式总结或温情化表达。
+
+不得使用“总结”“启示”“核心结论”“建议”“为什么”等自行创造的概念性小标题。仅允许分段与留白、修正明显错别字或标点、把原文明确并列内容变为列表，以及将用户原本已有的转折词、例子提示、拆解词或延伸词单独成行作为轻微阅读锚点。不得自行创造锚点。
+
+如果用户已有明确标题，原样保留；“未命名记录”“快速记录”等通用标题视为无标题。标签必须来自原文明确出现或可直接对应的具体概念；最多 3 个；不确定时宁可少给。`;
 
 const seedEntries: Entry[] = [
   { id: 1, date: "4月12日 · 22:18", title: "为什么知道方法，却还是迟迟不开始？", content: "读到“行动会反过来塑造动机”时有点疑惑。如果目标已经足够清楚，为什么我还是会拖延？现在猜测是任务拆得不够小，但还没有真实验证。", tags: ["阅读思考", "待验证"], source: "《行动的勇气》· 手写导入", aiLink: true, status: "open" },
@@ -81,6 +95,8 @@ export default function Home() {
   const [text, setText] = useState("");
   const [pendingDraft, setPendingDraft] = useState<SavedDraft | null>(null);
   const [draftReady, setDraftReady] = useState(false);
+  const [organizePrompt, setOrganizePrompt] = useState(DEFAULT_ORGANIZE_PROMPT);
+  const [promptReady, setPromptReady] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [organize, setOrganize] = useState(true);
   const [link, setLink] = useState(true);
@@ -121,7 +137,11 @@ export default function Home() {
       else localStorage.removeItem(DRAFT_KEY);
     } catch { /* Draft storage is best effort when attachments are too large. */ }
   }, [text, attachments, organize, link, draftReady, pendingDraft]);
-  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 30_000); return () => window.clearInterval(timer); }, []);
+  useEffect(() => {
+    try { const savedPrompt = localStorage.getItem(PROMPT_KEY); if (savedPrompt) setOrganizePrompt(savedPrompt); } catch { /* Keep the default prompt. */ }
+    setPromptReady(true);
+  }, []);
+  useEffect(() => { if (promptReady) localStorage.setItem(PROMPT_KEY, organizePrompt); }, [organizePrompt, promptReady]);  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 30_000); return () => window.clearInterval(timer); }, []);
 
   const filtered = useMemo(() => entries.filter(entry => `${entry.title}${entry.content}${entry.tags.join("")}`.toLowerCase().includes(search.toLowerCase())), [entries, search]);
   const selected = entries.find(entry => entry.id === selectedId) ?? null;
@@ -160,7 +180,7 @@ export default function Home() {
       const response = await fetch("/api/organize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: entry?.title || "", content: original }),
+        body: JSON.stringify({ title: entry?.title || "", content: original, systemPrompt: organizePrompt }),
       });
       const result = await response.json() as { title?: string; content?: string; tags?: string[]; error?: string };
       if (!response.ok || !result.content) throw new Error(result.error || "AI 整理暂时没有完成，请稍后再试。");
@@ -233,7 +253,7 @@ export default function Home() {
   }
 
   return <main className="app-shell">
-    <aside className="sidebar"><div className="brand"><span className="brand-mark">回</span><span>回页<small>让思考继续生长</small></span></div><nav>{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><i>{item.icon}</i>{item.label}{item.id === "echo" && <b>1</b>}</button>)}</nav><div className="side-bottom"><button onClick={() => { setExportIds([]); setExportOpen(true); }}><i>↓</i>导出 Markdown</button><div className="privacy"><span>◉</span><div><strong>内容保存在此设备</strong><small>你始终拥有原文与控制权</small></div></div></div></aside>
+    <aside className="sidebar"><div className="brand"><span className="brand-mark">回</span><span>回页<small>让思考继续生长</small></span></div><nav>{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><i>{item.icon}</i>{item.label}{item.id === "echo" && <b>1</b>}</button>)}</nav><div className="side-bottom"><button onClick={() => setView("settings")}><i>⚙</i>设置</button><button onClick={() => { setExportIds([]); setExportOpen(true); }}><i>↓</i>导出 Markdown</button><div className="privacy"><span>◉</span><div><strong>内容保存在此设备</strong><small>你始终拥有原文与控制权</small></div></div></div></aside>
     <section className="content">
       <header className="mobile-head"><div className="brand"><span className="brand-mark">回</span><span>回页</span></div><button onClick={() => setView("pool")}>日记池</button></header>
       {view === "write" && <div className="page write-page" style={{ maxWidth: 960, paddingTop: 44, transform: `translateY(-${Math.min(190, Math.max(0, writeLines - 5) * 20)}px)`, transition: "transform .28s ease" }}>
@@ -244,7 +264,7 @@ export default function Home() {
         <div className="save-row"><span>{link ? "这篇记录可能在未来回应你" : "这篇记录不会进入 AI 的关联范围"}</span><button className="primary" onClick={() => organize ? beginReview() : (setReviewOriginal(originalToSave), saveEntry(false))}>保存这篇记录 <b>→</b></button></div>
       </div>}
       {view === "pool" && <div className="page pool-page"><div className="page-title"><div><div className="eyebrow">你的思考原野</div><h1>日记池</h1><p className="lead">不用维护文件夹。所有记录都在这里，安静地等待再次被需要。</p></div><button className="primary small" onClick={() => setView("write")}>＋ 写一篇</button></div><div className="search"><span>⌕</span><input placeholder="搜索一个词、一段记忆或一个问题…" value={search} onChange={event => setSearch(event.target.value)} /></div><div className="filter-row"><button className="selected">全部 {entries.length}</button><button>未闭合 {entries.filter(entry => entry.status === "open").length}</button><button>已有回响 {entries.filter(entry => entry.status === "echoed").length}</button></div><div className="entry-grid">{filtered.map(entry => <article className="entry" key={entry.id} onClick={() => openEntry(entry)} onKeyDown={event => { if (event.key === "Enter") openEntry(entry); }} role="button" tabIndex={0}><div className="entry-meta"><span>{formatTimestamp(entry, now)}</span><span>{entry.aiLink ? "✦ 可关联" : "○ 私密"}</span></div><h3>{entry.title}</h3><p>{entry.content}</p><div className="entry-foot"><span>{entry.source}{entry.attachments?.length ? ` · ${entry.attachments.length} 张图` : ""}</span><div>{entry.tags.map(tag => <b key={tag}>{tag}</b>)}</div></div></article>)}</div></div>}
-      {view === "echo" && <div className="page echo-page"><div className="eyebrow">AI 的一声轻轻提醒</div><h1>一个旧问题，似乎有了新答案</h1><p className="lead">我没有急着替你下结论，只是把三段相隔数月的思考放在了一起。</p><div className="echo-card"><div className="echo-top"><span className="spark large">✦</span><div><small>思考回环 · 跨越 91 天</small><h2>“为什么知道方法，却还是迟迟不开始？”</h2></div></div><div className="timeline"><div><time>4月12日</time><article><b>过去的疑问</b><p>目标已经足够清楚，为什么我还是会拖延？</p><small>来自《行动的勇气》手写笔记</small></article></div><div><time>5月3日</time><article><b>真实反馈</b><p>卡住自己的不是任务大小，而是害怕别人看到不成熟。</p><small>来自工作复盘</small></article></div><div className="now"><time>今天</time><article><b>新的理解</b><p>先做出可以被讨论的版本，反馈本身也是思考的一部分。</p><small>来自作品集记录</small></article></div></div><div className="gentle-question"><span>AI 轻轻问</span><p>这一次真正发生变化的，是你使用的方法，还是你对“不成熟”的接受程度？</p><button onClick={() => { setView("chat"); sendChat("我想继续聊聊这段变化"); }}>沿着它继续想想 →</button></div></div></div>}
+      {view === "settings" && <div className="page settings-page"><div className="eyebrow">回页如何整理你的文字</div><h1>设置</h1><p className="lead">这条规则只保存在当前设备，并只影响之后你主动发起的 AI 整理。原文和已经接受的整理稿不会被自动改变。</p><section className="prompt-card"><div><h2>AI 整理规则</h2><p>你可以修改它；越具体，AI 越知道该如何克制。</p></div><textarea value={organizePrompt} onChange={event => setOrganizePrompt(event.target.value)} aria-label="AI 整理规则" /><div className="prompt-actions"><small>已自动保存在此设备</small><button type="button" onClick={() => { setOrganizePrompt(DEFAULT_ORGANIZE_PROMPT); notify("已恢复默认整理规则"); }}>恢复默认</button></div></section></div>}      {view === "echo" && <div className="page echo-page"><div className="eyebrow">AI 的一声轻轻提醒</div><h1>一个旧问题，似乎有了新答案</h1><p className="lead">我没有急着替你下结论，只是把三段相隔数月的思考放在了一起。</p><div className="echo-card"><div className="echo-top"><span className="spark large">✦</span><div><small>思考回环 · 跨越 91 天</small><h2>“为什么知道方法，却还是迟迟不开始？”</h2></div></div><div className="timeline"><div><time>4月12日</time><article><b>过去的疑问</b><p>目标已经足够清楚，为什么我还是会拖延？</p><small>来自《行动的勇气》手写笔记</small></article></div><div><time>5月3日</time><article><b>真实反馈</b><p>卡住自己的不是任务大小，而是害怕别人看到不成熟。</p><small>来自工作复盘</small></article></div><div className="now"><time>今天</time><article><b>新的理解</b><p>先做出可以被讨论的版本，反馈本身也是思考的一部分。</p><small>来自作品集记录</small></article></div></div><div className="gentle-question"><span>AI 轻轻问</span><p>这一次真正发生变化的，是你使用的方法，还是你对“不成熟”的接受程度？</p><button onClick={() => { setView("chat"); sendChat("我想继续聊聊这段变化"); }}>沿着它继续想想 →</button></div></div></div>}
       {view === "chat" && <div className="page chat-page"><div className="eyebrow">带着过去，聊聊现在</div><h1>和 AI 聊聊</h1><p className="lead">AI 只会引用你允许关联的记录，并告诉你它从哪里找到这些内容。</p><div className="chat-box">{messages.length === 0 ? <div className="chat-empty"><span className="orb">✦</span><h2>现在有什么想理一理的吗？</h2><p>不必组织语言。你可以从眼前的困惑开始。</p><div className="prompts"><button onClick={() => sendChat("我以前思考过拖延这件事吗？")}>我以前思考过拖延这件事吗？</button><button onClick={() => sendChat("最近的我，有什么变化？")}>最近的我，有什么变化？</button></div></div> : <div className="messages">{messages.map((message, index) => <div key={index} className={`message ${message.role}`}><span>{message.role === "ai" ? "回页" : "我"}</span><p>{message.text}</p>{message.role === "ai" && <div className="sources">引用了 3 篇你允许关联的记录 · 可查看原文</div>}</div>)}</div>}<div className="chat-input"><textarea value={chatInput} onChange={event => setChatInput(event.target.value)} placeholder="从一个念头开始…" onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendChat(); } }} /><button onClick={() => sendChat()}>↑</button></div></div></div>}
       <nav className="mobile-nav">{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><i>{item.icon}</i><span>{item.label}</span></button>)}</nav>
     </section>
