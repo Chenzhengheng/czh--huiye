@@ -113,10 +113,11 @@ function Toggle({ checked, onChange, label, hint }: { checked: boolean; onChange
 }
 
 function renderInline(value: string): ReactNode[] {
-  const tokens = value.split(/(\*\*[^*]+\*\*|~~[^~]+~~|`[^`]+`|\[[^\]]+\]\([^\)]+\)|\*[^*]+\*)/g);
+  const tokens = value.split(/(\*\*[^*]+\*\*|~~[^~]+~~|<u>[^<]+<\/u>|`[^`]+`|\[[^\]]+\]\([^\)]+\)|\*[^*]+\*)/g);
   return tokens.filter(Boolean).map((token, index) => {
     if (token.startsWith("**") && token.endsWith("**")) return <strong key={index}>{token.slice(2, -2)}</strong>;
     if (token.startsWith("~~") && token.endsWith("~~")) return <del key={index}>{token.slice(2, -2)}</del>;
+    if (token.startsWith("<u>") && token.endsWith("</u>")) return <u key={index}>{token.slice(3, -4)}</u>;
     if (token.startsWith("`") && token.endsWith("`")) return <code key={index}>{token.slice(1, -1)}</code>;
     if (token.startsWith("*") && token.endsWith("*")) return <em key={index}>{token.slice(1, -1)}</em>;
     const link = token.match(/^\[([^\]]+)\]\(([^\)]+)\)$/);
@@ -141,10 +142,10 @@ function Markdown({ content, className = "" }: { content: string; className?: st
       if (index < lines.length) index += 1;
       blocks.push(<pre key={`code-${index}`}><code>{code.join("\n")}</code></pre>); continue;
     }
-    const alignment = line.match(/^:::align-(left|center|right)$/);
+    const alignment = line.match(/^<div align="(left|center|right)">$/);
     if (alignment) {
       const aligned: string[] = []; index += 1;
-      while (index < lines.length && lines[index] !== ":::") aligned.push(lines[index++]);
+      while (index < lines.length && lines[index] !== "</div>") aligned.push(lines[index++]);
       if (index < lines.length) index += 1;
       blocks.push(<div key={`align-${index}`} className={`markdown-align-${alignment[1]}`}><Markdown content={aligned.join("\n")} /></div>); continue;
     }    const heading = line.match(/^(#{1,6})\s+(.+)$/);
@@ -186,8 +187,8 @@ function markdownPreviewText(value: string) {
     .replace(/^\s*[-*+]\s+/gm, "")
     .replace(/^\s*\d+\.\s+/gm, "")
     .replace(/^>\s?/gm, "")
-    .replace(/^:::align-(left|center|right)$/gm, "")
-    .replace(/^:::$/gm, "")
+    .replace(/^<div align="(left|center|right)">$/gm, "")
+    .replace(/^<\/div>$/gm, "")
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
     .replace(/[*`_]/g, "")
     .replace(/\n+/g, " ")
@@ -241,6 +242,8 @@ export default function Home() {
   const [now, setNow] = useState(() => Date.now());
   const fileRef = useRef<HTMLInputElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
+  const paperRef = useRef<HTMLDivElement>(null);
+  const [selectionMenu, setSelectionMenu] = useState({ visible: false, left: 20, top: 14 });
 
   useEffect(() => {
     const saved = localStorage.getItem("ai-diary-entries");
@@ -298,13 +301,23 @@ export default function Home() {
   const closeEdit = () => { setSelectedId(null); setEdit(null); setOriginalEdit(""); setShowOriginal(false); setPreviewMarkdown(false); };
   const originalToSave = text.trim() || "今天有一些还没整理好的想法，先把它留在这里。";
 
+  function showSelectionMenu(clientX?: number, clientY?: number) {
+    const input = textRef.current;
+    const paper = paperRef.current;
+    if (!input || input.selectionStart === input.selectionEnd) { setSelectionMenu(current => ({ ...current, visible: false })); return; }
+    const bounds = paper?.getBoundingClientRect();
+    const left = bounds && clientX ? Math.max(18, Math.min(clientX - bounds.left - 150, bounds.width - 314)) : 20;
+    const top = bounds && clientY ? Math.max(10, Math.min(clientY - bounds.top - 54, bounds.height - 48)) : 14;
+    setSelectionMenu({ visible: true, left, top });
+  }
+  function hideSelectionMenu() { setSelectionMenu(current => ({ ...current, visible: false })); }
   function replaceSelection(before: string, after = before, fallback = "文字") {
     const input = textRef.current;
     const start = input?.selectionStart ?? text.length;
     const end = input?.selectionEnd ?? text.length;
     const selected = text.slice(start, end) || fallback;
     const next = `${text.slice(0, start)}${before}${selected}${after}${text.slice(end)}`;
-    setText(next);
+    setText(next); hideSelectionMenu();
     window.requestAnimationFrame(() => { input?.focus(); input?.setSelectionRange(start + before.length, start + before.length + selected.length); });
   }
   function prefixSelectedLines(prefix: string, fallback = "文字") {
@@ -313,12 +326,11 @@ export default function Home() {
     const end = input?.selectionEnd ?? text.length;
     const selected = text.slice(start, end) || fallback;
     const next = `${text.slice(0, start)}${selected.split("\n").map(line => `${prefix}${line}`).join("\n")}${text.slice(end)}`;
-    setText(next);
+    setText(next); hideSelectionMenu();
     window.requestAnimationFrame(() => { input?.focus(); input?.setSelectionRange(start, start + prefix.length + selected.length); });
   }
   function alignSelection(alignment: "left" | "center" | "right") {
-    if (alignment === "left") return;
-    replaceSelection(`:::align-${alignment}\n`, "\n:::", "把这一段放在这里");
+    replaceSelection(`<div align="${alignment}">\n`, "\n</div>", "把这一段放在这里");
   }
   async function pasteText() {
     try { const clipboard = await navigator.clipboard.readText(); if (!clipboard) return notify("剪贴板里没有文字"); setText(current => current + (current ? "\n" : "") + clipboard); notify("已粘贴剪贴板文字"); }
@@ -472,14 +484,15 @@ export default function Home() {
     <section className="content">
       <header className="mobile-head"><div className="brand"><span className="brand-mark">回</span><span>回页</span></div><button onClick={() => setView("pool")}>日记池</button></header>
       {view === "write" && <div className="page write-page" style={{ maxWidth: 960, paddingTop: 44, transform: `translateY(-${Math.min(190, Math.max(0, writeLines - 5) * 20)}px)`, transition: "transform .28s ease" }}>
-        <div className="eyebrow">2026 年 7 月 17 日 · 星期五</div><h1>此刻，想留下什么？</h1><p className="lead">先写下来。标题与格式，都可以在文字里慢慢长出来。</p>{continuingEntry && <div className="continuation-hint">沿着《{continuingEntry.title}》继续写</div>}
-        <div className="paper paper-with-toolbar" style={{ height: writeRows * 41 + (writeLines < 15 ? 108 : 150), overflowY: "hidden", transition: "height .28s ease" }}>
-          <div className="write-format-bar" aria-label="格式工具栏"><div className="format-group"><button type="button" title="标题" onClick={() => prefixSelectedLines("# ", "标题")}>T</button><button type="button" title="小标题" onClick={() => prefixSelectedLines("## ", "小标题")}>T₂</button></div><div className="format-group"><button type="button" title="加粗" onClick={() => replaceSelection("**")}>B</button><button type="button" title="斜体" onClick={() => replaceSelection("*")}>I</button><button type="button" title="删除线" onClick={() => replaceSelection("~~")}>S</button></div><div className="format-group"><button type="button" title="引用" onClick={() => prefixSelectedLines("> ")}>❝</button><button type="button" title="无序列表" onClick={() => prefixSelectedLines("- ")}>•</button></div><div className="format-group align-tools"><button type="button" title="左对齐" onClick={() => alignSelection("left")}>≡</button><button type="button" title="居中" onClick={() => alignSelection("center")}>≡</button><button type="button" title="右对齐" onClick={() => alignSelection("right")}>≡</button></div></div>
-          <textarea ref={textRef} style={{ paddingBottom: writeLines >= 15 ? 72 : 0, overflowY: writeLines >= 15 ? "auto" : "hidden" }} value={text} onChange={event => setText(event.target.value)} placeholder="一个疑问、一段推理，或只是此刻不想忘记的感受……" autoFocus />
-          <div className="paper-tools"><span>{text.length} 字 · {attachments.length} 张图片 · Markdown</span><div><button onClick={pasteText}>粘贴</button><button onClick={() => fileRef.current?.click()}>＋ 手写 / 图片</button><input ref={fileRef} hidden type="file" accept="image/*" multiple onChange={event => { addFiles(event.target.files); event.target.value = ""; }} /></div></div>
+        <div className="eyebrow">2026 年 7 月 17 日 · 星期五</div><h1>此刻，想留下什么？</h1><p className="lead">不用想标题，也不用急着归类。先写下来就好。</p>{continuingEntry && <div className="continuation-hint">沿着《{continuingEntry.title}》继续写</div>}
+        <div ref={paperRef} className="paper" style={{ height: writeRows * 41 + (writeLines < 15 ? 58 : 100), overflowY: "hidden", transition: "height .28s ease" }}>
+          <textarea ref={textRef} style={{ paddingBottom: writeLines >= 15 ? 72 : 0, overflowY: writeLines >= 15 ? "auto" : "hidden" }} value={text} onChange={event => setText(event.target.value)} onMouseUp={event => showSelectionMenu(event.clientX, event.clientY)} onKeyUp={() => showSelectionMenu()} onBlur={() => window.setTimeout(hideSelectionMenu, 120)} placeholder="一个疑问、一段推理，或只是此刻不想忘记的感受……" autoFocus />
+          {selectionMenu.visible && <div className="selection-format-menu" style={{ left: selectionMenu.left, top: selectionMenu.top }} onMouseDown={event => event.preventDefault()}><button type="button" title="标题" onClick={() => prefixSelectedLines("# ", "标题")}>T</button><button type="button" title="小标题" onClick={() => prefixSelectedLines("## ", "小标题")}>T₂</button><i /><button type="button" title="加粗" onClick={() => replaceSelection("**")}>B</button><button type="button" title="斜体" onClick={() => replaceSelection("*")}>I</button><button type="button" title="删除线" onClick={() => replaceSelection("~~")}>S</button><button type="button" title="下划线" onClick={() => replaceSelection("<u>", "</u>")}>U</button><i /><button type="button" title="引用" onClick={() => prefixSelectedLines("> ")}>❝</button><button type="button" title="列表" onClick={() => prefixSelectedLines("- ")}>•</button><button type="button" title="居中" onClick={() => alignSelection("center")}>≡</button></div>}
+          <div className="paper-tools"><span>{text.length} 字 · {attachments.length} 张图片 · 支持 Markdown</span><div><button onClick={pasteText}>粘贴</button><button onClick={() => fileRef.current?.click()}>＋ 手写 / 图片</button><input ref={fileRef} hidden type="file" accept="image/*" multiple onChange={event => { addFiles(event.target.files); event.target.value = ""; }} /></div></div>
         </div>
         {attachments.length > 0 && <div className="attachment-row">{attachments.map((attachment, index) => <div key={`${attachment.name}-${index}`}><img src={attachment.data} alt={attachment.name} /><button onClick={() => setAttachments(current => current.filter((_, itemIndex) => itemIndex !== index))}>×</button></div>)}</div>}
-        <div className="save-row"><span>原文会直接保存；回响会在之后安静发生。</span><button className="primary" onClick={() => saveEntry(false, text)}>保存这篇记录 <b>→</b></button></div>
+        <div className="write-link-control"><Toggle checked={link} onChange={() => setLink(!link)} label="允许 AI 关联" hint="未来回响或对话中，它才可能被带回来" /></div>
+        <div className="save-row"><span>{link ? "这篇记录可能在未来回应你" : "这篇记录不会进入回响范围"}</span><button className="primary" onClick={() => saveEntry(false, text)}>保存这篇记录 <b>→</b></button></div>
       </div>}      {view === "pool" && <div className="page pool-page"><div className="page-title"><div><div className="eyebrow">你的思考原野</div><h1>日记池</h1><p className="lead">不用维护文件夹。所有记录都在这里，安静地等待再次被需要。</p></div><button className="primary small" onClick={() => setView("write")}>＋ 写一篇</button></div><div className="search"><span>⌕</span><input placeholder="搜索一个词、一段记忆或一个问题…" value={search} onChange={event => setSearch(event.target.value)} /></div><div className="filter-row"><button className="selected">全部 {entries.length}</button><button>未闭合 {entries.filter(entry => entry.status === "open").length}</button><button>已有回响 {entries.filter(entry => entry.status === "echoed").length}</button></div><div className="entry-grid">{filtered.map(entry => <article className="entry" key={entry.id} onClick={() => openEntry(entry)} onKeyDown={event => { if (event.key === "Enter") openEntry(entry); }} role="button" tabIndex={0}><div className="entry-meta"><span>{formatTimestamp(entry, now)}</span><span>{entry.aiLink ? "✦ 可关联" : "○ 私密"}</span></div><h3>{entry.title}</h3><p className="entry-preview">{markdownPreviewText(entry.content)}</p><div className="entry-foot"><span>{entry.source}{entry.attachments?.length ? ` · ${entry.attachments.length} 张图` : ""}</span><div>{entry.tags.map(tag => <b key={tag}>{tag}</b>)}</div></div></article>)}</div></div>}
       {view === "settings" && <div className="page settings-page"><div className="eyebrow">回页如何整理你的文字</div><h1>设置</h1><p className="lead">这条规则只保存在当前设备，并只影响之后你主动发起的 AI 整理。原文和已经接受的整理稿不会被自动改变。</p><section className="prompt-card"><div><h2>AI 整理规则</h2><p>你可以修改它；越具体，AI 越知道该如何克制。</p></div><textarea value={organizePrompt} onChange={event => setOrganizePrompt(event.target.value)} aria-label="AI 整理规则" /><div className="prompt-actions"><small>已自动保存在此设备</small><button type="button" onClick={() => { setOrganizePrompt(DEFAULT_ORGANIZE_PROMPT); notify("已恢复默认整理规则"); }}>恢复默认</button></div></section><section className="prompt-example"><details><summary>整理样例：保留思考，给它留出呼吸</summary><div className="example-grid"><div><small>整理前 · 完整原文</small><pre>{ORGANIZATION_SAMPLE.original}</pre></div><div><small>整理后 · 完整样例</small><h3>{ORGANIZATION_SAMPLE.title}</h3><pre>{ORGANIZATION_SAMPLE.content}</pre><b>标签：{ORGANIZATION_SAMPLE.tags.join("、")}</b></div></div><p className="example-note">它不替你补结论；只识别原文已有的推理转折，并让你日后更容易重新进入。</p></details></section><section className="example-library"><details><summary>样例库 · {organizationExamples.filter(item => item.kind !== "needs_work").length} 个好样例 · {organizationExamples.filter(item => item.kind === "needs_work").length} 个待改</summary><p>当你觉得某次整理真正保留了你的思考，或明确哪里不对，都可以在整理页标题区的「···」里记录。它只保存在当前设备；未来调 prompt 或换模型时，用它们逐篇对照，而不是偷偷混进每一次日记整理。</p>{organizationExamples.length === 0 ? <small>还没有收藏的样例。</small> : <div className="saved-examples">{organizationExamples.map(item => <details className="saved-example" key={item.id}><summary>{item.title || "未命名记录"} · {new Date(item.createdAt).toLocaleDateString("zh-CN")}</summary><div className="example-grid"><div><small>原文</small><pre>{item.original}</pre></div><div><small>{item.kind === "needs_work" ? `待改：${item.reason || "未说明"}` : "你认可的整理稿"}</small><h3>{item.title}</h3><pre>{item.content}</pre><b>标签：{item.tags.join("、") || "无"}</b></div></div><button type="button" onClick={() => setOrganizationExamples(current => current.filter(example => example.id !== item.id))}>移出样例库</button></details>)}</div>}</details></section></div>}      {view === "echo" && <div className="page echo-page">
         <div className="eyebrow">过去的思考，会在这里安静等待</div>
