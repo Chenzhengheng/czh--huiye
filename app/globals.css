@@ -29,3 +29,7 @@
 .rich-editor:empty:before{pointer-events:none}.rich-editor[contenteditable="true"]{cursor:text}
 /* Restore the approved writing rhythm: three blank lines, then growth, then scroll. */
 .rich-editor{overflow-y:hidden;font-family:inherit;font-weight:400}.rich-editor div,.rich-editor p{margin:0;min-height:0;line-height:2.55}.rich-editor h1,.rich-editor h2{font-family:inherit;font-weight:500}
+/* Paper calibration: characters sit on the ruled baseline. */
+.rich-paper{padding-top:14px}.rich-editor{line-height:41px}.rich-editor div,.rich-editor p{line-height:41px;min-height:41px}.rich-editor h1{line-height:41px}.rich-editor h2{line-height:41px}
+/* Diary pool: each thought gets the same quiet visual weight. */
+.entry{min-height:218px;display:flex;flex-direction:column}.entry h3{margin:14px 0 8px;font-size:15px;line-height:1.55;font-weight:500;letter-spacing:.01em}.entry p{margin:0;font-size:12px;line-height:1.78}.entry-foot{margin-top:auto;padding-top:16px}
