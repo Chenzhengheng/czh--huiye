@@ -16,13 +16,17 @@ type Entry = {
   aiLink: boolean;
   status?: "open" | "echoed";
   attachments?: Attachment[];
+  continuesFrom?: number;
 };
 type Draft = { title: string; content: string; tags: string[]; aiLink: boolean };
 type OrganizationExample = { id: number; original: string; title: string; content: string; tags: string[]; prompt: string; createdAt: string; kind?: "good" | "needs_work"; reason?: string };
  type SavedDraft = { text: string; attachments: Attachment[]; organize: boolean; link: boolean; updatedAt: string };
+type Echo = { id: string; currentEntryId: number; previousEntryId: number; quote: string; reason: string; createdAt: string; status: "pending" | "opened" | "continued" | "irrelevant" };
  const DRAFT_KEY = "huiye-writing-draft-v1";
  const PROMPT_KEY = "huiye-organization-prompt-v1";
  const EXAMPLES_KEY = "huiye-organization-examples-v1";
+ const ECHOES_KEY = "huiye-thought-echoes-v1";
+ const ECHO_CHECKS_KEY = "huiye-echo-checked-entries-v1";
  const DEFAULT_ORGANIZE_PROMPT = `你是“回页”的轻量整理助手。
 
 你的职责是降低用户未来回看日记时的管理成本和阅读成本。你不是作者、导师、心理咨询师或总结者；你不替用户思考，不替用户下结论。
@@ -194,6 +198,12 @@ export default function Home() {
   const [organizePrompt, setOrganizePrompt] = useState(DEFAULT_ORGANIZE_PROMPT);
   const [promptReady, setPromptReady] = useState(false);
   const [organizationExamples, setOrganizationExamples] = useState<OrganizationExample[]>([]);
+  const [echoes, setEchoes] = useState<Echo[]>([]);
+  const [echoesReady, setEchoesReady] = useState(false);
+  const [echoCheckedIds, setEchoCheckedIds] = useState<number[]>([]);
+  const [echoChecksReady, setEchoChecksReady] = useState(false);
+  const [echoLoading, setEchoLoading] = useState(false);
+  const [continuingFrom, setContinuingFrom] = useState<number | null>(null);
   const [examplesReady, setExamplesReady] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [issueOptionsOpen, setIssueOptionsOpen] = useState(false);
@@ -247,10 +257,21 @@ export default function Home() {
     try { const savedExamples = localStorage.getItem(EXAMPLES_KEY); if (savedExamples) setOrganizationExamples(JSON.parse(savedExamples) as OrganizationExample[]); } catch { /* Ignore a broken local sample library. */ }
     setExamplesReady(true);
   }, []);
-  useEffect(() => { if (examplesReady) localStorage.setItem(EXAMPLES_KEY, JSON.stringify(organizationExamples)); }, [organizationExamples, examplesReady]);  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 30_000); return () => window.clearInterval(timer); }, []);
+  useEffect(() => { if (examplesReady) localStorage.setItem(EXAMPLES_KEY, JSON.stringify(organizationExamples)); }, [organizationExamples, examplesReady]);  useEffect(() => {
+    try { const saved = localStorage.getItem(ECHOES_KEY); if (saved) setEchoes(JSON.parse(saved) as Echo[]); } catch { /* Ignore a broken echo cache. */ }
+    setEchoesReady(true);
+  }, []);
+  useEffect(() => { if (echoesReady) localStorage.setItem(ECHOES_KEY, JSON.stringify(echoes)); }, [echoes, echoesReady]);
+  useEffect(() => {
+    try { const saved = localStorage.getItem(ECHO_CHECKS_KEY); if (saved) setEchoCheckedIds(JSON.parse(saved) as number[]); } catch { /* Ignore a broken recall-check cache. */ }
+    setEchoChecksReady(true);
+  }, []);
+  useEffect(() => { if (echoChecksReady) localStorage.setItem(ECHO_CHECKS_KEY, JSON.stringify(echoCheckedIds)); }, [echoCheckedIds, echoChecksReady]);  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 30_000); return () => window.clearInterval(timer); }, []);
 
   const filtered = useMemo(() => entries.filter(entry => `${entry.title}${entry.content}${entry.tags.join("")}`.toLowerCase().includes(search.toLowerCase())), [entries, search]);
-  const selected = entries.find(entry => entry.id === selectedId) ?? null;
+  const selected = entries.find(entry => entry.id === selectedId) ?? null;  const pendingEcho = useMemo(() => echoes.filter(echo => echo.status === "pending").sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ?? null, [echoes]);
+  const echoedEntry = pendingEcho ? entries.find(entry => entry.id === pendingEcho.previousEntryId) ?? null : null;
+  const continuingEntry = continuingFrom ? entries.find(entry => entry.id === continuingFrom) ?? null : null;
   const writeLines = visualLineCount(text);
   const writeRows = Math.min(15, Math.max(6, writeLines + 3));
   const editLines = visualLineCount(showOriginal ? originalEdit : (edit?.content || ""), 55);
@@ -305,6 +326,36 @@ export default function Home() {
     setText(pendingDraft.text); setAttachments(pendingDraft.attachments || []); setOrganize(pendingDraft.organize); setLink(pendingDraft.link); setPendingDraft(null); notify("已恢复刚才的记录");
   }
   function discardDraft() { localStorage.removeItem(DRAFT_KEY); setPendingDraft(null); notify("已丢弃未保存的记录"); }
+  async function prepareEcho(entry: Entry, catalogue: Entry[]) {
+    if (!entry.aiLink || echoCheckedIds.includes(entry.id)) return;
+    const candidates = catalogue.filter(item => item.id !== entry.id && item.aiLink && (item.originalContent || item.content).trim()).slice(0, 18);
+    setEchoCheckedIds(current => current.includes(entry.id) ? current : [...current, entry.id]);
+    if (!candidates.length) return;
+    setEchoLoading(true);
+    try {
+      const response = await fetch("/api/recall", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          current: { id: entry.id, title: entry.title, content: entry.originalContent || entry.content, createdAt: entry.createdAt, date: entry.date },
+          candidates: candidates.map(item => ({ id: item.id, title: item.title, content: item.originalContent || item.content, createdAt: item.createdAt, date: item.date })),
+        }),
+      });
+      const result = await response.json() as { echo?: { candidateId: number; quote: string; reason: string } | null };
+      if (!response.ok || !result.echo) return;
+      const previous = candidates.find(item => item.id === result.echo?.candidateId);
+      if (!previous || !(previous.originalContent || previous.content).includes(result.echo.quote)) return;
+      const echo: Echo = { id: `${entry.id}-${previous.id}`, currentEntryId: entry.id, previousEntryId: previous.id, quote: result.echo.quote, reason: result.echo.reason, createdAt: new Date().toISOString(), status: "pending" };
+      setEchoes(current => current.some(item => item.id === echo.id) ? current : [echo, ...current]);
+    } catch { /* Recall is intentionally silent; the saved diary remains unaffected. */ }
+    finally { setEchoLoading(false); }
+  }
+
+  useEffect(() => {
+    if (view !== "echo" || !echoesReady || !echoChecksReady || echoLoading) return;
+    const latestAllowed = entries.find(entry => entry.aiLink);
+    if (latestAllowed && !echoCheckedIds.includes(latestAllowed.id)) void prepareEcho(latestAllowed, entries);
+  }, [view, entries, echoesReady, echoChecksReady, echoCheckedIds, echoLoading]);
 
   function saveOrganizationExample(kind: "good" | "needs_work" = "good", reason?: string) {
     if (!reviewOriginal.trim() || !review.content.trim()) return;
@@ -339,6 +390,7 @@ export default function Home() {
       aiLink: useAi ? review.aiLink : link,
       status: useAi ? "open" : undefined,
       attachments,
+      continuesFrom: continuingFrom ?? undefined,
     };
     setEntries(current => [entry, ...current]);
     setText(""); setAttachments([]); setStage("idle");
@@ -379,18 +431,23 @@ export default function Home() {
   }
 
   return <main className="app-shell">
-    <aside className="sidebar"><div className="brand"><span className="brand-mark">回</span><span>回页<small>让思考继续生长</small></span></div><nav>{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><i>{item.icon}</i>{item.label}{item.id === "echo" && <b>1</b>}</button>)}</nav><div className="side-bottom"><button onClick={() => setView("settings")}><i>⚙</i>设置</button><button onClick={() => { setExportIds([]); setExportOpen(true); }}><i>↓</i>导出 Markdown</button><div className="privacy"><span>◉</span><div><strong>内容保存在此设备</strong><small>你始终拥有原文与控制权</small></div></div></div></aside>
+    <aside className="sidebar"><div className="brand"><span className="brand-mark">回</span><span>回页<small>让思考继续生长</small></span></div><nav>{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><i>{item.icon}</i>{item.label}{item.id === "echo" && echoes.filter(echo => echo.status === "pending").length > 0 && <b>{echoes.filter(echo => echo.status === "pending").length}</b>}</button>)}</nav><div className="side-bottom"><button onClick={() => setView("settings")}><i>⚙</i>设置</button><button onClick={() => { setExportIds([]); setExportOpen(true); }}><i>↓</i>导出 Markdown</button><div className="privacy"><span>◉</span><div><strong>内容保存在此设备</strong><small>你始终拥有原文与控制权</small></div></div></div></aside>
     <section className="content">
       <header className="mobile-head"><div className="brand"><span className="brand-mark">回</span><span>回页</span></div><button onClick={() => setView("pool")}>日记池</button></header>
       {view === "write" && <div className="page write-page" style={{ maxWidth: 960, paddingTop: 44, transform: `translateY(-${Math.min(190, Math.max(0, writeLines - 5) * 20)}px)`, transition: "transform .28s ease" }}>
-        <div className="eyebrow">2026 年 7 月 17 日 · 星期五</div><h1>此刻，想留下什么？</h1><p className="lead">不用想标题，也不用急着归类。先写下来就好。</p>
+        <div className="eyebrow">2026 年 7 月 17 日 · 星期五</div><h1>此刻，想留下什么？</h1><p className="lead">不用想标题，也不用急着归类。先写下来就好。</p>{continuingEntry && <div className="continuation-hint">沿着《{continuingEntry.title}》继续写</div>}
         <div className="paper" style={{ height: writeRows * 41 + (writeLines < 15 ? 58 : 100), overflowY: "hidden", transition: "height .28s ease" }}><textarea style={{ paddingBottom: writeLines >= 15 ? 72 : 0, overflowY: writeLines >= 15 ? "auto" : "hidden" }} value={text} onChange={event => setText(event.target.value)} placeholder="一个疑问、一段推理，或只是此刻不想忘记的感受……" autoFocus /><div className="paper-tools"><span>{text.length} 字 · {attachments.length} 张图片 · 支持 Markdown</span><div><button onClick={pasteText}>粘贴</button><button onClick={() => fileRef.current?.click()}>＋ 手写 / 图片</button><input ref={fileRef} hidden type="file" accept="image/*" multiple onChange={event => { addFiles(event.target.files); event.target.value = ""; }} /></div></div></div>
         {attachments.length > 0 && <div className="attachment-row">{attachments.map((attachment, index) => <div key={`${attachment.name}-${index}`}><img src={attachment.data} alt={attachment.name} /><button onClick={() => setAttachments(current => current.filter((_, itemIndex) => itemIndex !== index))}>×</button></div>)}</div>}
         <div className="ai-controls"><div className="controls-copy"><span className="spark">✦</span><div><strong>让 AI 在你允许的范围内帮忙</strong><small>两个选项彼此独立，也可以随时更改默认偏好。</small></div></div><div className="toggle-list"><Toggle checked={organize} onChange={() => setOrganize(!organize)} label="AI 帮我整理" hint="调整格式、生成标题，原文永远保留" /><Toggle checked={link} onChange={() => setLink(!link)} label="允许 AI 关联" hint="未来对话中，可找回这篇记录" /></div></div>
         <div className="save-row"><span>{link ? "这篇记录可能在未来回应你" : "这篇记录不会进入 AI 的关联范围"}</span><button className="primary" onClick={() => organize ? beginReview() : saveEntry(false, text)}>保存这篇记录 <b>→</b></button></div>
       </div>}
       {view === "pool" && <div className="page pool-page"><div className="page-title"><div><div className="eyebrow">你的思考原野</div><h1>日记池</h1><p className="lead">不用维护文件夹。所有记录都在这里，安静地等待再次被需要。</p></div><button className="primary small" onClick={() => setView("write")}>＋ 写一篇</button></div><div className="search"><span>⌕</span><input placeholder="搜索一个词、一段记忆或一个问题…" value={search} onChange={event => setSearch(event.target.value)} /></div><div className="filter-row"><button className="selected">全部 {entries.length}</button><button>未闭合 {entries.filter(entry => entry.status === "open").length}</button><button>已有回响 {entries.filter(entry => entry.status === "echoed").length}</button></div><div className="entry-grid">{filtered.map(entry => <article className="entry" key={entry.id} onClick={() => openEntry(entry)} onKeyDown={event => { if (event.key === "Enter") openEntry(entry); }} role="button" tabIndex={0}><div className="entry-meta"><span>{formatTimestamp(entry, now)}</span><span>{entry.aiLink ? "✦ 可关联" : "○ 私密"}</span></div><h3>{entry.title}</h3><p className="entry-preview">{markdownPreviewText(entry.content)}</p><div className="entry-foot"><span>{entry.source}{entry.attachments?.length ? ` · ${entry.attachments.length} 张图` : ""}</span><div>{entry.tags.map(tag => <b key={tag}>{tag}</b>)}</div></div></article>)}</div></div>}
-      {view === "settings" && <div className="page settings-page"><div className="eyebrow">回页如何整理你的文字</div><h1>设置</h1><p className="lead">这条规则只保存在当前设备，并只影响之后你主动发起的 AI 整理。原文和已经接受的整理稿不会被自动改变。</p><section className="prompt-card"><div><h2>AI 整理规则</h2><p>你可以修改它；越具体，AI 越知道该如何克制。</p></div><textarea value={organizePrompt} onChange={event => setOrganizePrompt(event.target.value)} aria-label="AI 整理规则" /><div className="prompt-actions"><small>已自动保存在此设备</small><button type="button" onClick={() => { setOrganizePrompt(DEFAULT_ORGANIZE_PROMPT); notify("已恢复默认整理规则"); }}>恢复默认</button></div></section><section className="prompt-example"><details><summary>整理样例：保留思考，给它留出呼吸</summary><div className="example-grid"><div><small>整理前 · 完整原文</small><pre>{ORGANIZATION_SAMPLE.original}</pre></div><div><small>整理后 · 完整样例</small><h3>{ORGANIZATION_SAMPLE.title}</h3><pre>{ORGANIZATION_SAMPLE.content}</pre><b>标签：{ORGANIZATION_SAMPLE.tags.join("、")}</b></div></div><p className="example-note">它不替你补结论；只识别原文已有的推理转折，并让你日后更容易重新进入。</p></details></section><section className="example-library"><details><summary>样例库 · {organizationExamples.filter(item => item.kind !== "needs_work").length} 个好样例 · {organizationExamples.filter(item => item.kind === "needs_work").length} 个待改</summary><p>当你觉得某次整理真正保留了你的思考，或明确哪里不对，都可以在整理页标题区的「···」里记录。它只保存在当前设备；未来调 prompt 或换模型时，用它们逐篇对照，而不是偷偷混进每一次日记整理。</p>{organizationExamples.length === 0 ? <small>还没有收藏的样例。</small> : <div className="saved-examples">{organizationExamples.map(item => <details className="saved-example" key={item.id}><summary>{item.title || "未命名记录"} · {new Date(item.createdAt).toLocaleDateString("zh-CN")}</summary><div className="example-grid"><div><small>原文</small><pre>{item.original}</pre></div><div><small>{item.kind === "needs_work" ? `待改：${item.reason || "未说明"}` : "你认可的整理稿"}</small><h3>{item.title}</h3><pre>{item.content}</pre><b>标签：{item.tags.join("、") || "无"}</b></div></div><button type="button" onClick={() => setOrganizationExamples(current => current.filter(example => example.id !== item.id))}>移出样例库</button></details>)}</div>}</details></section></div>}      {view === "echo" && <div className="page echo-page"><div className="eyebrow">AI 的一声轻轻提醒</div><h1>一个旧问题，似乎有了新答案</h1><p className="lead">我没有急着替你下结论，只是把三段相隔数月的思考放在了一起。</p><div className="echo-card"><div className="echo-top"><span className="spark large">✦</span><div><small>思考回环 · 跨越 91 天</small><h2>“为什么知道方法，却还是迟迟不开始？”</h2></div></div><div className="timeline"><div><time>4月12日</time><article><b>过去的疑问</b><p>目标已经足够清楚，为什么我还是会拖延？</p><small>来自《行动的勇气》手写笔记</small></article></div><div><time>5月3日</time><article><b>真实反馈</b><p>卡住自己的不是任务大小，而是害怕别人看到不成熟。</p><small>来自工作复盘</small></article></div><div className="now"><time>今天</time><article><b>新的理解</b><p>先做出可以被讨论的版本，反馈本身也是思考的一部分。</p><small>来自作品集记录</small></article></div></div><div className="gentle-question"><span>AI 轻轻问</span><p>这一次真正发生变化的，是你使用的方法，还是你对“不成熟”的接受程度？</p><button onClick={() => { setView("chat"); sendChat("我想继续聊聊这段变化"); }}>沿着它继续想想 →</button></div></div></div>}
+      {view === "settings" && <div className="page settings-page"><div className="eyebrow">回页如何整理你的文字</div><h1>设置</h1><p className="lead">这条规则只保存在当前设备，并只影响之后你主动发起的 AI 整理。原文和已经接受的整理稿不会被自动改变。</p><section className="prompt-card"><div><h2>AI 整理规则</h2><p>你可以修改它；越具体，AI 越知道该如何克制。</p></div><textarea value={organizePrompt} onChange={event => setOrganizePrompt(event.target.value)} aria-label="AI 整理规则" /><div className="prompt-actions"><small>已自动保存在此设备</small><button type="button" onClick={() => { setOrganizePrompt(DEFAULT_ORGANIZE_PROMPT); notify("已恢复默认整理规则"); }}>恢复默认</button></div></section><section className="prompt-example"><details><summary>整理样例：保留思考，给它留出呼吸</summary><div className="example-grid"><div><small>整理前 · 完整原文</small><pre>{ORGANIZATION_SAMPLE.original}</pre></div><div><small>整理后 · 完整样例</small><h3>{ORGANIZATION_SAMPLE.title}</h3><pre>{ORGANIZATION_SAMPLE.content}</pre><b>标签：{ORGANIZATION_SAMPLE.tags.join("、")}</b></div></div><p className="example-note">它不替你补结论；只识别原文已有的推理转折，并让你日后更容易重新进入。</p></details></section><section className="example-library"><details><summary>样例库 · {organizationExamples.filter(item => item.kind !== "needs_work").length} 个好样例 · {organizationExamples.filter(item => item.kind === "needs_work").length} 个待改</summary><p>当你觉得某次整理真正保留了你的思考，或明确哪里不对，都可以在整理页标题区的「···」里记录。它只保存在当前设备；未来调 prompt 或换模型时，用它们逐篇对照，而不是偷偷混进每一次日记整理。</p>{organizationExamples.length === 0 ? <small>还没有收藏的样例。</small> : <div className="saved-examples">{organizationExamples.map(item => <details className="saved-example" key={item.id}><summary>{item.title || "未命名记录"} · {new Date(item.createdAt).toLocaleDateString("zh-CN")}</summary><div className="example-grid"><div><small>原文</small><pre>{item.original}</pre></div><div><small>{item.kind === "needs_work" ? `待改：${item.reason || "未说明"}` : "你认可的整理稿"}</small><h3>{item.title}</h3><pre>{item.content}</pre><b>标签：{item.tags.join("、") || "无"}</b></div></div><button type="button" onClick={() => setOrganizationExamples(current => current.filter(example => example.id !== item.id))}>移出样例库</button></details>)}</div>}</details></section></div>}      {view === "echo" && <div className="page echo-page">
+        <div className="eyebrow">过去的思考，会在这里安静等待</div>
+        <h1>回响</h1>
+        <p className="lead">{echoLoading ? "正在安静地看看，过去有没有一段思考值得带回来。" : pendingEcho ? "一段旧思考，或许正值得你再看一眼。" : "这里不追求每天都有答案。没有足够相关的记忆时，回页会保持安静。"}</p>
+        {echoLoading ? <div className="echo-empty"><span className="orb pulse">✦</span><p>只会带回一段有证据的旧思考。</p></div> : pendingEcho && echoedEntry ? <div className="echo-card real-echo"><div className="echo-top"><span className="spark large">✦</span><div><small>{formatTimestamp(echoedEntry, now)} · {echoedEntry.source}</small><h2>{echoedEntry.title === "未命名记录" ? "一段旧思考" : echoedEntry.title}</h2></div></div><div className="echo-quote"><Markdown content={pendingEcho.quote} /></div><div className="echo-reason"><span>为什么在这里</span><p>{pendingEcho.reason}</p></div><div className="echo-actions"><button onClick={() => { setEchoes(current => current.map(echo => echo.id === pendingEcho.id ? { ...echo, status: "opened" } : echo)); openEntry(echoedEntry); }}>打开看看</button><button className="primary" onClick={() => { setEchoes(current => current.map(echo => echo.id === pendingEcho.id ? { ...echo, status: "continued" } : echo)); setContinuingFrom(echoedEntry.id); setText(""); setView("write"); notify("从这段旧思考旁边，继续写下去吧"); }}>沿着它继续写</button><button className="quiet" onClick={() => { setEchoes(current => current.map(echo => echo.id === pendingEcho.id ? { ...echo, status: "irrelevant" } : echo)); notify("记下了：这次不再把它带回来"); }}>这次无关</button></div></div> : <div className="echo-empty"><span className="orb">✦</span><h2>先让思考沉一沉</h2><p>{entries.filter(entry => entry.aiLink).length < 2 ? "至少留下两篇允许关联的记录后，回页才有机会找到它们之间的联系。" : "当新的思考与过去真正相遇时，它会在这里等你。"}</p></div>}
+      </div>}
       {view === "chat" && <div className="page chat-page"><div className="eyebrow">带着过去，聊聊现在</div><h1>和 AI 聊聊</h1><p className="lead">AI 只会引用你允许关联的记录，并告诉你它从哪里找到这些内容。</p><div className="chat-box">{messages.length === 0 ? <div className="chat-empty"><span className="orb">✦</span><h2>现在有什么想理一理的吗？</h2><p>不必组织语言。你可以从眼前的困惑开始。</p><div className="prompts"><button onClick={() => sendChat("我以前思考过拖延这件事吗？")}>我以前思考过拖延这件事吗？</button><button onClick={() => sendChat("最近的我，有什么变化？")}>最近的我，有什么变化？</button></div></div> : <div className="messages">{messages.map((message, index) => <div key={index} className={`message ${message.role}`}><span>{message.role === "ai" ? "回页" : "我"}</span><p>{message.text}</p>{message.role === "ai" && <div className="sources">引用了 3 篇你允许关联的记录 · 可查看原文</div>}</div>)}</div>}<div className="chat-input"><textarea value={chatInput} onChange={event => setChatInput(event.target.value)} placeholder="从一个念头开始…" onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendChat(); } }} /><button onClick={() => sendChat()}>↑</button></div></div></div>}
       <nav className="mobile-nav">{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><i>{item.icon}</i><span>{item.label}</span></button>)}</nav>
     </section>

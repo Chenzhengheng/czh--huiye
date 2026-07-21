@@ -99,6 +99,54 @@ async function organizeDiary(request: Request, env: Env): Promise<Response> {
   } catch { return Response.json({ error: "AI 返回了无法读取的结果，请重试。" }, { status: 502 }); }
 }
 
+
+type RecallCandidate = { id: number; title: string; content: string; createdAt?: string; date?: string };
+
+const RECALL_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    should_recall: { type: "boolean" },
+    candidate_id: { type: "string" },
+    quote: { type: "string" },
+    reason: { type: "string" },
+  },
+  required: ["should_recall", "candidate_id", "quote", "reason"],
+};
+
+async function prepareRecall(request: Request, env: Env): Promise<Response> {
+  if (!env.OPENROUTER_API_KEY || !env.OPENROUTER_MODEL) return Response.json({ error: "AI service is not configured." }, { status: 503 });
+  let input: { current?: RecallCandidate; candidates?: RecallCandidate[] };
+  try { input = await request.json(); } catch { return Response.json({ error: "Invalid request." }, { status: 400 }); }
+  const current = input.current;
+  const candidates = (input.candidates || []).filter(candidate => candidate.id !== current?.id && candidate.content?.trim()).slice(0, 18);
+  if (!current?.content?.trim() || !candidates.length) return Response.json({ echo: null });
+
+  const system = `You are the recall gate for a private thinking journal. Decide whether exactly one older note is genuinely useful to bring back after the user has finished writing a new note. Similar keywords are not enough. Return true only when the older note offers a concrete earlier question, assumption, counterexample, condition, or unfinished thread that could help the user think further now. If uncertain, return false. Never make personality claims, life analysis, encouragement, or conclusions. When true, quote one short exact excerpt from the older note only, and provide one restrained Chinese sentence (max 42 Chinese characters) explaining the shared question. The explanation must be supported by both notes. When false, return empty strings for candidate_id, quote, and reason.`;
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${env.OPENROUTER_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: env.OPENROUTER_MODEL,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: JSON.stringify({ current: { ...current, content: current.content.slice(0, 7000) }, candidates: candidates.map(candidate => ({ ...candidate, content: candidate.content.slice(0, 5000) })) }) },
+      ],
+      response_format: { type: "json_schema", json_schema: { name: "journal_recall", strict: true, schema: RECALL_SCHEMA } },
+      provider: { require_parameters: true },
+    }),
+  });
+  if (!response.ok) return Response.json({ error: "Recall was not completed." }, { status: 502 });
+  const result = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+  try {
+    const judged = JSON.parse(result.choices?.[0]?.message?.content || "") as { should_recall: boolean; candidate_id: string; quote: string; reason: string };
+    const candidate = candidates.find(item => String(item.id) === String(judged.candidate_id));
+    const quote = judged.quote?.trim() || "";
+    const reason = judged.reason?.trim().slice(0, 80) || "";
+    if (!judged.should_recall || !candidate || !quote || !candidate.content.includes(quote) || !reason) return Response.json({ echo: null });
+    return Response.json({ echo: { candidateId: candidate.id, quote, reason } });
+  } catch { return Response.json({ error: "Recall result could not be read." }, { status: 502 }); }
+}
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
@@ -115,6 +163,7 @@ const worker = {
     }
 
     if (url.pathname === "/api/organize" && request.method === "POST") return organizeDiary(request, env);
+    if (url.pathname === "/api/recall" && request.method === "POST") return prepareRecall(request, env);
     return handler.fetch(request, env, ctx);
   },
 };
