@@ -180,6 +180,48 @@ function titleFromContent(value: string) {
   const heading = value.split("\n").find(line => /^#\s+/.test(line.trim()));
   return heading ? heading.replace(/^#\s+/, "").trim() || "未命名记录" : "未命名记录";
 }
+function escapeEditorHtml(value: string) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function inlineMarkdownToEditorHtml(value: string) {
+  return escapeEditorHtml(value)
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/~~([^~]+)~~/g, "<s>$1</s>")
+    .replace(/<u>([^<]+)<\/u>/g, "<u>$1</u>")
+    .replace(/\*([^*]+)\*/g, "<em>$1</em>");
+}
+function markdownToEditorHtml(value: string) {
+  if (!value.trim()) return "";
+  return value.replace(/\r\n/g, "\n").split("\n").map(line => {
+    if (/^#\s+/.test(line)) return `<h1>${inlineMarkdownToEditorHtml(line.replace(/^#\s+/, ""))}</h1>`;
+    if (/^##\s+/.test(line)) return `<h2>${inlineMarkdownToEditorHtml(line.replace(/^##\s+/, ""))}</h2>`;
+    if (/^>\s?/.test(line)) return `<blockquote>${inlineMarkdownToEditorHtml(line.replace(/^>\s?/, ""))}</blockquote>`;
+    if (/^-\s+/.test(line)) return `<div>• ${inlineMarkdownToEditorHtml(line.replace(/^-\s+/, ""))}</div>`;
+    return line ? `<div>${inlineMarkdownToEditorHtml(line)}</div>` : "<div><br></div>";
+  }).join("");
+}
+function editorElementToMarkdown(element: HTMLElement) {
+  const read = (node: Node): string => {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent || "";
+    if (node.nodeType !== Node.ELEMENT_NODE) return "";
+    const tag = (node as HTMLElement).tagName;
+    const children = Array.from(node.childNodes).map(read).join("");
+    if (tag === "BR") return "\n";
+    if (tag === "STRONG" || tag === "B") return `**${children}**`;
+    if (tag === "EM" || tag === "I") return `*${children}*`;
+    if (tag === "S" || tag === "STRIKE" || tag === "DEL") return `~~${children}~~`;
+    if (tag === "U") return `<u>${children}</u>`;
+    if (tag === "H1") return `# ${children}\n\n`;
+    if (tag === "H2") return `## ${children}\n\n`;
+    if (tag === "H3") return `### ${children}\n\n`;
+    if (tag === "BLOCKQUOTE") return `> ${children.trim().replace(/\n/g, "\n> ")}\n\n`;
+    if (tag === "LI") return `- ${children.trim()}\n`;
+    if (tag === "UL" || tag === "OL") return `${children}\n`;
+    if (tag === "DIV" || tag === "P") return `${children}\n`;
+    return children;
+  };
+  return Array.from(element.childNodes).map(read).join("").replace(/\n{3,}/g, "\n\n").trim();
+}
 function markdownPreviewText(value: string) {
   return value
     .replace(/```[\s\S]*?```/g, "代码片段")
@@ -241,8 +283,10 @@ export default function Home() {
   const [messages, setMessages] = useState<{ role: "user" | "ai"; text: string }[]>([]);
   const [now, setNow] = useState(() => Date.now());
   const fileRef = useRef<HTMLInputElement>(null);
-  const textRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
   const paperRef = useRef<HTMLDivElement>(null);
+  const [editorInitialHtml, setEditorInitialHtml] = useState("");
+  const [editorVersion, setEditorVersion] = useState(0);
   const [selectionMenu, setSelectionMenu] = useState({ visible: false, left: 20, top: 14 });
 
   useEffect(() => {
@@ -304,40 +348,36 @@ export default function Home() {
   const closeEdit = () => { setSelectedId(null); setEdit(null); setOriginalEdit(""); setShowOriginal(false); setPreviewMarkdown(false); };
   const originalToSave = text.trim() || "今天有一些还没整理好的想法，先把它留在这里。";
 
-  function showSelectionMenu(clientX?: number, clientY?: number) {
-    const input = textRef.current;
+  function syncEditor() {
+    if (editorRef.current) setText(editorElementToMarkdown(editorRef.current));
+  }
+  function resetWritingEditor(markdown = "") {
+    setText(markdown);
+    setEditorInitialHtml(markdownToEditorHtml(markdown));
+    setEditorVersion(current => current + 1);
+    hideSelectionMenu();
+  }
+  function showSelectionMenu() {
+    const selection = window.getSelection();
     const paper = paperRef.current;
-    if (!input || input.selectionStart === input.selectionEnd) { setSelectionMenu(current => ({ ...current, visible: false })); return; }
-    const bounds = paper?.getBoundingClientRect();
-    const left = bounds && clientX ? Math.max(18, Math.min(clientX - bounds.left - 150, bounds.width - 314)) : 20;
-    const top = bounds && clientY ? Math.max(10, Math.min(clientY - bounds.top - 54, bounds.height - 48)) : 14;
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed || !paper) { hideSelectionMenu(); return; }
+    const selectionRect = selection.getRangeAt(0).getBoundingClientRect();
+    const bounds = paper.getBoundingClientRect();
+    const left = Math.max(18, Math.min(selectionRect.left - bounds.left + selectionRect.width / 2 - 150, bounds.width - 314));
+    const top = selectionRect.top - bounds.top - 52;
     setSelectionMenu({ visible: true, left, top });
   }
   function hideSelectionMenu() { setSelectionMenu(current => ({ ...current, visible: false })); }
-  function replaceSelection(before: string, after = before, fallback = "文字") {
-    const input = textRef.current;
-    const start = input?.selectionStart ?? text.length;
-    const end = input?.selectionEnd ?? text.length;
-    const selected = text.slice(start, end) || fallback;
-    const next = `${text.slice(0, start)}${before}${selected}${after}${text.slice(end)}`;
-    setText(next); hideSelectionMenu();
-    window.requestAnimationFrame(() => { input?.focus(); input?.setSelectionRange(start + before.length, start + before.length + selected.length); });
-  }
-  function prefixSelectedLines(prefix: string, fallback = "文字") {
-    const input = textRef.current;
-    const start = input?.selectionStart ?? text.length;
-    const end = input?.selectionEnd ?? text.length;
-    const selected = text.slice(start, end) || fallback;
-    const next = `${text.slice(0, start)}${selected.split("\n").map(line => `${prefix}${line}`).join("\n")}${text.slice(end)}`;
-    setText(next); hideSelectionMenu();
-    window.requestAnimationFrame(() => { input?.focus(); input?.setSelectionRange(start, start + prefix.length + selected.length); });
-  }
-  function alignSelection(alignment: "left" | "center" | "right") {
-    replaceSelection(`<div align="${alignment}">\n`, "\n</div>", "把这一段放在这里");
+  function applyEditorCommand(command: string, value?: string) {
+    editorRef.current?.focus();
+    document.execCommand(command, false, value);
+    syncEditor(); hideSelectionMenu();
   }
   async function pasteText() {
-    try { const clipboard = await navigator.clipboard.readText(); if (!clipboard) return notify("剪贴板里没有文字"); setText(current => current + (current ? "\n" : "") + clipboard); notify("已粘贴剪贴板文字"); }
-    catch { notify("请在输入框内使用 Ctrl + V 粘贴"); }
+    try {
+      const clipboard = await navigator.clipboard.readText(); if (!clipboard) return notify("剪贴板里没有文字");
+      editorRef.current?.focus(); document.execCommand("insertText", false, clipboard); syncEditor(); notify("已粘贴剪贴板文字");
+    } catch { notify("请在输入框内使用 Ctrl + V 粘贴"); }
   }
 
   function addFiles(files: FileList | null) {
@@ -375,7 +415,7 @@ export default function Home() {
   }
   function restoreDraft() {
     if (!pendingDraft) return;
-    setText(pendingDraft.text); setAttachments(pendingDraft.attachments || []); setOrganize(pendingDraft.organize); setLink(pendingDraft.link); setPendingDraft(null); notify("已恢复刚才的记录");
+    resetWritingEditor(pendingDraft.text); setAttachments(pendingDraft.attachments || []); setOrganize(pendingDraft.organize); setLink(pendingDraft.link); setPendingDraft(null); notify("已恢复刚才的记录");
   }
   function discardDraft() { localStorage.removeItem(DRAFT_KEY); setPendingDraft(null); notify("已丢弃未保存的记录"); }
   async function prepareEcho(entry: Entry, catalogue: Entry[], force = false) {
@@ -450,7 +490,7 @@ export default function Home() {
       continuesFrom: continuingFrom ?? undefined,
     };
     setEntries(current => [entry, ...current]);
-    setText(""); setAttachments([]); setStage("idle");
+    resetWritingEditor(""); setAttachments([]); setStage("idle");
     notify(useAi ? "已保存整理稿，原文也被保留" : "已原样保存");
   }
   function openEntry(entry: Entry) {
@@ -493,12 +533,11 @@ export default function Home() {
       <header className="mobile-head"><div className="brand"><span className="brand-mark">回</span><span>回页</span></div><button onClick={() => setView("pool")}>日记池</button></header>
       {view === "write" && <div className="page write-page" style={{ maxWidth: 960, paddingTop: 44, transform: `translateY(-${Math.min(190, Math.max(0, writeLines - 5) * 20)}px)`, transition: "transform .28s ease" }}>
         <div className="eyebrow">2026 年 7 月 17 日 · 星期五</div><h1>此刻，想留下什么？</h1><p className="lead">不用想标题，也不用急着归类。先写下来就好。</p>{continuingEntry && <div className="continuation-hint">沿着《{continuingEntry.title}》继续写</div>}
-        <div ref={paperRef} className="paper" style={{ height: writeRows * 41 + (writeLines < 15 ? 58 : 100), overflowY: "hidden", transition: "height .28s ease" }}>
-          <textarea ref={textRef} style={{ paddingBottom: writeLines >= 15 ? 72 : 0, overflowY: writeLines >= 15 ? "auto" : "hidden" }} value={text} onChange={event => setText(event.target.value)} onMouseUp={event => showSelectionMenu(event.clientX, event.clientY)} onKeyUp={() => showSelectionMenu()} onBlur={() => window.setTimeout(hideSelectionMenu, 120)} placeholder="一个疑问、一段推理，或只是此刻不想忘记的感受……" autoFocus />
-          {selectionMenu.visible && <div className="selection-format-menu" style={{ left: selectionMenu.left, top: selectionMenu.top }} onMouseDown={event => event.preventDefault()}><button type="button" title="标题" onClick={() => prefixSelectedLines("# ", "标题")}>T</button><button type="button" title="小标题" onClick={() => prefixSelectedLines("## ", "小标题")}>T₂</button><i /><button type="button" title="加粗" onClick={() => replaceSelection("**")}>B</button><button type="button" title="斜体" onClick={() => replaceSelection("*")}>I</button><button type="button" title="删除线" onClick={() => replaceSelection("~~")}>S</button><button type="button" title="下划线" onClick={() => replaceSelection("<u>", "</u>")}>U</button><i /><button type="button" title="引用" onClick={() => prefixSelectedLines("> ")}>❝</button><button type="button" title="列表" onClick={() => prefixSelectedLines("- ")}>•</button><button type="button" title="居中" onClick={() => alignSelection("center")}>≡</button></div>}
+        <div ref={paperRef} className="paper rich-paper" style={{ height: writeRows * 41 + (writeLines < 15 ? 58 : 100), overflow: "visible", transition: "height .28s ease" }}>
+          <div key={editorVersion} ref={editorRef} className="rich-editor" contentEditable suppressContentEditableWarning spellCheck onInput={syncEditor} onMouseUp={showSelectionMenu} onKeyUp={showSelectionMenu} onBlur={() => window.setTimeout(hideSelectionMenu, 120)} data-placeholder="一个疑问、一段推理，或只是此刻不想忘记的感受……" dangerouslySetInnerHTML={{ __html: editorInitialHtml }} />
+          {selectionMenu.visible && <div className="selection-format-menu" style={{ left: selectionMenu.left, top: selectionMenu.top }} onMouseDown={event => event.preventDefault()}><button type="button" title="标题" onClick={() => applyEditorCommand("formatBlock", "H1")}>T</button><button type="button" title="小标题" onClick={() => applyEditorCommand("formatBlock", "H2")}>T₂</button><i /><button type="button" title="加粗" onClick={() => applyEditorCommand("bold")}>B</button><button type="button" title="斜体" onClick={() => applyEditorCommand("italic")}>I</button><button type="button" title="删除线" onClick={() => applyEditorCommand("strikeThrough")}>S</button><button type="button" title="下划线" onClick={() => applyEditorCommand("underline")}>U</button><i /><button type="button" title="引用" onClick={() => applyEditorCommand("formatBlock", "BLOCKQUOTE")}>❝</button><button type="button" title="列表" onClick={() => applyEditorCommand("insertUnorderedList")}>•</button><button type="button" title="居中" onClick={() => applyEditorCommand("justifyCenter")}>≡</button></div>}
           <div className="paper-tools"><span>{text.length} 字 · {attachments.length} 张图片 · 支持 Markdown</span><div><button onClick={pasteText}>粘贴</button><button onClick={() => fileRef.current?.click()}>＋ 手写 / 图片</button><input ref={fileRef} hidden type="file" accept="image/*" multiple onChange={event => { addFiles(event.target.files); event.target.value = ""; }} /></div></div>
-        </div>
-        {attachments.length > 0 && <div className="attachment-row">{attachments.map((attachment, index) => <div key={`${attachment.name}-${index}`}><img src={attachment.data} alt={attachment.name} /><button onClick={() => setAttachments(current => current.filter((_, itemIndex) => itemIndex !== index))}>×</button></div>)}</div>}
+        </div>        {attachments.length > 0 && <div className="attachment-row">{attachments.map((attachment, index) => <div key={`${attachment.name}-${index}`}><img src={attachment.data} alt={attachment.name} /><button onClick={() => setAttachments(current => current.filter((_, itemIndex) => itemIndex !== index))}>×</button></div>)}</div>}
         <div className="write-link-control"><Toggle checked={link} onChange={() => setLink(!link)} label="允许 AI 关联" hint="未来回响或对话中，它才可能被带回来" /></div>
         <div className="save-row"><span>{link ? "这篇记录可能在未来回应你" : "这篇记录不会进入回响范围"}</span><button className="primary" onClick={() => saveEntry(false, text)}>保存这篇记录 <b>→</b></button></div>
       </div>}      {view === "pool" && <div className="page pool-page"><div className="page-title"><div><div className="eyebrow">你的思考原野</div><h1>日记池</h1><p className="lead">不用维护文件夹。所有记录都在这里，安静地等待再次被需要。</p></div><button className="primary small" onClick={() => setView("write")}>＋ 写一篇</button></div><div className="search"><span>⌕</span><input placeholder="搜索一个词、一段记忆或一个问题…" value={search} onChange={event => setSearch(event.target.value)} /></div><div className="filter-row"><button className="selected">全部 {entries.length}</button><button>未闭合 {entries.filter(entry => entry.status === "open").length}</button><button>已有回响 {entries.filter(entry => entry.status === "echoed").length}</button></div><div className="entry-grid">{filtered.map(entry => <article className="entry" key={entry.id} onClick={() => openEntry(entry)} onKeyDown={event => { if (event.key === "Enter") openEntry(entry); }} role="button" tabIndex={0}><div className="entry-meta"><span>{formatTimestamp(entry, now)}</span><span>{entry.aiLink ? "✦ 可关联" : "○ 私密"}</span></div><h3>{entry.title}</h3><p className="entry-preview">{markdownPreviewText(entry.content)}</p><div className="entry-foot"><span>{entry.source}{entry.attachments?.length ? ` · ${entry.attachments.length} 张图` : ""}</span><div>{entry.tags.map(tag => <b key={tag}>{tag}</b>)}</div></div></article>)}</div></div>}
@@ -506,7 +545,7 @@ export default function Home() {
         <div className="eyebrow">过去的思考，会在这里安静等待</div>
         <h1>回响</h1>
         <p className="lead">{echoLoading ? "正在安静地看看，过去有没有一段思考值得带回来。" : visibleEcho ? (visibleEcho.status === "pending" ? "一段旧思考，或许正值得你再看一眼。" : "你最近看过的一段回响，仍留在这里。") : "这里不追求每天都有答案。没有足够相关的记忆时，回页会保持安静。"}</p>
-        {echoLoading ? <div className="echo-empty"><span className="orb pulse">✦</span><p>只会带回一段有证据的旧思考。</p></div> : visibleEcho && echoedEntry ? <div className="echo-card real-echo"><div className="echo-top"><span className="spark large">✦</span><div><small>{formatTimestamp(echoedEntry, now)} · {echoedEntry.source}{visibleEcho.status !== "pending" ? " · 已看过" : ""}</small><h2>{echoedEntry.title === "未命名记录" ? "一段旧思考" : echoedEntry.title}</h2></div></div><div className="echo-quote"><Markdown content={visibleEcho.quote} /></div><div className="echo-reason"><span>为什么在这里</span><p>{visibleEcho.reason}</p>{echoSourceEntry && <p className="echo-connection">它是在你写下《{echoSourceEntry.title === "未命名记录" ? "一段新思考" : echoSourceEntry.title}》之后，被带回来的。</p>}</div><div className="echo-actions"><button onClick={() => { setEchoes(current => current.map(echo => echo.id === visibleEcho.id ? { ...echo, status: "opened" } : echo)); openEntry(echoedEntry); }}>打开看看</button><button className="primary" onClick={() => { setEchoes(current => current.map(echo => echo.id === visibleEcho.id ? { ...echo, status: "continued" } : echo)); setContinuingFrom(echoedEntry.id); setText(""); setView("write"); notify("从这段旧思考旁边，继续写下去吧"); }}>沿着它继续写</button><button className="quiet" onClick={() => { setEchoes(current => current.map(echo => echo.id === visibleEcho.id ? { ...echo, status: "irrelevant" } : echo)); notify("记下了：这次不再把它带回来"); }}>这次无关</button></div></div> : <div className="echo-empty"><span className="orb">✦</span><h2>先让思考沉一沉</h2><p>{entries.filter(entry => entry.aiLink).length < 2 ? "至少留下两篇允许关联的记录后，回页才有机会找到它们之间的联系。" : "当新的思考与过去真正相遇时，它会在这里等你。"}</p>{entries.filter(entry => entry.aiLink).length >= 2 && <button className="echo-recheck" onClick={reconsiderLatestEcho}>重新看看最近的思考</button>}</div>}
+        {echoLoading ? <div className="echo-empty"><span className="orb pulse">✦</span><p>只会带回一段有证据的旧思考。</p></div> : visibleEcho && echoedEntry ? <div className="echo-card real-echo"><div className="echo-top"><span className="spark large">✦</span><div><small>{formatTimestamp(echoedEntry, now)} · {echoedEntry.source}{visibleEcho.status !== "pending" ? " · 已看过" : ""}</small><h2>{echoedEntry.title === "未命名记录" ? "一段旧思考" : echoedEntry.title}</h2></div></div><div className="echo-quote"><Markdown content={visibleEcho.quote} /></div><div className="echo-reason"><span>为什么在这里</span><p>{visibleEcho.reason}</p>{echoSourceEntry && <p className="echo-connection">它是在你写下《{echoSourceEntry.title === "未命名记录" ? "一段新思考" : echoSourceEntry.title}》之后，被带回来的。</p>}</div><div className="echo-actions"><button onClick={() => { setEchoes(current => current.map(echo => echo.id === visibleEcho.id ? { ...echo, status: "opened" } : echo)); openEntry(echoedEntry); }}>打开看看</button><button className="primary" onClick={() => { setEchoes(current => current.map(echo => echo.id === visibleEcho.id ? { ...echo, status: "continued" } : echo)); setContinuingFrom(echoedEntry.id); resetWritingEditor(""); setView("write"); notify("从这段旧思考旁边，继续写下去吧"); }}>沿着它继续写</button><button className="quiet" onClick={() => { setEchoes(current => current.map(echo => echo.id === visibleEcho.id ? { ...echo, status: "irrelevant" } : echo)); notify("记下了：这次不再把它带回来"); }}>这次无关</button></div></div> : <div className="echo-empty"><span className="orb">✦</span><h2>先让思考沉一沉</h2><p>{entries.filter(entry => entry.aiLink).length < 2 ? "至少留下两篇允许关联的记录后，回页才有机会找到它们之间的联系。" : "当新的思考与过去真正相遇时，它会在这里等你。"}</p>{entries.filter(entry => entry.aiLink).length >= 2 && <button className="echo-recheck" onClick={reconsiderLatestEcho}>重新看看最近的思考</button>}</div>}
       </div>}      {view === "chat" && <div className="page chat-page"><div className="eyebrow">带着过去，聊聊现在</div><h1>和 AI 聊聊</h1><p className="lead">AI 只会引用你允许关联的记录，并告诉你它从哪里找到这些内容。</p><div className="chat-box">{messages.length === 0 ? <div className="chat-empty"><span className="orb">✦</span><h2>现在有什么想理一理的吗？</h2><p>不必组织语言。你可以从眼前的困惑开始。</p><div className="prompts"><button onClick={() => sendChat("我以前思考过拖延这件事吗？")}>我以前思考过拖延这件事吗？</button><button onClick={() => sendChat("最近的我，有什么变化？")}>最近的我，有什么变化？</button></div></div> : <div className="messages">{messages.map((message, index) => <div key={index} className={`message ${message.role}`}><span>{message.role === "ai" ? "回页" : "我"}</span><p>{message.text}</p>{message.role === "ai" && <div className="sources">引用了 3 篇你允许关联的记录 · 可查看原文</div>}</div>)}</div>}<div className="chat-input"><textarea value={chatInput} onChange={event => setChatInput(event.target.value)} placeholder="从一个念头开始…" onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendChat(); } }} /><button onClick={() => sendChat()}>↑</button></div></div></div>}
       <nav className="mobile-nav">{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><i>{item.icon}</i><span>{item.label}</span></button>)}</nav>
     </section>
