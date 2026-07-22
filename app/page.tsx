@@ -8,7 +8,6 @@ type Entry = {
   id: number;
   title: string;
   content: string;
-  originalContent?: string;
   createdAt?: string;
   date?: string;
   tags: string[];
@@ -20,7 +19,8 @@ type Entry = {
 };
 type Draft = { title: string; content: string; tags: string[]; aiLink: boolean };
 type OrganizationExample = { id: number; original: string; title: string; content: string; tags: string[]; prompt: string; createdAt: string; kind?: "good" | "needs_work"; reason?: string };
- type SavedDraft = { text: string; attachments: Attachment[]; organize: boolean; link: boolean; updatedAt: string };
+ type SavedDraft = { text: string; attachments: Attachment[]; link: boolean; updatedAt: string };
+ type HuiyeBackup = { format: "huiye-backup"; version: 1; exportedAt: string; entries: Entry[]; echoes: Echo[]; echoCheckedIds: number[] };
 type Echo = { id: string; currentEntryId: number; previousEntryId: number; quote: string; reason: string; createdAt: string; status: "pending" | "opened" | "continued" | "irrelevant" };
  const DRAFT_KEY = "huiye-writing-draft-v1";
  const PROMPT_KEY = "huiye-organization-prompt-v1";
@@ -283,6 +283,7 @@ export default function Home() {
   const [messages, setMessages] = useState<{ role: "user" | "ai"; text: string }[]>([]);
   const [now, setNow] = useState(() => Date.now());
   const fileRef = useRef<HTMLInputElement>(null);
+  const importRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const paperRef = useRef<HTMLDivElement>(null);
   const [editorInitialHtml, setEditorInitialHtml] = useState("");
@@ -297,7 +298,7 @@ export default function Home() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved) as Entry[];
-        setEntries(parsed.map(entry => entry.date === "刚刚" && !entry.createdAt ? { ...entry, createdAt: new Date().toISOString() } : entry));
+        setEntries(parsed.map(({ originalContent: _legacyOriginal, ...entry }) => !entry.createdAt && entry.date ? { ...entry, createdAt: new Date().toISOString() } : entry));
       } catch { /* Ignore a broken local cache. */ }
     }
   }, []);
@@ -309,7 +310,7 @@ export default function Home() {
   useEffect(() => {
     if (!draftReady || pendingDraft) return;
     try {
-      if (text.trim() || attachments.length) localStorage.setItem(DRAFT_KEY, JSON.stringify({ text, attachments, organize, link, updatedAt: new Date().toISOString() }));
+      if (text.trim() || attachments.length) localStorage.setItem(DRAFT_KEY, JSON.stringify({ text, attachments, link, updatedAt: new Date().toISOString() }));
       else localStorage.removeItem(DRAFT_KEY);
     } catch { /* Draft storage is best effort when attachments are too large. */ }
   }, [text, attachments, organize, link, draftReady, pendingDraft]);
@@ -342,7 +343,7 @@ export default function Home() {
   const continuingEntry = continuingFrom ? entries.find(entry => entry.id === continuingFrom) ?? null : null;
   const writeLines = visualLineCount(text);
   const writeRows = Math.min(15, Math.max(6, writeLines + 3));
-  const editLines = visualLineCount(showOriginal ? originalEdit : (edit?.content || ""), 55);
+  const editLines = visualLineCount(edit?.content || "", 55);
   const editRows = Math.min(15, Math.max(6, editLines + 3));
   const reviewLines = visualLineCount(review.content, 52);
   const reviewRows = Math.min(15, Math.max(5, reviewLines + 3));
@@ -418,12 +419,12 @@ export default function Home() {
   }
   function restoreDraft() {
     if (!pendingDraft) return;
-    resetWritingEditor(pendingDraft.text); setAttachments(pendingDraft.attachments || []); setOrganize(pendingDraft.organize); setLink(pendingDraft.link); setPendingDraft(null); notify("已恢复刚才的记录");
+    resetWritingEditor(pendingDraft.text); setAttachments(pendingDraft.attachments || []); setLink(pendingDraft.link); setPendingDraft(null); notify("已恢复刚才的记录");
   }
   function discardDraft() { localStorage.removeItem(DRAFT_KEY); setPendingDraft(null); notify("已丢弃未保存的记录"); }
   async function prepareEcho(entry: Entry, catalogue: Entry[], force = false) {
     if (!entry.aiLink || (!force && echoCheckedIds.includes(entry.id))) return;
-    const candidates = catalogue.filter(item => item.id !== entry.id && item.aiLink && (item.originalContent || item.content).trim()).slice(0, 18);
+    const candidates = catalogue.filter(item => item.id !== entry.id && item.aiLink && item.content.trim()).slice(0, 18);
     setEchoCheckedIds(current => current.includes(entry.id) ? current : [...current, entry.id]);
     if (!candidates.length) return;
     setEchoLoading(true);
@@ -432,14 +433,14 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          current: { id: entry.id, title: entry.title, content: entry.originalContent || entry.content, createdAt: entry.createdAt, date: entry.date },
-          candidates: candidates.map(item => ({ id: item.id, title: item.title, content: item.originalContent || item.content, createdAt: item.createdAt, date: item.date })),
+          current: { id: entry.id, title: entry.title, content: entry.content, createdAt: entry.createdAt, date: entry.date },
+          candidates: candidates.map(item => ({ id: item.id, title: item.title, content: item.content, createdAt: item.createdAt, date: item.date })),
         }),
       });
       const result = await response.json() as { echo?: { candidateId: number; quote: string; reason: string } | null };
       if (!response.ok || !result.echo) return;
       const previous = candidates.find(item => item.id === result.echo?.candidateId);
-      if (!previous || !(previous.originalContent || previous.content).includes(result.echo.quote)) return;
+      if (!previous || !previous.content.includes(result.echo.quote)) return;
       const echo: Echo = { id: `${entry.id}-${previous.id}`, currentEntryId: entry.id, previousEntryId: previous.id, quote: result.echo.quote, reason: result.echo.reason, createdAt: new Date().toISOString(), status: "pending" };
       setEchoes(current => force ? [echo, ...current.filter(item => item.id !== echo.id)] : (current.some(item => item.id === echo.id) ? current : [echo, ...current]));
     } catch { /* Recall is intentionally silent; the saved diary remains unaffected. */ }
@@ -464,65 +465,73 @@ export default function Home() {
     setFeedbackOpen(false); setIssueOptionsOpen(false);
     notify(kind === "good" ? "已收为好样例，用于之后校准整理规则" : `已记录：${reason}。它会帮助我们守住边界。`);
   }
-  function saveEntry(useAi: boolean, rawText?: string) {
-    if (reviewEntryId !== null && rawText === undefined) {
-      setEntries(current => current.map(entry => {
-        if (entry.id !== reviewEntryId || !useAi) return entry;
-        return { ...entry, title: review.title.trim() || entry.title, content: review.content, tags: review.tags, aiLink: review.aiLink, originalContent: entry.originalContent || entry.content };
-      }));
-      setStage("idle"); setReviewEntryId(null); closeEdit();
-      notify(useAi ? "已保存整理稿，原文也被保留" : "已保留原文");
-      return;
-    }
-    const rawContent = (rawText ?? reviewOriginal).trim();
-    if (!useAi && !rawContent && !attachments.length) {
+  function saveEntry(rawText?: string) {
+    const content = (rawText ?? text).trim();
+    if (!content && !attachments.length) {
       notify("还没有内容可保存");
       return;
     }
     const entry: Entry = {
       id: Date.now(),
       createdAt: new Date().toISOString(),
-      title: useAi ? review.title.trim() || "未命名记录" : titleFromContent(rawContent),
-      content: useAi ? review.content : rawContent,
-      originalContent: useAi ? reviewOriginal : rawContent,
-      tags: useAi ? review.tags : [],
+      title: titleFromContent(content),
+      content,
+      tags: [],
       source: attachments.length ? "图片与快速记录" : "快速记录",
-      aiLink: useAi ? review.aiLink : link,
-      status: useAi ? "open" : undefined,
+      aiLink: link,
       attachments,
       continuesFrom: continuingFrom ?? undefined,
     };
     setEntries(current => [entry, ...current]);
-    resetWritingEditor(""); setAttachments([]); setStage("idle");
-    notify(useAi ? "已保存整理稿，原文也被保留" : "已原样保存");
+    resetWritingEditor(""); setAttachments([]); setContinuingFrom(null);
+    notify("已保存这篇思考");
   }
   function openEntry(entry: Entry) {
     setSelectedId(entry.id);
     setEdit({ title: entry.title, content: entry.content, tags: entry.tags, aiLink: entry.aiLink });
-    setOriginalEdit(entry.originalContent || entry.content);
-    setShowOriginal(false); setPreviewMarkdown(false);
+    setPreviewMarkdown(false);
   }
 
   function saveEdit() {
     if (!selected || !edit) return;
-    setEntries(current => current.map(entry => {
-      if (entry.id !== selected.id) return entry;
-      if (showOriginal) {
-        const preservedOriginal = originalEdit.trim() ? originalEdit : (entry.originalContent || entry.content);
-        return { ...entry, title: edit.title, content: entry.originalContent ? entry.content : preservedOriginal, originalContent: preservedOriginal, tags: edit.tags, aiLink: edit.aiLink };
-      }
-      return { ...entry, ...edit };
-    }));
-    closeEdit(); notify(showOriginal ? "原文修改已保存" : "修改已保存");
-  }
-  function download(list: Entry[], name = "我的回页日记") {
-    if (!list.length) return notify("请先选择要导出的日记");
-    const markdown = list.map(entry => `# ${entry.title}\n\n${formatTimestamp(entry, now)} · ${entry.source}\n\n${entry.content}\n\n${entry.tags.map(tag => `#${tag}`).join(" ")}`).join("\n\n---\n\n");
-    const url = URL.createObjectURL(new Blob([markdown], { type: "text/markdown;charset=utf-8" }));
-    const anchor = document.createElement("a"); anchor.href = url; anchor.download = `${name}.md`; anchor.click(); URL.revokeObjectURL(url);
-    setExportOpen(false); notify(`已导出 ${list.length} 篇日记`);
+    setEntries(current => current.map(entry => entry.id === selected.id ? { ...entry, ...edit } : entry));
+    closeEdit(); notify("已保存修改");
   }
 
+  function triggerDownload(contents: BlobPart, filename: string, type: string) {
+    const url = URL.createObjectURL(new Blob([contents], { type }));
+    const anchor = document.createElement("a");
+    anchor.href = url; anchor.download = filename; anchor.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+  function downloadMarkdown(list: Entry[], name = "我的回页日记") {
+    if (!list.length) return notify("请先选择要导出的思考");
+    const markdown = list.map(entry => "# " + entry.title + "\n\n" + formatTimestamp(entry, now) + " · " + entry.source + "\n\n" + entry.content + "\n\n" + entry.tags.map(tag => "#" + tag).join(" ")).join("\n\n---\n\n");
+    triggerDownload(markdown, name + ".md", "text/markdown;charset=utf-8");
+    setExportOpen(false); notify("已导出 " + list.length + " 篇思考");
+  }
+  function downloadBackup() {
+    const backup: HuiyeBackup = { format: "huiye-backup", version: 1, exportedAt: new Date().toISOString(), entries, echoes, echoCheckedIds };
+    triggerDownload(JSON.stringify(backup, null, 2), "回页-完整备份-" + new Date().toISOString().slice(0, 10) + ".json", "application/json;charset=utf-8");
+    setExportOpen(false); notify("已导出完整备份");
+  }
+  async function importBackup(file?: File) {
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text()) as HuiyeBackup;
+      if (parsed.format !== "huiye-backup" || parsed.version !== 1 || !Array.isArray(parsed.entries)) throw new Error("这不是回页的完整备份文件");
+      if (!window.confirm("导入 " + parsed.entries.length + " 篇思考？这会替换当前设备上的日记与回响记录。")) return;
+      const restored = parsed.entries.map(({ originalContent: _legacyOriginal, ...entry }) => entry);
+      setEntries(restored);
+      setEchoes(Array.isArray(parsed.echoes) ? parsed.echoes : []);
+      setEchoCheckedIds(Array.isArray(parsed.echoCheckedIds) ? parsed.echoCheckedIds : []);
+      notify("已恢复 " + restored.length + " 篇思考");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "导入失败，请选择回页导出的 JSON 备份");
+    } finally {
+      if (importRef.current) importRef.current.value = "";
+    }
+  }
   function sendChat(preset?: string) {
     const question = preset || chatInput.trim();
     if (!question) return;
@@ -531,7 +540,7 @@ export default function Home() {
   }
 
   return <main className="app-shell">
-    <aside className="sidebar"><div className="brand"><span className="brand-mark">回</span><span>回页<small>让思考继续生长</small></span></div><nav>{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><i>{item.icon}</i>{item.label}{item.id === "echo" && echoes.filter(echo => echo.status === "pending").length > 0 && <b>{echoes.filter(echo => echo.status === "pending").length}</b>}</button>)}</nav><div className="side-bottom"><button onClick={() => setView("settings")}><i>⚙</i>设置</button><button onClick={() => { setExportIds([]); setExportOpen(true); }}><i>↓</i>导出 Markdown</button><div className="privacy"><span>◉</span><div><strong>内容保存在此设备</strong><small>你始终拥有原文与控制权</small></div></div></div></aside>
+    <aside className="sidebar"><div className="brand"><span className="brand-mark">回</span><span>回页<small>让思考继续生长</small></span></div><nav>{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><i>{item.icon}</i>{item.label}{item.id === "echo" && echoes.filter(echo => echo.status === "pending").length > 0 && <b>{echoes.filter(echo => echo.status === "pending").length}</b>}</button>)}</nav><div className="side-bottom"><button onClick={() => setView("settings")}><i>⚙</i>设置</button><button onClick={() => { setExportIds([]); setExportOpen(true); }}><i>↓</i>导出 / 导入</button><div className="privacy"><span>◉</span><div><strong>内容保存在此设备</strong><small>你始终拥有原文与控制权</small></div></div></div></aside>
     <section className="content">
       <header className="mobile-head"><div className="brand"><span className="brand-mark">回</span><span>回页</span></div><button onClick={() => setView("pool")}>日记池</button></header>
       {view === "write" && <div className="page write-page" style={{ maxWidth: 960, paddingTop: 44, transform: `translateY(-${Math.min(190, Math.max(0, writeLines - 5) * 20)}px)`, transition: "transform .28s ease" }}>
@@ -542,9 +551,9 @@ export default function Home() {
           <div className="paper-tools"><span>{text.length} 字 · {attachments.length} 张图片 · 支持 Markdown</span><div><button onClick={pasteText}>粘贴</button><button onClick={() => fileRef.current?.click()}>＋ 手写 / 图片</button><input ref={fileRef} hidden type="file" accept="image/*" multiple onChange={event => { addFiles(event.target.files); event.target.value = ""; }} /></div></div>
         </div>        {attachments.length > 0 && <div className="attachment-row">{attachments.map((attachment, index) => <div key={`${attachment.name}-${index}`}><img src={attachment.data} alt={attachment.name} /><button onClick={() => setAttachments(current => current.filter((_, itemIndex) => itemIndex !== index))}>×</button></div>)}</div>}
         <div className="write-link-control"><Toggle checked={link} onChange={() => setLink(!link)} label="允许 AI 关联" hint="未来回响或对话中，它才可能被带回来" /></div>
-        <div className="save-row"><span>{link ? "这篇记录可能在未来回应你" : "这篇记录不会进入回响范围"}</span><button className="primary" onClick={() => saveEntry(false, text)}>保存这篇记录 <b>→</b></button></div>
+        <div className="save-row"><span>{link ? "这篇记录可能在未来回应你" : "这篇记录不会进入回响范围"}</span><button className="primary" onClick={() => saveEntry(text)}>保存这篇记录 <b>→</b></button></div>
       </div>}      {view === "pool" && <div className="page pool-page"><div className="page-title"><div><div className="eyebrow">你的思考原野</div><h1>日记池</h1><p className="lead">不用维护文件夹。所有记录都在这里，安静地等待再次被需要。</p></div><button className="primary small" onClick={() => setView("write")}>＋ 写一篇</button></div><div className="search"><span>⌕</span><input placeholder="搜索一个词、一段记忆或一个问题…" value={search} onChange={event => setSearch(event.target.value)} /></div><div className="filter-row"><button className="selected">全部 {entries.length}</button><button>未闭合 {entries.filter(entry => entry.status === "open").length}</button><button>已有回响 {entries.filter(entry => entry.status === "echoed").length}</button></div><div className="entry-grid">{filtered.map(entry => <article className="entry" key={entry.id} onClick={() => openEntry(entry)} onKeyDown={event => { if (event.key === "Enter") openEntry(entry); }} role="button" tabIndex={0}><div className="entry-meta"><span>{formatTimestamp(entry, now)}</span><span>{entry.aiLink ? "✦ 可关联" : "○ 私密"}</span></div><h3>{entry.title}</h3><p className="entry-preview">{markdownPreviewText(entry.content)}</p><div className="entry-foot"><span>{entry.source}{entry.attachments?.length ? ` · ${entry.attachments.length} 张图` : ""}</span><div>{entry.tags.map(tag => <b key={tag}>{tag}</b>)}</div></div></article>)}</div></div>}
-      {view === "settings" && <div className="page settings-page"><div className="eyebrow">回页如何整理你的文字</div><h1>设置</h1><p className="lead">这条规则只保存在当前设备，并只影响之后你主动发起的 AI 整理。原文和已经接受的整理稿不会被自动改变。</p><section className="prompt-card"><div><h2>AI 整理规则</h2><p>你可以修改它；越具体，AI 越知道该如何克制。</p></div><textarea value={organizePrompt} onChange={event => setOrganizePrompt(event.target.value)} aria-label="AI 整理规则" /><div className="prompt-actions"><small>已自动保存在此设备</small><button type="button" onClick={() => { setOrganizePrompt(DEFAULT_ORGANIZE_PROMPT); notify("已恢复默认整理规则"); }}>恢复默认</button></div></section><section className="prompt-example"><details><summary>整理样例：保留思考，给它留出呼吸</summary><div className="example-grid"><div><small>整理前 · 完整原文</small><pre>{ORGANIZATION_SAMPLE.original}</pre></div><div><small>整理后 · 完整样例</small><h3>{ORGANIZATION_SAMPLE.title}</h3><pre>{ORGANIZATION_SAMPLE.content}</pre><b>标签：{ORGANIZATION_SAMPLE.tags.join("、")}</b></div></div><p className="example-note">它不替你补结论；只识别原文已有的推理转折，并让你日后更容易重新进入。</p></details></section><section className="example-library"><details><summary>样例库 · {organizationExamples.filter(item => item.kind !== "needs_work").length} 个好样例 · {organizationExamples.filter(item => item.kind === "needs_work").length} 个待改</summary><p>当你觉得某次整理真正保留了你的思考，或明确哪里不对，都可以在整理页标题区的「···」里记录。它只保存在当前设备；未来调 prompt 或换模型时，用它们逐篇对照，而不是偷偷混进每一次日记整理。</p>{organizationExamples.length === 0 ? <small>还没有收藏的样例。</small> : <div className="saved-examples">{organizationExamples.map(item => <details className="saved-example" key={item.id}><summary>{item.title || "未命名记录"} · {new Date(item.createdAt).toLocaleDateString("zh-CN")}</summary><div className="example-grid"><div><small>原文</small><pre>{item.original}</pre></div><div><small>{item.kind === "needs_work" ? `待改：${item.reason || "未说明"}` : "你认可的整理稿"}</small><h3>{item.title}</h3><pre>{item.content}</pre><b>标签：{item.tags.join("、") || "无"}</b></div></div><button type="button" onClick={() => setOrganizationExamples(current => current.filter(example => example.id !== item.id))}>移出样例库</button></details>)}</div>}</details></section></div>}      {view === "echo" && <div className="page echo-page">
+      {view === "settings" && <div className="page settings-page"><div className="eyebrow">你的思考，只属于你</div><h1>数据与迁移</h1><p className="lead">回页当前把数据保存在这台设备、这个浏览器里。网址不等于同步；换电脑前，请先导出完整备份。</p><section className="prompt-card"><div><h2>完整备份</h2><p>JSON 会带走每一篇「我的思考」、标签、图片、允许关联的设置、思考线与回响反馈。它是换电脑时用来恢复回页的文件。</p></div><div className="migration-actions"><button className="primary" type="button" onClick={downloadBackup}>导出完整备份</button><button type="button" onClick={() => importRef.current?.click()}>导入完整备份</button><input ref={importRef} hidden type="file" accept="application/json,.json" onChange={event => void importBackup(event.target.files?.[0])} /></div><small>导入会替换当前设备上的日记与回响记录；请先导出一份备份。</small></section><section className="prompt-example"><details><summary>导出 Markdown：用于阅读与归档</summary><p className="example-note">Markdown 会导出你选中的「我的思考」、时间、来源和标签。它适合自己保存、阅读或交给其他工具，但不能恢复回响关系。</p><button className="export-link-button" type="button" onClick={() => { setExportIds(entries.map(entry => entry.id)); setExportOpen(true); }}>选择要导出的思考</button></details></section></div>}      {view === "echo" && <div className="page echo-page">
         <div className="eyebrow">过去的思考，会在这里安静等待</div>
         <h1>回响</h1>
         <p className="lead">{echoLoading ? "正在安静地看看，过去有没有一段思考值得带回来。" : visibleEcho ? (visibleEcho.status === "pending" ? "一段旧思考，或许正值得你再看一眼。" : "你最近看过的一段回响，仍留在这里。") : "这里不追求每天都有答案。没有足够相关的记忆时，回页会保持安静。"}</p>
@@ -553,10 +562,6 @@ export default function Home() {
       <nav className="mobile-nav">{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><i>{item.icon}</i><span>{item.label}</span></button>)}</nav>
     </section>
     {pendingDraft && <div className="modal-back"><div className="draft-restore"><span className="orb">✦</span><small>检测到未保存的记录</small><h2>要继续刚才的思考吗？</h2><p>{pendingDraft.text.trim() ? `${pendingDraft.text.slice(0, 66)}${pendingDraft.text.length > 66 ? "…" : ""}` : "你刚才添加了图片附件。"}</p><div><button onClick={discardDraft}>丢弃</button><button className="primary" onClick={restoreDraft}>恢复记录</button></div></div></div>}
-    {stage === "organizing" && <div className="modal-back"><div className="organizing"><span className="orb pulse">✦</span><h2>AI 正在轻轻整理你的日记</h2><p>原文已经保存，你现在就可以安心离开。</p><div className="progress"><i /></div></div></div>}
-    {stage === "review" && <div className="modal-back"><div className="comparison-modal"><div className="comparison-head"><div><span className="spark">✦</span><div><small>AI 整理完成</small><h2>看看它有没有保留你的原意</h2></div></div><div className="comparison-tools"><div className="feedback-menu"><button type="button" className="feedback-trigger" title="反馈这次整理" aria-label="反馈这次整理" onClick={() => { setFeedbackOpen(!feedbackOpen); setIssueOptionsOpen(false); }}>···</button>{feedbackOpen && <div className="feedback-popover"><button type="button" onClick={() => saveOrganizationExample()}>收为好样例</button><button type="button" onClick={() => setIssueOptionsOpen(!issueOptionsOpen)}>这次不太对</button>{issueOptionsOpen && <div className="issue-options">{["改变了原意", "没有呼吸感", "标题不对", "标签没用", "加了不该加的话"].map(reason => <button type="button" key={reason} onClick={() => saveOrganizationExample("needs_work", reason)}>{reason}</button>)}</div>}</div>}</div><button onClick={() => { setStage("idle"); setReviewEntryId(null); setReviewOriginal(""); setFeedbackOpen(false); setIssueOptionsOpen(false); }}>×</button></div></div><div className="comparison-grid"><section className="comparison-original"><div className="comparison-label"><span>原文</span><small>你的原始记录，不会被改写</small></div><article><Markdown content={reviewOriginal} /></article></section><section className="comparison-suggestion"><div className="comparison-label"><span>整理建议</span><small>可以直接在右侧修改</small></div><label>建议标题</label><input value={review.title} onChange={event => setReview({ ...review, title: event.target.value })} /><label>整理后的正文</label><textarea style={{ height: reviewRows * 31 + (reviewLines < 15 ? 42 : 72), minHeight: 0, overflowY: reviewLines >= 15 ? "auto" : "hidden", paddingBottom: reviewLines >= 15 ? 48 : 12 }} value={review.content} onChange={event => setReview({ ...review, content: event.target.value })} /><label>标签</label><TagEditor tags={review.tags} onChange={tags => setReview({ ...review, tags })} /></section></div><div className="comparison-note">接受整理稿不会覆盖原文；两份内容都会被保留。</div><div className="comparison-actions"><button onClick={() => saveEntry(false)}>保留原文</button><button className="primary" onClick={() => saveEntry(true)}>接受整理稿</button></div></div></div>}
-    {selected && edit && <div className="modal-back" onMouseDown={closeEdit}><div className="review edit-modal" onMouseDown={event => event.stopPropagation()}><div className="review-head"><div><span className="spark">□</span><div><small>{formatTimestamp(selected, now)} · {selected.source}</small><h2>查看与编辑日记</h2></div></div><button onClick={closeEdit}>×</button></div><div className="review-body"><label>标题</label><input value={edit.title} onChange={event => setEdit({ ...edit, title: event.target.value })} /><label>{showOriginal ? "原文" : "正文"}</label><div className="markdown-mode"><span>{previewMarkdown ? "Markdown 预览" : "Markdown 编辑"}</span><button type="button" onClick={() => setPreviewMarkdown(!previewMarkdown)}>{previewMarkdown ? "继续编辑" : "预览 Markdown"}</button></div>{previewMarkdown ? <div className="markdown-preview"><Markdown content={showOriginal ? originalEdit : edit.content} /></div> : <textarea style={{ height: editRows * 29 + (editLines < 15 ? 40 : 70), minHeight: 0, overflowY: editLines >= 15 ? "auto" : "hidden", paddingBottom: editLines >= 15 ? 52 : 11 }} value={showOriginal ? originalEdit : edit.content} onChange={event => showOriginal ? setOriginalEdit(event.target.value) : setEdit({ ...edit, content: event.target.value })} />}<div className="edit-tags-row"><div><label>标签</label><TagEditor tags={edit.tags} onChange={tags => setEdit({ ...edit, tags })} /></div>{selected.originalContent && selected.originalContent !== selected.content && <button type="button" className="original-switch" onClick={() => setShowOriginal(!showOriginal)}>{showOriginal ? "返回整理稿" : "查看原文"}</button>}</div><Toggle checked={edit.aiLink} onChange={() => setEdit({ ...edit, aiLink: !edit.aiLink })} label="允许 AI 关联" hint="关闭后，这篇记录不会参与未来召回" /></div><div className="ai-organize-inline"><button type="button" onClick={() => beginReview(selected)}>{selected.originalContent && selected.originalContent !== selected.content ? "重新整理" : "让 AI 整理"}</button><small>原文会一直保留；只在你点击后发送给 AI。</small></div><div className="review-note">{showOriginal ? "你正在查看原文；可直接修改并保存，整理稿会继续保留。" : selected.originalContent && selected.originalContent !== selected.content ? "原文版本被单独保留，可随时切换查看。" : "当前内容就是原始版本。"}</div><div className="review-actions edit-actions"><button onClick={() => { if (window.confirm(`确定删除《${selected.title}》吗？删除后无法恢复。`)) { setEntries(current => current.filter(entry => entry.id !== selected.id)); closeEdit(); notify("日记已删除"); } }} className="danger">删除日记</button><span><button onClick={() => download([selected], selected.title)}>导出本篇</button><button className="primary" onClick={saveEdit}>保存修改</button></span></div></div></div>}
-    {exportOpen && <div className="modal-back"><div className="review export-modal"><div className="review-head"><div><span className="spark">↓</span><div><small>Markdown 导出</small><h2>选择你想带走的日记</h2></div></div><button onClick={() => setExportOpen(false)}>×</button></div><div className="export-tools"><button onClick={() => setExportIds(entries.map(entry => entry.id))}>全选</button><button onClick={() => setExportIds([])}>清空</button><span>已选 {exportIds.length} 篇</span></div><div className="export-list">{entries.map(entry => <label key={entry.id}><input type="checkbox" checked={exportIds.includes(entry.id)} onChange={() => setExportIds(ids => ids.includes(entry.id) ? ids.filter(id => id !== entry.id) : [...ids, entry.id])} /><span><strong>{entry.title}</strong><small>{formatTimestamp(entry, now)} · {entry.tags.join("、") || "无标签"}</small></span></label>)}</div><div className="review-actions"><button onClick={() => setExportOpen(false)}>取消</button><button className="primary" disabled={!exportIds.length} onClick={() => download(entries.filter(entry => exportIds.includes(entry.id)))}>导出所选</button></div></div></div>}
-    {toast && <div className="toast">✦ {toast}</div>}
+    {selected && edit && <div className="modal-back" onMouseDown={closeEdit}><div className="review edit-modal" onMouseDown={event => event.stopPropagation()}><div className="review-head"><div><span className="spark">□</span><div><small>{formatTimestamp(selected, now)} · {selected.source}</small><h2>查看与编辑思考</h2></div></div><button onClick={closeEdit}>×</button></div><div className="review-body"><label>标题</label><input value={edit.title} onChange={event => setEdit({ ...edit, title: event.target.value })} /><label>正文</label><div className="markdown-mode"><span>{previewMarkdown ? "Markdown 预览" : "Markdown 编辑"}</span><button type="button" onClick={() => setPreviewMarkdown(!previewMarkdown)}>{previewMarkdown ? "继续编辑" : "预览 Markdown"}</button></div>{previewMarkdown ? <div className="markdown-preview"><Markdown content={edit.content} /></div> : <textarea style={{ height: editRows * 29 + (editLines < 15 ? 40 : 70), minHeight: 0, overflowY: editLines >= 15 ? "auto" : "hidden", paddingBottom: editLines >= 15 ? 52 : 11 }} value={edit.content} onChange={event => setEdit({ ...edit, content: event.target.value })} />}<div className="edit-tags-row"><div><label>标签</label><TagEditor tags={edit.tags} onChange={tags => setEdit({ ...edit, tags })} /></div></div><Toggle checked={edit.aiLink} onChange={() => setEdit({ ...edit, aiLink: !edit.aiLink })} label="允许 AI 关联" hint="关闭后，这篇思考不会参与未来召回" /></div><div className="review-note">这里是这篇思考唯一的当前版本；未来回响与导出都会使用它。</div><div className="review-actions edit-actions"><button onClick={() => { if (window.confirm("确定删除《" + selected.title + "》吗？删除后无法恢复。")) { setEntries(current => current.filter(entry => entry.id !== selected.id)); closeEdit(); notify("思考已删除"); } }} className="danger">删除思考</button><span><button onClick={() => downloadMarkdown([selected], selected.title)}>导出本篇</button><button className="primary" onClick={saveEdit}>保存修改</button></span></div></div></div>}    {exportOpen && <div className="modal-back" onMouseDown={() => setExportOpen(false)}><div className="review export-modal" onMouseDown={event => event.stopPropagation()}><div className="review-head"><div><span className="spark">↓</span><div><small>导出思考</small><h2>带走你的记录</h2></div></div><button onClick={() => setExportOpen(false)}>×</button></div><div className="export-tools"><button onClick={() => setExportIds(entries.map(entry => entry.id))}>全选</button><button onClick={() => setExportIds([])}>清空</button><span>已选 {exportIds.length} 篇</span></div><div className="export-list">{entries.map(entry => <label key={entry.id}><input type="checkbox" checked={exportIds.includes(entry.id)} onChange={() => setExportIds(ids => ids.includes(entry.id) ? ids.filter(id => id !== entry.id) : [...ids, entry.id])} /><span><strong>{entry.title}</strong><small>{formatTimestamp(entry, now)} · {entry.tags.join("、") || "无标签"}</small></span></label>)}</div><div className="backup-note">完整备份会保存全部思考、附件、关联许可和回响反馈，可在另一台电脑恢复。</div><div className="review-actions"><button onClick={downloadBackup}>导出完整备份 JSON</button><button className="primary" disabled={!exportIds.length} onClick={() => downloadMarkdown(entries.filter(entry => exportIds.includes(entry.id)))}>导出所选 Markdown</button></div></div></div>}    {toast && <div className="toast">✦ {toast}</div>}
   </main>;
 }
