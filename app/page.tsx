@@ -180,8 +180,8 @@ function Markdown({ content, className = "" }: { content: string; className?: st
   return <div className={`markdown ${className}`}>{blocks}</div>;
 }
 function titleFromContent(value: string) {
-  const heading = value.split("\n").find(line => /^#\s+/.test(line.trim()));
-  return heading ? heading.replace(/^#\s+/, "").trim() || "未命名记录" : "未命名记录";
+  const firstLine = value.replace(/\r\n/g, "\n").split("\n")[0].trim();
+  return Array.from(markdownPreviewText(firstLine)).slice(0, 15).join("") || "未命名记录";
 }
 function escapeEditorHtml(value: string) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -593,7 +593,7 @@ export default function Home() {
         <div ref={paperRef} className="paper rich-paper" style={{ height: writeRows * WRITE_LINE_HEIGHT + (writeLines < WRITE_MAX_LINES ? 58 : 100), overflow: "visible", transition: "height .28s ease" }}>
           <div key={editorVersion} ref={editorRef} className="rich-editor" style={{ paddingBottom: writeLines >= WRITE_MAX_LINES ? 72 : 0, overflowY: writeLines >= WRITE_MAX_LINES ? "auto" : "hidden" }} contentEditable={true} role="textbox" aria-multiline="true" tabIndex={0} autoFocus suppressContentEditableWarning spellCheck onInput={syncEditor} onMouseUp={showSelectionMenu} onKeyUp={showSelectionMenu} onBlur={() => window.setTimeout(hideSelectionMenu, 120)} data-placeholder="一个疑问、一段推理，或只是此刻不想忘记的感受……" />
           {selectionMenu.visible && <div className="selection-format-menu" style={{ left: selectionMenu.left, top: selectionMenu.top }} onMouseDown={event => event.preventDefault()}><button type="button" title="标题" onClick={() => applyEditorCommand("formatBlock", "H1")}>T</button><button type="button" title="小标题" onClick={() => applyEditorCommand("formatBlock", "H2")}>T₂</button><i /><button type="button" title="加粗" onClick={() => applyEditorCommand("bold")}>B</button><button type="button" title="斜体" onClick={() => applyEditorCommand("italic")}>I</button><button type="button" title="删除线" onClick={() => applyEditorCommand("strikeThrough")}>S</button><button type="button" title="下划线" onClick={() => applyEditorCommand("underline")}>U</button><i /><button type="button" title="引用" onClick={() => applyEditorCommand("formatBlock", "BLOCKQUOTE")}>❝</button><button type="button" title="列表" onClick={() => applyEditorCommand("insertUnorderedList")}>•</button><button type="button" title="居中" onClick={() => applyEditorCommand("justifyCenter")}>≡</button></div>}
-          <div className="paper-tools"><span>{text.length} 字 · {attachments.length} 张图片 · 支持 Markdown</span><div><button onClick={pasteText}>粘贴</button><button onClick={() => fileRef.current?.click()}>＋ 手写 / 图片</button><input ref={fileRef} hidden type="file" accept="image/*" multiple onChange={event => { addFiles(event.target.files); event.target.value = ""; }} /></div></div>
+          <div className="paper-tools"><span>{text.length} 字 · {attachments.length} 张图片</span><div><button onClick={pasteText}>粘贴</button><button onClick={() => fileRef.current?.click()}>＋ 手写 / 图片</button><input ref={fileRef} hidden type="file" accept="image/*" multiple onChange={event => { addFiles(event.target.files); event.target.value = ""; }} /></div></div>
         </div>        {attachments.length > 0 && <div className="attachment-row">{attachments.map((attachment, index) => <div key={`${attachment.name}-${index}`}><img src={attachment.data} alt={attachment.name} /><button onClick={() => setAttachments(current => current.filter((_, itemIndex) => itemIndex !== index))}>×</button></div>)}</div>}
         <div className="write-link-control"><Toggle checked={link} onChange={() => setLink(!link)} label="允许 AI 关联" hint="未来回响或对话中，它才可能被带回来" /></div>
         <div className="save-row"><span>{link ? "这篇记录可能在未来回应你" : "这篇记录不会进入回响范围"}</span><button className="primary" onClick={() => saveEntry(text)}>保存这篇记录 <b>→</b></button></div>

@@ -34,6 +34,7 @@ test("server-renders the Huiye writing canvas", async () => {
   assert.match(html, /class="paper rich-paper"/);
   assert.match(html, /class="rich-editor"/);
   assert.match(html, /height:304px/);
+  assert.doesNotMatch(html, /支持 Markdown/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|Codex is working/i);
 });
 
@@ -48,4 +49,5 @@ test("keeps the writing canvas responsive to rendered lines", async () => {
   assert.match(page, /mirror\.scrollHeight \/ WRITE_LINE_HEIGHT/);
   assert.match(page, /writeLines \+ 3/);
   assert.match(page, /writeLines >= WRITE_MAX_LINES \? "auto" : "hidden"/);
+  assert.match(page, /Array\.from\(markdownPreviewText\(firstLine\)\)\.slice\(0, 15\)/);
 });
