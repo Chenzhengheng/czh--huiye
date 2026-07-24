@@ -27,6 +27,9 @@ type Echo = { id: string; currentEntryId: number; previousEntryId: number; quote
  const EXAMPLES_KEY = "huiye-organization-examples-v1";
  const ECHOES_KEY = "huiye-thought-echoes-v1";
  const ECHO_CHECKS_KEY = "huiye-echo-checked-entries-v1";
+ const WRITE_LINE_HEIGHT = 41;
+ const WRITE_MIN_LINES = 6;
+ const WRITE_MAX_LINES = 15;
  const DEFAULT_ORGANIZE_PROMPT = `你是“回页”的轻量整理助手。
 
 你的职责是降低用户未来回看日记时的管理成本和阅读成本。你不是作者、导师、心理咨询师或总结者；你不替用户思考，不替用户下结论。
@@ -288,11 +291,23 @@ export default function Home() {
   const paperRef = useRef<HTMLDivElement>(null);
   const [editorInitialHtml, setEditorInitialHtml] = useState("");
   const [editorVersion, setEditorVersion] = useState(0);
+  const [writeLines, setWriteLines] = useState(0);
   const [selectionMenu, setSelectionMenu] = useState({ visible: false, left: 20, top: 14 });
 
   useEffect(() => {
-    if (editorRef.current) editorRef.current.innerHTML = editorInitialHtml;
+    if (editorRef.current) {
+      editorRef.current.innerHTML = editorInitialHtml;
+      window.requestAnimationFrame(measureWritingEditor);
+    }
   }, [editorVersion, editorInitialHtml]);
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => measureWritingEditor());
+    observer.observe(editor);
+    measureWritingEditor();
+    return () => observer.disconnect();
+  }, [editorVersion, view]);
   useEffect(() => {
     const saved = localStorage.getItem("ai-diary-entries");
     if (saved) {
@@ -341,8 +356,7 @@ export default function Home() {
   const echoedEntry = visibleEcho ? entries.find(entry => entry.id === visibleEcho.previousEntryId) ?? null : null;
   const echoSourceEntry = visibleEcho ? entries.find(entry => entry.id === visibleEcho.currentEntryId) ?? null : null;
   const continuingEntry = continuingFrom ? entries.find(entry => entry.id === continuingFrom) ?? null : null;
-  const writeLines = visualLineCount(text);
-  const writeRows = Math.min(15, Math.max(6, writeLines + 3));
+  const writeRows = Math.min(WRITE_MAX_LINES, Math.max(WRITE_MIN_LINES, writeLines + 3));
   const editLines = visualLineCount(edit?.content || "", 55);
   const editRows = Math.min(15, Math.max(6, editLines + 3));
   const reviewLines = visualLineCount(review.content, 52);
@@ -352,8 +366,39 @@ export default function Home() {
   const closeEdit = () => { setSelectedId(null); setEdit(null); setOriginalEdit(""); setShowOriginal(false); setPreviewMarkdown(false); };
   const originalToSave = text.trim() || "今天有一些还没整理好的想法，先把它留在这里。";
 
+  function measureWritingEditor() {
+    const editor = editorRef.current;
+    if (!editor) return;
+    if (!editor.textContent && !editor.querySelector("br")) {
+      setWriteLines(0);
+      return;
+    }
+    const mirror = editor.cloneNode(true) as HTMLDivElement;
+    mirror.removeAttribute("contenteditable");
+    mirror.removeAttribute("id");
+    Object.assign(mirror.style, {
+      position: "fixed",
+      left: "-10000px",
+      top: "0",
+      width: `${editor.clientWidth}px`,
+      height: "auto",
+      minHeight: "0",
+      maxHeight: "none",
+      overflow: "visible",
+      visibility: "hidden",
+      pointerEvents: "none",
+      flex: "none",
+      paddingBottom: "0",
+    });
+    document.body.appendChild(mirror);
+    const measuredLines = Math.max(1, Math.ceil(mirror.scrollHeight / WRITE_LINE_HEIGHT));
+    mirror.remove();
+    setWriteLines(current => current === measuredLines ? current : measuredLines);
+  }
   function syncEditor() {
-    if (editorRef.current) setText(editorElementToMarkdown(editorRef.current));
+    if (!editorRef.current) return;
+    setText(editorElementToMarkdown(editorRef.current));
+    window.requestAnimationFrame(measureWritingEditor);
   }
   function resetWritingEditor(markdown = "") {
     setText(markdown);
@@ -545,8 +590,8 @@ export default function Home() {
       <header className="mobile-head"><div className="brand"><span className="brand-mark">回</span><span>回页</span></div><button onClick={() => setView("pool")}>日记池</button></header>
       {view === "write" && <div className="page write-page" style={{ maxWidth: 960, paddingTop: 44, transform: `translateY(-${Math.min(190, Math.max(0, writeLines - 5) * 20)}px)`, transition: "transform .28s ease" }}>
         <div className="eyebrow">2026 年 7 月 17 日 · 星期五</div><h1>此刻，想留下什么？</h1><p className="lead">不用想标题，也不用急着归类。先写下来就好。</p>{continuingEntry && <div className="continuation-hint">沿着《{continuingEntry.title}》继续写</div>}
-        <div ref={paperRef} className="paper rich-paper" style={{ height: writeRows * 41 + (writeLines < 15 ? 58 : 100), overflow: "visible", transition: "height .28s ease" }}>
-          <div key={editorVersion} ref={editorRef} className="rich-editor" style={{ paddingBottom: writeLines >= 15 ? 72 : 0, overflowY: writeLines >= 15 ? "auto" : "hidden" }} contentEditable={true} role="textbox" aria-multiline="true" tabIndex={0} autoFocus suppressContentEditableWarning spellCheck onInput={syncEditor} onMouseUp={showSelectionMenu} onKeyUp={showSelectionMenu} onBlur={() => window.setTimeout(hideSelectionMenu, 120)} data-placeholder="一个疑问、一段推理，或只是此刻不想忘记的感受……" />
+        <div ref={paperRef} className="paper rich-paper" style={{ height: writeRows * WRITE_LINE_HEIGHT + (writeLines < WRITE_MAX_LINES ? 58 : 100), overflow: "visible", transition: "height .28s ease" }}>
+          <div key={editorVersion} ref={editorRef} className="rich-editor" style={{ paddingBottom: writeLines >= WRITE_MAX_LINES ? 72 : 0, overflowY: writeLines >= WRITE_MAX_LINES ? "auto" : "hidden" }} contentEditable={true} role="textbox" aria-multiline="true" tabIndex={0} autoFocus suppressContentEditableWarning spellCheck onInput={syncEditor} onMouseUp={showSelectionMenu} onKeyUp={showSelectionMenu} onBlur={() => window.setTimeout(hideSelectionMenu, 120)} data-placeholder="一个疑问、一段推理，或只是此刻不想忘记的感受……" />
           {selectionMenu.visible && <div className="selection-format-menu" style={{ left: selectionMenu.left, top: selectionMenu.top }} onMouseDown={event => event.preventDefault()}><button type="button" title="标题" onClick={() => applyEditorCommand("formatBlock", "H1")}>T</button><button type="button" title="小标题" onClick={() => applyEditorCommand("formatBlock", "H2")}>T₂</button><i /><button type="button" title="加粗" onClick={() => applyEditorCommand("bold")}>B</button><button type="button" title="斜体" onClick={() => applyEditorCommand("italic")}>I</button><button type="button" title="删除线" onClick={() => applyEditorCommand("strikeThrough")}>S</button><button type="button" title="下划线" onClick={() => applyEditorCommand("underline")}>U</button><i /><button type="button" title="引用" onClick={() => applyEditorCommand("formatBlock", "BLOCKQUOTE")}>❝</button><button type="button" title="列表" onClick={() => applyEditorCommand("insertUnorderedList")}>•</button><button type="button" title="居中" onClick={() => applyEditorCommand("justifyCenter")}>≡</button></div>}
           <div className="paper-tools"><span>{text.length} 字 · {attachments.length} 张图片 · 支持 Markdown</span><div><button onClick={pasteText}>粘贴</button><button onClick={() => fileRef.current?.click()}>＋ 手写 / 图片</button><input ref={fileRef} hidden type="file" accept="image/*" multiple onChange={event => { addFiles(event.target.files); event.target.value = ""; }} /></div></div>
         </div>        {attachments.length > 0 && <div className="attachment-row">{attachments.map((attachment, index) => <div key={`${attachment.name}-${index}`}><img src={attachment.data} alt={attachment.name} /><button onClick={() => setAttachments(current => current.filter((_, itemIndex) => itemIndex !== index))}>×</button></div>)}</div>}
