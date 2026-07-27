@@ -2,6 +2,8 @@
 
 > 当前共识：2026-07-24
 
+> 在线入口：[打开回页](https://huiye-ai-diary.zhenghengchen13.chatgpt.site)（仅限已授权的 OpenAI 账号访问）
+
 > 文档导航：[完整索引](DOCUMENTATION_INDEX.md) · [阶段规划](ROADMAP.md) · [技术指南](TECHNICAL_GUIDE.md)
 
 ## 一句话
