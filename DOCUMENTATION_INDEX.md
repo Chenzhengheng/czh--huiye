@@ -8,7 +8,7 @@
 
 | 文档 | 类型 | 回答的问题 | 状态 |
 |---|---|---|---|
-| [README.md](README.md) | 产品共识 | 回页是什么，哪些原则不轻易改变？ | 活跃 |
+| [README.md](README.md) | 产品共识 | 回页是什么、两类回响如何延续思考，哪些原则不轻易改变？ | 活跃 |
 | [ROADMAP.md](ROADMAP.md) | 阶段规划 | 当前验证什么，下一阶段做什么？ | 活跃 |
 | [TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md) | 技术实现 | 当前代码、接口和数据实际上如何运行？ | 活跃 |
 | [DOCUMENTATION_INSTRUCTIONS.md](DOCUMENTATION_INSTRUCTIONS.md) | 维护规则 | 文档如何分类、更新和处理冲突？ | 活跃 |
