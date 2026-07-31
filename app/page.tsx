@@ -91,6 +91,16 @@ function createData(entries: Entry[], echoes: Echo[], echoCheckedIds: number[]):
   };
 }
 
+function mergeData(remote: HuiyeBackup, local: HuiyeBackup): HuiyeBackup {
+  const localEntryIds = new Set(local.entries.map(entry => entry.id));
+  const localEchoIds = new Set(local.echoes.map(echo => echo.id));
+  return createData(
+    [...local.entries, ...remote.entries.filter(entry => !localEntryIds.has(entry.id))],
+    [...local.echoes, ...remote.echoes.filter(echo => !localEchoIds.has(echo.id))],
+    [...new Set([...local.echoCheckedIds, ...remote.echoCheckedIds])],
+  );
+}
+
 function readLocalData(): LocalData | null {
   try {
     const emergency = localStorage.getItem(EMERGENCY_DATA_KEY);
@@ -402,10 +412,13 @@ export default function Home() {
         if (!response.ok) throw new Error(result.error || "无法读取私人数据");
         const emergencyIsNewer = local?.kind === "emergency"
           && (!result.data || new Date(local.data.exportedAt).getTime() > new Date(result.updatedAt || 0).getTime());
+        const legacyNeedsMerge = local?.kind === "legacy" && Boolean(result.data);
         const data = emergencyIsNewer
           ? local.data
-          : result.data ?? local?.data ?? createData(seedEntries, [], []);
-        if (!result.data || emergencyIsNewer) {
+          : legacyNeedsMerge
+            ? mergeData(result.data!, local.data)
+            : result.data ?? local?.data ?? createData(seedEntries, [], []);
+        if (!result.data || emergencyIsNewer || legacyNeedsMerge) {
           const updatedAt = await savePrivateData(data);
           if (!cancelled) setStorageUpdatedAt(updatedAt);
         } else if (!cancelled) {
