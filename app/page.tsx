@@ -22,6 +22,10 @@ type OrganizationExample = { id: number; original: string; title: string; conten
  type SavedDraft = { text: string; attachments: Attachment[]; link: boolean; updatedAt: string };
  type HuiyeBackup = { format: "huiye-backup"; version: 1; exportedAt: string; entries: Entry[]; echoes: Echo[]; echoCheckedIds: number[] };
 type Echo = { id: string; currentEntryId: number; previousEntryId: number; quote: string; reason: string; createdAt: string; status: "pending" | "opened" | "continued" | "irrelevant" };
+ type StorageStatus = "loading" | "saving" | "saved" | "error";
+ type LocalData = { data: HuiyeBackup; kind: "emergency" | "legacy" };
+ const ENTRIES_KEY = "ai-diary-entries";
+ const EMERGENCY_DATA_KEY = "huiye-emergency-data-v1";
  const DRAFT_KEY = "huiye-writing-draft-v1";
  const PROMPT_KEY = "huiye-organization-prompt-v1";
  const EXAMPLES_KEY = "huiye-organization-examples-v1";
@@ -75,6 +79,76 @@ const seedEntries: Entry[] = [
   { id: 2, date: "5月3日 · 19:42", title: "第一次项目复盘：卡住我的不是任务大小", content: "今天复盘才意识到，我迟迟不发第一版，不是因为没拆任务，而是害怕别人看到不成熟的东西。真正有效的是先给同事发一个很粗糙的草稿。", tags: ["工作复盘", "真实反馈"], source: "飞书粘贴", aiLink: true, status: "echoed" },
   { id: 3, date: "今天 · 08:35", title: "先交出一个可以讨论的版本", content: "准备作品集时又想追求完整。提醒自己：先做出可以被讨论的版本，反馈本身也是思考的一部分。", tags: ["作品集", "行动"], source: "快速记录", aiLink: true },
 ];
+
+function createData(entries: Entry[], echoes: Echo[], echoCheckedIds: number[]): HuiyeBackup {
+  return {
+    format: "huiye-backup",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    entries,
+    echoes,
+    echoCheckedIds,
+  };
+}
+
+function readLocalData(): LocalData | null {
+  try {
+    const emergency = localStorage.getItem(EMERGENCY_DATA_KEY);
+    if (emergency) {
+      const data = JSON.parse(emergency) as HuiyeBackup;
+      if (data.format === "huiye-backup" && data.version === 1 && Array.isArray(data.entries)) {
+        return { data, kind: "emergency" };
+      }
+    }
+    const savedEntries = localStorage.getItem(ENTRIES_KEY);
+    if (!savedEntries) return null;
+    const entries = JSON.parse(savedEntries) as Entry[];
+    const echoes = JSON.parse(localStorage.getItem(ECHOES_KEY) || "[]") as Echo[];
+    const echoCheckedIds = JSON.parse(localStorage.getItem(ECHO_CHECKS_KEY) || "[]") as number[];
+    if (!Array.isArray(entries)) return null;
+    const migratedEntries = entries.map(entry => {
+      const current = { ...entry } as Entry & { originalContent?: string };
+      delete current.originalContent;
+      return current;
+    });
+    return {
+      data: createData(
+        migratedEntries,
+        Array.isArray(echoes) ? echoes : [],
+        Array.isArray(echoCheckedIds) ? echoCheckedIds : [],
+      ),
+      kind: "legacy",
+    };
+  } catch {
+    return null;
+  }
+}
+
+function clearLegacyData() {
+  localStorage.removeItem(ENTRIES_KEY);
+  localStorage.removeItem(ECHOES_KEY);
+  localStorage.removeItem(ECHO_CHECKS_KEY);
+  localStorage.removeItem(EMERGENCY_DATA_KEY);
+}
+
+function cacheEmergencyData(data: HuiyeBackup) {
+  try {
+    localStorage.setItem(EMERGENCY_DATA_KEY, JSON.stringify(data));
+  } catch {
+    // The cloud copy remains authoritative; a large image may exceed browser storage.
+  }
+}
+
+async function savePrivateData(data: HuiyeBackup): Promise<string> {
+  const response = await fetch("/api/data", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  const result = await response.json() as { updatedAt?: string; error?: string };
+  if (!response.ok) throw new Error(result.error || "保存失败");
+  return result.updatedAt || new Date().toISOString();
+}
 
 const nav: { id: View; icon: string; label: string }[] = [
   { id: "write", icon: "✎", label: "写下" },
@@ -261,6 +335,9 @@ export default function Home() {
   const [echoesReady, setEchoesReady] = useState(false);
   const [echoCheckedIds, setEchoCheckedIds] = useState<number[]>([]);
   const [echoChecksReady, setEchoChecksReady] = useState(false);
+  const [storageReady, setStorageReady] = useState(false);
+  const [storageStatus, setStorageStatus] = useState<StorageStatus>("loading");
+  const [storageUpdatedAt, setStorageUpdatedAt] = useState<string | null>(null);
   const [echoLoading, setEchoLoading] = useState(false);
   const [continuingFrom, setContinuingFrom] = useState<number | null>(null);
   const [examplesReady, setExamplesReady] = useState(false);
@@ -287,12 +364,19 @@ export default function Home() {
   const [now, setNow] = useState(() => Date.now());
   const fileRef = useRef<HTMLInputElement>(null);
   const importRef = useRef<HTMLInputElement>(null);
+  const saveQueueRef = useRef<Promise<string>>(Promise.resolve(""));
   const editorRef = useRef<HTMLDivElement>(null);
   const paperRef = useRef<HTMLDivElement>(null);
   const [editorInitialHtml, setEditorInitialHtml] = useState("");
   const [editorVersion, setEditorVersion] = useState(0);
   const [writeLines, setWriteLines] = useState(0);
   const [selectionMenu, setSelectionMenu] = useState({ visible: false, left: 20, top: 14 });
+
+  function queuePrivateSave(data: HuiyeBackup): Promise<string> {
+    const next = saveQueueRef.current.catch(() => "").then(() => savePrivateData(data));
+    saveQueueRef.current = next;
+    return next;
+  }
 
   useEffect(() => {
     if (editorRef.current) {
@@ -309,15 +393,48 @@ export default function Home() {
     return () => observer.disconnect();
   }, [editorVersion, view]);
   useEffect(() => {
-    const saved = localStorage.getItem("ai-diary-entries");
-    if (saved) {
+    let cancelled = false;
+    async function loadPrivateData() {
+      const local = readLocalData();
       try {
-        const parsed = JSON.parse(saved) as Entry[];
-        setEntries(parsed.map(({ originalContent: _legacyOriginal, ...entry }) => !entry.createdAt && entry.date ? { ...entry, createdAt: new Date().toISOString() } : entry));
-      } catch { /* Ignore a broken local cache. */ }
+        const response = await fetch("/api/data", { cache: "no-store" });
+        const result = await response.json() as { data?: HuiyeBackup | null; updatedAt?: string | null; error?: string };
+        if (!response.ok) throw new Error(result.error || "无法读取私人数据");
+        const emergencyIsNewer = local?.kind === "emergency"
+          && (!result.data || new Date(local.data.exportedAt).getTime() > new Date(result.updatedAt || 0).getTime());
+        const data = emergencyIsNewer
+          ? local.data
+          : result.data ?? local?.data ?? createData(seedEntries, [], []);
+        if (!result.data || emergencyIsNewer) {
+          const updatedAt = await savePrivateData(data);
+          if (!cancelled) setStorageUpdatedAt(updatedAt);
+        } else if (!cancelled) {
+          setStorageUpdatedAt(result.updatedAt || null);
+        }
+        if (cancelled) return;
+        setEntries(data.entries);
+        setEchoes(data.echoes);
+        setEchoCheckedIds(data.echoCheckedIds);
+        clearLegacyData();
+        setStorageStatus("saved");
+      } catch {
+        if (cancelled) return;
+        const fallback = local?.data ?? createData(seedEntries, [], []);
+        setEntries(fallback.entries);
+        setEchoes(fallback.echoes);
+        setEchoCheckedIds(fallback.echoCheckedIds);
+        setStorageStatus("error");
+      } finally {
+        if (!cancelled) {
+          setEchoesReady(true);
+          setEchoChecksReady(true);
+          setStorageReady(true);
+        }
+      }
     }
+    void loadPrivateData();
+    return () => { cancelled = true; };
   }, []);
-  useEffect(() => { localStorage.setItem("ai-diary-entries", JSON.stringify(entries)); }, [entries]);
   useEffect(() => {
     try { const saved = localStorage.getItem(DRAFT_KEY); if (saved) { const draft = JSON.parse(saved) as SavedDraft; if (draft.text.trim() || draft.attachments?.length) setPendingDraft(draft); } } catch { /* Ignore a broken draft. */ }
     setDraftReady(true);
@@ -337,16 +454,26 @@ export default function Home() {
     try { const savedExamples = localStorage.getItem(EXAMPLES_KEY); if (savedExamples) setOrganizationExamples(JSON.parse(savedExamples) as OrganizationExample[]); } catch { /* Ignore a broken local sample library. */ }
     setExamplesReady(true);
   }, []);
-  useEffect(() => { if (examplesReady) localStorage.setItem(EXAMPLES_KEY, JSON.stringify(organizationExamples)); }, [organizationExamples, examplesReady]);  useEffect(() => {
-    try { const saved = localStorage.getItem(ECHOES_KEY); if (saved) setEchoes(JSON.parse(saved) as Echo[]); } catch { /* Ignore a broken echo cache. */ }
-    setEchoesReady(true);
-  }, []);
-  useEffect(() => { if (echoesReady) localStorage.setItem(ECHOES_KEY, JSON.stringify(echoes)); }, [echoes, echoesReady]);
+  useEffect(() => { if (examplesReady) localStorage.setItem(EXAMPLES_KEY, JSON.stringify(organizationExamples)); }, [organizationExamples, examplesReady]);
   useEffect(() => {
-    try { const saved = localStorage.getItem(ECHO_CHECKS_KEY); if (saved) setEchoCheckedIds(JSON.parse(saved) as number[]); } catch { /* Ignore a broken recall-check cache. */ }
-    setEchoChecksReady(true);
-  }, []);
-  useEffect(() => { if (echoChecksReady) localStorage.setItem(ECHO_CHECKS_KEY, JSON.stringify(echoCheckedIds)); }, [echoCheckedIds, echoChecksReady]);  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 30_000); return () => window.clearInterval(timer); }, []);
+    if (!storageReady) return;
+    const data = createData(entries, echoes, echoCheckedIds);
+    const timer = window.setTimeout(() => {
+      setStorageStatus("saving");
+      void queuePrivateSave(data)
+        .then(updatedAt => {
+          clearLegacyData();
+          setStorageUpdatedAt(updatedAt);
+          setStorageStatus("saved");
+        })
+        .catch(() => {
+          cacheEmergencyData(data);
+          setStorageStatus("error");
+        });
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [entries, echoes, echoCheckedIds, storageReady]);
+  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 30_000); return () => window.clearInterval(timer); }, []);
 
   const filtered = useMemo(() => entries.filter(entry => `${entry.title}${entry.content}${entry.tags.join("")}`.toLowerCase().includes(search.toLowerCase())), [entries, search]);
   const selected = entries.find(entry => entry.id === selectedId) ?? null;
@@ -556,7 +683,7 @@ export default function Home() {
     setExportOpen(false); notify("已导出 " + list.length + " 篇思考");
   }
   function downloadBackup() {
-    const backup: HuiyeBackup = { format: "huiye-backup", version: 1, exportedAt: new Date().toISOString(), entries, echoes, echoCheckedIds };
+    const backup = createData(entries, echoes, echoCheckedIds);
     triggerDownload(JSON.stringify(backup, null, 2), "回页-完整备份-" + new Date().toISOString().slice(0, 10) + ".json", "application/json;charset=utf-8");
     setExportOpen(false); notify("已导出完整备份");
   }
@@ -565,12 +692,19 @@ export default function Home() {
     try {
       const parsed = JSON.parse(await file.text()) as HuiyeBackup;
       if (parsed.format !== "huiye-backup" || parsed.version !== 1 || !Array.isArray(parsed.entries)) throw new Error("这不是回页的完整备份文件");
-      if (!window.confirm("导入 " + parsed.entries.length + " 篇思考？这会替换当前设备上的日记与回响记录。")) return;
+      if (!window.confirm("导入 " + parsed.entries.length + " 篇思考？这会替换当前账号云端保存的日记与回响记录。")) return;
       const restored = parsed.entries.map(({ originalContent: _legacyOriginal, ...entry }) => entry);
+      const restoredEchoes = Array.isArray(parsed.echoes) ? parsed.echoes : [];
+      const restoredChecks = Array.isArray(parsed.echoCheckedIds) ? parsed.echoCheckedIds : [];
+      setStorageStatus("saving");
+      const updatedAt = await queuePrivateSave(createData(restored, restoredEchoes, restoredChecks));
       setEntries(restored);
-      setEchoes(Array.isArray(parsed.echoes) ? parsed.echoes : []);
-      setEchoCheckedIds(Array.isArray(parsed.echoCheckedIds) ? parsed.echoCheckedIds : []);
-      notify("已恢复 " + restored.length + " 篇思考");
+      setEchoes(restoredEchoes);
+      setEchoCheckedIds(restoredChecks);
+      setStorageUpdatedAt(updatedAt);
+      setStorageStatus("saved");
+      clearLegacyData();
+      notify("已恢复并保存 " + restored.length + " 篇思考");
     } catch (error) {
       notify(error instanceof Error ? error.message : "导入失败，请选择回页导出的 JSON 备份");
     } finally {
@@ -598,7 +732,7 @@ export default function Home() {
         <div className="write-link-control"><Toggle checked={link} onChange={() => setLink(!link)} label="参与未来回响" hint="当未来与它产生联系时，回页可能让它再次出现" /></div>
         <div className="save-row"><span>{link ? "它会安静留在这里，等待未来的联系" : "它只会被保存，不参与未来回响"}</span><button className="primary" onClick={() => saveEntry(text)}>保存这篇记录 <b>→</b></button></div>
       </div>}      {view === "pool" && <div className="page pool-page"><div className="page-title"><div><div className="eyebrow">你的思考原野</div><h1>日记池</h1><p className="lead">不用整理。它们会留在这里，等待与未来的某个时刻发生联系。</p></div><button className="primary small" onClick={() => setView("write")}>＋ 写一篇</button></div><div className="search"><span>⌕</span><input placeholder="搜索一个词、一段记忆或一个问题…" value={search} onChange={event => setSearch(event.target.value)} /></div><div className="filter-row"><button className="selected">全部 {entries.length}</button><button>未闭合 {entries.filter(entry => entry.status === "open").length}</button><button>已有回响 {entries.filter(entry => entry.status === "echoed").length}</button></div><div className="entry-grid">{filtered.map(entry => <article className="entry" key={entry.id} onClick={() => openEntry(entry)} onKeyDown={event => { if (event.key === "Enter") openEntry(entry); }} role="button" tabIndex={0}><div className="entry-meta"><span>{formatTimestamp(entry, now)}</span></div><h3>{entry.title}</h3><p className="entry-preview">{markdownPreviewText(entry.content)}</p><div className="entry-foot"><span>{entry.source}{entry.attachments?.length ? ` · ${entry.attachments.length} 张图` : ""}</span><div>{entry.tags.map(tag => <b key={tag}>{tag}</b>)}</div></div></article>)}</div></div>}
-      {view === "settings" && <div className="page settings-page"><div className="eyebrow">你的思考，只属于你</div><h1>数据与迁移</h1><p className="lead">回页当前把数据保存在这台设备、这个浏览器里。网址不等于同步；换电脑前，请先导出完整备份。</p><section className="prompt-card"><div><h2>完整备份</h2><p>JSON 会带走每一篇「我的思考」、标签、图片、参与未来回响的设置、思考线与回响反馈。它是换电脑时用来恢复回页的文件。</p></div><div className="migration-actions"><button className="primary" type="button" onClick={downloadBackup}>导出完整备份</button><button type="button" onClick={() => importRef.current?.click()}>导入完整备份</button><input ref={importRef} hidden type="file" accept="application/json,.json" onChange={event => void importBackup(event.target.files?.[0])} /></div><small>导入会替换当前设备上的日记与回响记录；请先导出一份备份。</small></section><section className="prompt-example"><details><summary>导出 Markdown：用于阅读与归档</summary><p className="example-note">Markdown 会导出你选中的「我的思考」、时间、来源和标签。它适合自己保存、阅读或交给其他工具，但不能恢复回响关系。</p><button className="export-link-button" type="button" onClick={() => { setExportIds(entries.map(entry => entry.id)); setExportOpen(true); }}>选择要导出的思考</button></details></section></div>}      {view === "echo" && <div className="page echo-page">
+      {view === "settings" && <div className="page settings-page"><div className="eyebrow">你的思考，只属于你</div><h1>数据与迁移</h1><p className="lead">日记、图片和回响已按你的 ChatGPT 账号保存在私人云端；换浏览器或清理缓存后，登录同一账号仍会自动恢复。</p><section className="prompt-card"><div><h2>私人数据</h2><p>{storageStatus === "loading" ? "正在读取你的数据…" : storageStatus === "saving" ? "正在安全保存…" : storageStatus === "error" ? "暂时无法连接云端，当前修改已留在本机，恢复连接后会再次保存。" : "已安全保存到你的私人空间。"}</p>{storageUpdatedAt && storageStatus === "saved" && <small>最近保存：{new Date(storageUpdatedAt).toLocaleString("zh-CN")}</small>}</div><div className="migration-actions"><button className="primary" type="button" onClick={downloadBackup}>导出一份副本</button><button type="button" onClick={() => importRef.current?.click()}>从 JSON 导入</button><input ref={importRef} hidden type="file" accept="application/json,.json" onChange={event => void importBackup(event.target.files?.[0])} /></div><small>JSON 现在用于迁移和自主管理，不再承担日常保存职责。导入会替换当前账号的云端数据。</small></section><section className="prompt-example"><details><summary>导出 Markdown：用于阅读与归档</summary><p className="example-note">Markdown 会导出你选中的「我的思考」、时间、来源和标签。它适合自己保存、阅读或交给其他工具，但不能恢复回响关系。</p><button className="export-link-button" type="button" onClick={() => { setExportIds(entries.map(entry => entry.id)); setExportOpen(true); }}>选择要导出的思考</button></details></section></div>}      {view === "echo" && <div className="page echo-page">
         <div className="eyebrow">过去与现在，在这里相遇</div>
         <h1>回响</h1>
         <p className="lead">{echoLoading ? "正在安静地看看，过去与现在之间是否出现了新的联系。" : visibleEcho ? (visibleEcho.status === "pending" ? "一段旧思考，或许正值得你再看一眼。" : "你最近看过的一段回响，仍留在这里。") : "这里不追求每天都有答案。没有足够真实的联系时，回页会保持安静。"}</p>

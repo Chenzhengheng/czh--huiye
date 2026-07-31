@@ -2,10 +2,33 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-async function render() {
+async function loadWorker() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
+  return worker;
+}
+
+function createDataBucket() {
+  const objects = new Map();
+  return {
+    objects,
+    async get(key) {
+      const value = objects.get(key);
+      if (!value) return null;
+      return {
+        uploaded: value.uploaded,
+        async text() { return value.contents; },
+      };
+    },
+    async put(key, contents) {
+      objects.set(key, { contents, uploaded: new Date() });
+    },
+  };
+}
+
+async function render() {
+  const worker = await loadWorker();
 
   return worker.fetch(
     new Request("http://localhost/", {
@@ -50,4 +73,67 @@ test("keeps the writing canvas responsive to rendered lines", async () => {
   assert.match(page, /writeLines \+ 3/);
   assert.match(page, /writeLines >= WRITE_MAX_LINES \? "auto" : "hidden"/);
   assert.match(page, /Array\.from\(markdownPreviewText\(firstLine\)\)\.slice\(0, 15\)/);
+});
+
+test("requires a signed-in ChatGPT user for private data", async () => {
+  const worker = await loadWorker();
+  const response = await worker.fetch(
+    new Request("http://localhost/api/data"),
+    { DATA: createDataBucket() },
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+
+  assert.equal(response.status, 401);
+});
+
+test("persists data separately for each signed-in account", async () => {
+  const worker = await loadWorker();
+  const bucket = createDataBucket();
+  const env = { DATA: bucket };
+  const context = { waitUntil() {}, passThroughOnException() {} };
+  const data = {
+    format: "huiye-backup",
+    version: 1,
+    exportedAt: "2026-07-31T00:00:00.000Z",
+    entries: [{ id: 1, title: "私人思考" }],
+    echoes: [],
+    echoCheckedIds: [],
+  };
+
+  const saveResponse = await worker.fetch(
+    new Request("http://localhost/api/data", {
+      method: "PUT",
+      headers: {
+        "content-type": "application/json",
+        "oai-authenticated-user-email": "owner@example.com",
+      },
+      body: JSON.stringify(data),
+    }),
+    env,
+    context,
+  );
+  assert.equal(saveResponse.status, 200);
+  assert.equal(bucket.objects.size, 1);
+  assert.doesNotMatch([...bucket.objects.keys()][0], /owner@example\.com/);
+
+  const readResponse = await worker.fetch(
+    new Request("http://localhost/api/data", {
+      headers: { "oai-authenticated-user-email": "owner@example.com" },
+    }),
+    env,
+    context,
+  );
+  assert.equal(readResponse.status, 200);
+  const saved = await readResponse.json();
+  assert.equal(saved.data.entries[0].title, "私人思考");
+
+  const otherResponse = await worker.fetch(
+    new Request("http://localhost/api/data", {
+      headers: { "oai-authenticated-user-email": "other@example.com" },
+    }),
+    env,
+    context,
+  );
+  assert.equal(otherResponse.status, 200);
+  assert.equal((await otherResponse.json()).data, null);
 });

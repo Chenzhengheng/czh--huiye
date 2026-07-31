@@ -5,6 +5,7 @@ import handler from "vinext/server/app-router-entry";
 interface Env {
   ASSETS: Fetcher;
   DB: D1Database;
+  DATA: R2Bucket;
   OPENROUTER_API_KEY?: string;
   OPENROUTER_MODEL?: string;
   IMAGES: {
@@ -19,6 +20,80 @@ interface Env {
 interface ExecutionContext {
   waitUntil(promise: Promise<unknown>): void;
   passThroughOnException(): void;
+}
+
+type HuiyeData = {
+  format: "huiye-backup";
+  version: 1;
+  exportedAt: string;
+  entries: unknown[];
+  echoes: unknown[];
+  echoCheckedIds: unknown[];
+};
+
+function authenticatedEmail(request: Request): string | null {
+  const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase();
+  return email || null;
+}
+
+async function userDataKey(email: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(email));
+  const hash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+  return `users/${hash}/huiye-data.json`;
+}
+
+function isHuiyeData(value: unknown): value is HuiyeData {
+  if (!value || typeof value !== "object") return false;
+  const data = value as Partial<HuiyeData>;
+  return data.format === "huiye-backup"
+    && data.version === 1
+    && Array.isArray(data.entries)
+    && Array.isArray(data.echoes)
+    && Array.isArray(data.echoCheckedIds);
+}
+
+async function handleDataRequest(request: Request, env: Env): Promise<Response> {
+  const email = authenticatedEmail(request);
+  if (!email) return Response.json({ error: "Sign in with ChatGPT to access your data." }, { status: 401 });
+  if (!env.DATA) return Response.json({ error: "Private storage is not configured." }, { status: 503 });
+
+  const key = await userDataKey(email);
+  if (request.method === "GET") {
+    const object = await env.DATA.get(key);
+    if (!object) return Response.json({ data: null, updatedAt: null });
+    try {
+      const data = JSON.parse(await object.text()) as unknown;
+      if (!isHuiyeData(data)) throw new Error("Invalid stored data");
+      return Response.json({ data, updatedAt: object.uploaded.toISOString() });
+    } catch {
+      return Response.json({ error: "Stored data could not be read." }, { status: 500 });
+    }
+  }
+
+  if (request.method === "PUT") {
+    const declaredSize = Number(request.headers.get("content-length") || 0);
+    if (declaredSize > 30 * 1024 * 1024) {
+      return Response.json({ error: "Data is too large to save." }, { status: 413 });
+    }
+    let data: unknown;
+    try {
+      data = await request.json();
+    } catch {
+      return Response.json({ error: "Invalid JSON." }, { status: 400 });
+    }
+    if (!isHuiyeData(data)) return Response.json({ error: "Invalid Huiye data." }, { status: 400 });
+
+    const contents = JSON.stringify({ ...data, exportedAt: new Date().toISOString() });
+    if (contents.length > 30 * 1024 * 1024) {
+      return Response.json({ error: "Data is too large to save." }, { status: 413 });
+    }
+    await env.DATA.put(key, contents, {
+      httpMetadata: { contentType: "application/json; charset=utf-8" },
+    });
+    return Response.json({ saved: true, updatedAt: new Date().toISOString() });
+  }
+
+  return new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET, PUT" } });
 }
 
 const ORGANIZE_PROMPT = `你是“回页”的轻量整理助手。
@@ -164,6 +239,7 @@ const worker = {
 
     if (url.pathname === "/api/organize" && request.method === "POST") return organizeDiary(request, env);
     if (url.pathname === "/api/recall" && request.method === "POST") return prepareRecall(request, env);
+    if (url.pathname === "/api/data") return handleDataRequest(request, env);
     return handler.fetch(request, env, ctx);
   },
 };
