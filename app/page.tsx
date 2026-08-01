@@ -74,12 +74,6 @@ const ORGANIZATION_SAMPLE = {
 由这个延申出来，背景就是：任何人的资源是有限的，需要选他们认为在该场景下最具性价比的一个。`,
   tags: ["阅读方法", "产品差异化", "稀缺性"],
 };
-const seedEntries: Entry[] = [
-  { id: 1, date: "4月12日 · 22:18", title: "为什么知道方法，却还是迟迟不开始？", content: "读到“行动会反过来塑造动机”时有点疑惑。如果目标已经足够清楚，为什么我还是会拖延？现在猜测是任务拆得不够小，但还没有真实验证。", tags: ["阅读思考", "待验证"], source: "《行动的勇气》· 手写导入", aiLink: true, status: "open" },
-  { id: 2, date: "5月3日 · 19:42", title: "第一次项目复盘：卡住我的不是任务大小", content: "今天复盘才意识到，我迟迟不发第一版，不是因为没拆任务，而是害怕别人看到不成熟的东西。真正有效的是先给同事发一个很粗糙的草稿。", tags: ["工作复盘", "真实反馈"], source: "飞书粘贴", aiLink: true, status: "echoed" },
-  { id: 3, date: "今天 · 08:35", title: "先交出一个可以讨论的版本", content: "准备作品集时又想追求完整。提醒自己：先做出可以被讨论的版本，反馈本身也是思考的一部分。", tags: ["作品集", "行动"], source: "快速记录", aiLink: true },
-];
-
 function createData(entries: Entry[], echoes: Echo[], echoCheckedIds: number[]): HuiyeBackup {
   return {
     format: "huiye-backup",
@@ -89,16 +83,6 @@ function createData(entries: Entry[], echoes: Echo[], echoCheckedIds: number[]):
     echoes,
     echoCheckedIds,
   };
-}
-
-function mergeData(remote: HuiyeBackup, local: HuiyeBackup): HuiyeBackup {
-  const localEntryIds = new Set(local.entries.map(entry => entry.id));
-  const localEchoIds = new Set(local.echoes.map(echo => echo.id));
-  return createData(
-    [...local.entries, ...remote.entries.filter(entry => !localEntryIds.has(entry.id))],
-    [...local.echoes, ...remote.echoes.filter(echo => !localEchoIds.has(echo.id))],
-    [...new Set([...local.echoCheckedIds, ...remote.echoCheckedIds])],
-  );
 }
 
 function readLocalData(): LocalData | null {
@@ -132,13 +116,6 @@ function readLocalData(): LocalData | null {
   } catch {
     return null;
   }
-}
-
-function clearLegacyData() {
-  localStorage.removeItem(ENTRIES_KEY);
-  localStorage.removeItem(ECHOES_KEY);
-  localStorage.removeItem(ECHO_CHECKS_KEY);
-  localStorage.removeItem(EMERGENCY_DATA_KEY);
 }
 
 function cacheEmergencyData(data: HuiyeBackup) {
@@ -334,7 +311,7 @@ function TagEditor({ tags, onChange }: { tags: string[]; onChange: (tags: string
 
 export default function Home() {
   const [view, setView] = useState<View>("write");
-  const [entries, setEntries] = useState<Entry[]>(seedEntries);
+  const [entries, setEntries] = useState<Entry[]>([]);
   const [text, setText] = useState("");
   const [pendingDraft, setPendingDraft] = useState<SavedDraft | null>(null);
   const [draftReady, setDraftReady] = useState(false);
@@ -348,6 +325,7 @@ export default function Home() {
   const [storageReady, setStorageReady] = useState(false);
   const [storageStatus, setStorageStatus] = useState<StorageStatus>("loading");
   const [storageUpdatedAt, setStorageUpdatedAt] = useState<string | null>(null);
+  const [storageKind, setStorageKind] = useState<"unknown" | "local-folder" | "cloud">("unknown");
   const [echoLoading, setEchoLoading] = useState(false);
   const [continuingFrom, setContinuingFrom] = useState<number | null>(null);
   const [examplesReady, setExamplesReady] = useState(false);
@@ -375,6 +353,7 @@ export default function Home() {
   const fileRef = useRef<HTMLInputElement>(null);
   const importRef = useRef<HTMLInputElement>(null);
   const saveQueueRef = useRef<Promise<string>>(Promise.resolve(""));
+  const skipInitialSaveRef = useRef(true);
   const editorRef = useRef<HTMLDivElement>(null);
   const paperRef = useRef<HTMLDivElement>(null);
   const [editorInitialHtml, setEditorInitialHtml] = useState("");
@@ -408,31 +387,19 @@ export default function Home() {
       const local = readLocalData();
       try {
         const response = await fetch("/api/data", { cache: "no-store" });
-        const result = await response.json() as { data?: HuiyeBackup | null; updatedAt?: string | null; error?: string };
+        const result = await response.json() as { data?: HuiyeBackup | null; updatedAt?: string | null; storageKind?: "local-folder" | "cloud"; error?: string };
         if (!response.ok) throw new Error(result.error || "无法读取私人数据");
-        const emergencyIsNewer = local?.kind === "emergency"
-          && (!result.data || new Date(local.data.exportedAt).getTime() > new Date(result.updatedAt || 0).getTime());
-        const legacyNeedsMerge = local?.kind === "legacy" && Boolean(result.data);
-        const data = emergencyIsNewer
-          ? local.data
-          : legacyNeedsMerge
-            ? mergeData(result.data!, local.data)
-            : result.data ?? local?.data ?? createData(seedEntries, [], []);
-        if (!result.data || emergencyIsNewer || legacyNeedsMerge) {
-          const updatedAt = await savePrivateData(data);
-          if (!cancelled) setStorageUpdatedAt(updatedAt);
-        } else if (!cancelled) {
-          setStorageUpdatedAt(result.updatedAt || null);
-        }
+        const data = result.data ?? createData([], [], []);
+        if (!cancelled) setStorageUpdatedAt(result.updatedAt || null);
         if (cancelled) return;
         setEntries(data.entries);
         setEchoes(data.echoes);
         setEchoCheckedIds(data.echoCheckedIds);
-        clearLegacyData();
+        setStorageKind(result.storageKind || "cloud");
         setStorageStatus("saved");
       } catch {
         if (cancelled) return;
-        const fallback = local?.data ?? createData(seedEntries, [], []);
+        const fallback = local?.data ?? createData([], [], []);
         setEntries(fallback.entries);
         setEchoes(fallback.echoes);
         setEchoCheckedIds(fallback.echoCheckedIds);
@@ -470,12 +437,15 @@ export default function Home() {
   useEffect(() => { if (examplesReady) localStorage.setItem(EXAMPLES_KEY, JSON.stringify(organizationExamples)); }, [organizationExamples, examplesReady]);
   useEffect(() => {
     if (!storageReady) return;
+    if (skipInitialSaveRef.current) {
+      skipInitialSaveRef.current = false;
+      return;
+    }
     const data = createData(entries, echoes, echoCheckedIds);
     const timer = window.setTimeout(() => {
       setStorageStatus("saving");
       void queuePrivateSave(data)
         .then(updatedAt => {
-          clearLegacyData();
           setStorageUpdatedAt(updatedAt);
           setStorageStatus("saved");
         })
@@ -705,7 +675,7 @@ export default function Home() {
     try {
       const parsed = JSON.parse(await file.text()) as HuiyeBackup;
       if (parsed.format !== "huiye-backup" || parsed.version !== 1 || !Array.isArray(parsed.entries)) throw new Error("这不是回页的完整备份文件");
-      if (!window.confirm("导入 " + parsed.entries.length + " 篇思考？这会替换当前账号云端保存的日记与回响记录。")) return;
+      if (!window.confirm("导入 " + parsed.entries.length + " 篇思考？这会创建一个新的本地数据代次；导入前的数据仍会保留。")) return;
       const restored = parsed.entries.map(({ originalContent: _legacyOriginal, ...entry }) => entry);
       const restoredEchoes = Array.isArray(parsed.echoes) ? parsed.echoes : [];
       const restoredChecks = Array.isArray(parsed.echoCheckedIds) ? parsed.echoCheckedIds : [];
@@ -716,7 +686,6 @@ export default function Home() {
       setEchoCheckedIds(restoredChecks);
       setStorageUpdatedAt(updatedAt);
       setStorageStatus("saved");
-      clearLegacyData();
       notify("已恢复并保存 " + restored.length + " 篇思考");
     } catch (error) {
       notify(error instanceof Error ? error.message : "导入失败，请选择回页导出的 JSON 备份");
@@ -732,7 +701,7 @@ export default function Home() {
   }
 
   return <main className="app-shell">
-    <aside className="sidebar"><div className="brand"><span className="brand-mark">回</span><span>回页<small>让思考继续生长</small></span></div><nav>{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><i>{item.icon}</i>{item.label}{item.id === "echo" && echoes.filter(echo => echo.status === "pending").length > 0 && <b>{echoes.filter(echo => echo.status === "pending").length}</b>}</button>)}</nav><div className="side-bottom"><button onClick={() => setView("settings")}><i>⚙</i>设置</button><button onClick={() => { setExportIds([]); setExportOpen(true); }}><i>↓</i>导出 / 导入</button><div className="privacy"><span>◉</span><div><strong>内容保存在此设备</strong><small>你始终拥有原文与控制权</small></div></div></div></aside>
+    <aside className="sidebar"><div className="brand"><span className="brand-mark">回</span><span>回页<small>让思考继续生长</small></span></div><nav>{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><i>{item.icon}</i>{item.label}{item.id === "echo" && echoes.filter(echo => echo.status === "pending").length > 0 && <b>{echoes.filter(echo => echo.status === "pending").length}</b>}</button>)}</nav><div className="side-bottom"><button onClick={() => setView("settings")}><i>⚙</i>设置</button><button onClick={() => { setExportIds([]); setExportOpen(true); }}><i>↓</i>导出 / 导入</button><div className="privacy"><span>◉</span><div><strong>{storageKind === "local-folder" ? "内容保存在本地文件夹" : "正在确认数据位置"}</strong><small>你始终拥有原文与控制权</small></div></div></div></aside>
     <section className="content">
       <header className="mobile-head"><div className="brand"><span className="brand-mark">回</span><span>回页</span></div><button onClick={() => setView("pool")}>日记池</button></header>
       {view === "write" && <div className="page write-page" style={{ maxWidth: 960, paddingTop: 44, transform: `translateY(-${Math.min(190, Math.max(0, writeLines - 5) * 20)}px)`, transition: "transform .28s ease" }}>
@@ -745,7 +714,7 @@ export default function Home() {
         <div className="write-link-control"><Toggle checked={link} onChange={() => setLink(!link)} label="参与未来回响" hint="当未来与它产生联系时，回页可能让它再次出现" /></div>
         <div className="save-row"><span>{link ? "它会安静留在这里，等待未来的联系" : "它只会被保存，不参与未来回响"}</span><button className="primary" onClick={() => saveEntry(text)}>保存这篇记录 <b>→</b></button></div>
       </div>}      {view === "pool" && <div className="page pool-page"><div className="page-title"><div><div className="eyebrow">你的思考原野</div><h1>日记池</h1><p className="lead">不用整理。它们会留在这里，等待与未来的某个时刻发生联系。</p></div><button className="primary small" onClick={() => setView("write")}>＋ 写一篇</button></div><div className="search"><span>⌕</span><input placeholder="搜索一个词、一段记忆或一个问题…" value={search} onChange={event => setSearch(event.target.value)} /></div><div className="filter-row"><button className="selected">全部 {entries.length}</button><button>未闭合 {entries.filter(entry => entry.status === "open").length}</button><button>已有回响 {entries.filter(entry => entry.status === "echoed").length}</button></div><div className="entry-grid">{filtered.map(entry => <article className="entry" key={entry.id} onClick={() => openEntry(entry)} onKeyDown={event => { if (event.key === "Enter") openEntry(entry); }} role="button" tabIndex={0}><div className="entry-meta"><span>{formatTimestamp(entry, now)}</span></div><h3>{entry.title}</h3><p className="entry-preview">{markdownPreviewText(entry.content)}</p><div className="entry-foot"><span>{entry.source}{entry.attachments?.length ? ` · ${entry.attachments.length} 张图` : ""}</span><div>{entry.tags.map(tag => <b key={tag}>{tag}</b>)}</div></div></article>)}</div></div>}
-      {view === "settings" && <div className="page settings-page"><div className="eyebrow">你的思考，只属于你</div><h1>数据与迁移</h1><p className="lead">日记、图片和回响已按你的 ChatGPT 账号保存在私人云端；换浏览器或清理缓存后，登录同一账号仍会自动恢复。</p><section className="prompt-card"><div><h2>私人数据</h2><p>{storageStatus === "loading" ? "正在读取你的数据…" : storageStatus === "saving" ? "正在安全保存…" : storageStatus === "error" ? "暂时无法连接云端，当前修改已留在本机，恢复连接后会再次保存。" : "已安全保存到你的私人空间。"}</p>{storageUpdatedAt && storageStatus === "saved" && <small>最近保存：{new Date(storageUpdatedAt).toLocaleString("zh-CN")}</small>}</div><div className="migration-actions"><button className="primary" type="button" onClick={downloadBackup}>导出一份副本</button><button type="button" onClick={() => importRef.current?.click()}>从 JSON 导入</button><input ref={importRef} hidden type="file" accept="application/json,.json" onChange={event => void importBackup(event.target.files?.[0])} /></div><small>JSON 现在用于迁移和自主管理，不再承担日常保存职责。导入会替换当前账号的云端数据。</small></section><section className="prompt-example"><details><summary>导出 Markdown：用于阅读与归档</summary><p className="example-note">Markdown 会导出你选中的「我的思考」、时间、来源和标签。它适合自己保存、阅读或交给其他工具，但不能恢复回响关系。</p><button className="export-link-button" type="button" onClick={() => { setExportIds(entries.map(entry => entry.id)); setExportOpen(true); }}>选择要导出的思考</button></details></section></div>}      {view === "echo" && <div className="page echo-page">
+      {view === "settings" && <div className="page settings-page"><div className="eyebrow">你的思考，只属于你</div><h1>数据与迁移</h1><p className="lead">日记、图片和回响直接保存在项目的 local-data 文件夹；应用只读取当前有效的数据代次。</p><section className="prompt-card"><div><h2>本地数据</h2><p>{storageStatus === "loading" ? "正在读取本地文件夹…" : storageStatus === "saving" ? "正在写入并校验新的数据代次…" : storageStatus === "error" ? "本地文件夹暂时无法写入；当前页面内容未被自动删除，请先不要刷新。" : storageKind === "local-folder" ? "已安全保存到本地文件夹。" : "当前不是本地运行模式，请不要在此写入私人日记。"}</p>{storageUpdatedAt && storageStatus === "saved" && <small>最近保存：{new Date(storageUpdatedAt).toLocaleString("zh-CN")}</small>}</div><div className="migration-actions"><button className="primary" type="button" onClick={downloadBackup}>导出一份副本</button><button type="button" onClick={() => importRef.current?.click()}>从 JSON 导入</button><input ref={importRef} hidden type="file" accept="application/json,.json" onChange={event => void importBackup(event.target.files?.[0])} /></div><small>本地文件夹是唯一主数据源。每次写入先创建并校验新代次，旧代次不会自动删除；JSON 导入同样只会新增代次。</small></section><section className="prompt-example"><details><summary>导出 Markdown：用于阅读与归档</summary><p className="example-note">Markdown 会导出你选中的「我的思考」、时间、来源和标签。它适合自己保存、阅读或交给其他工具，但不能恢复回响关系。</p><button className="export-link-button" type="button" onClick={() => { setExportIds(entries.map(entry => entry.id)); setExportOpen(true); }}>选择要导出的思考</button></details></section></div>}      {view === "echo" && <div className="page echo-page">
         <div className="eyebrow">过去与现在，在这里相遇</div>
         <h1>回响</h1>
         <p className="lead">{echoLoading ? "正在安静地看看，过去与现在之间是否出现了新的联系。" : visibleEcho ? (visibleEcho.status === "pending" ? "一段旧思考，或许正值得你再看一眼。" : "你最近看过的一段回响，仍留在这里。") : "这里不追求每天都有答案。没有足够真实的联系时，回页会保持安静。"}</p>

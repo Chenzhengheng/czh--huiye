@@ -40,3 +40,6 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+
+# Private local diary data. Never commit or publish this directory.
+/local-data/

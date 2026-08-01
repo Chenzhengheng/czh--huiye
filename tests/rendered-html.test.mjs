@@ -75,6 +75,15 @@ test("keeps the writing canvas responsive to rendered lines", async () => {
   assert.match(page, /Array\.from\(markdownPreviewText\(firstLine\)\)\.slice\(0, 15\)/);
 });
 
+test("never seeds or clears diary data automatically", async () => {
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+
+  assert.doesNotMatch(page, /const seedEntries|createData\(seedEntries|clearLegacyData/);
+  assert.match(page, /createData\(\[\], \[\], \[\]\)/);
+  assert.match(page, /内容保存在本地文件夹/);
+  assert.match(page, /旧代次不会自动删除/);
+});
+
 test("requires a signed-in ChatGPT user for private data", async () => {
   const worker = await loadWorker();
   const response = await worker.fetch(

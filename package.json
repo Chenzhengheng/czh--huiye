@@ -7,9 +7,12 @@
   },
   "scripts": {
     "dev": "vinext dev",
+    "local": "vinext dev --host 127.0.0.1 --port 4317",
+    "local:import": "node scripts/import-local-data.mjs",
+    "local:verify": "node scripts/verify-local-data.mjs",
     "build": "vinext build",
     "start": "vinext start",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs",
+    "test": "vinext build && node --test tests/rendered-html.test.mjs tests/local-data-store.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
   },
