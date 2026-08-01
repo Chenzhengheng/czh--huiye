@@ -47,7 +47,10 @@ export default defineConfig(async () => {
   return {
     server: {
       host: "127.0.0.1",
-      ...(isCodexSeatbeltSandbox ? { watch: { useFsEvents: false, usePolling: true } } : {}),
+      watch: {
+        ignored: ["**/local-data/**"],
+        ...(isCodexSeatbeltSandbox ? { useFsEvents: false, usePolling: true } : {}),
+      },
     },
     plugins: [
       localDataPlugin({ rootDir: "local-data" }),

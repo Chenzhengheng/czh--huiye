@@ -11,6 +11,7 @@
 | [README.md](README.md) | 产品共识 | 回页是什么、两类回响如何延续思考，哪些原则不轻易改变？ | 活跃 |
 | [ROADMAP.md](ROADMAP.md) | 阶段规划 | 当前验证什么，下一阶段做什么？ | 活跃 |
 | [TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md) | 技术实现 | 当前代码、接口和数据实际上如何运行？ | 活跃 |
+| [DATA_SCHEMA.md](DATA_SCHEMA.md) | 数据字典 | 本地数据有哪些对象、字段、允许值和关系？ | 活跃 |
 | [DOCUMENTATION_INSTRUCTIONS.md](DOCUMENTATION_INSTRUCTIONS.md) | 维护规则 | 文档如何分类、更新和处理冲突？ | 活跃 |
 
 ## 当前交付计划
@@ -33,6 +34,7 @@
 - 想判断一个新功能是否符合回页：看 `README.md`。
 - 想判断现在是否应该做：看 `ROADMAP.md`。
 - 想确认代码和数据当前怎样运行：看 `TECHNICAL_GUIDE.md`。
+- 想确认每个数据字段及日记、回响、案例之间的关系：看 `DATA_SCHEMA.md`。
 - 想查看 8 月 1 日、8 月 5 日交付进度：看当前交付计划。
 - 想知道文档应该放在哪里：看 `DOCUMENTATION_INSTRUCTIONS.md`。
 - 想追溯已放弃的 AI 整理方案：看 `docs/legacy/`。

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -86,6 +86,40 @@ test("recovers from a broken current pointer by scanning valid generations", asy
     const recovered = await readLocalData(root);
     assert.equal(recovered.generationId, first.generationId);
     assert.equal(recovered.data.entries.length, 2);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("promotes a complete newer staging generation after an interrupted save", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "huiye-local-store-"));
+  try {
+    const first = await writeLocalData(root, fixture(), { source: "test" });
+    const changed = fixture();
+    changed.entries.unshift({
+      id: 103,
+      title: "中断后仍应恢复",
+      content: "这篇记录已经完整写入暂存代次。",
+      createdAt: "2026-08-01T03:00:00.000Z",
+      tags: [],
+      source: "测试",
+      aiLink: true,
+    });
+    const second = await writeLocalData(root, changed, { source: "local-app" });
+    const finalDir = path.join(root, "generations", second.generationId);
+    const stagingDir = path.join(root, "generations", `.staging-${second.generationId}`);
+    await rename(finalDir, stagingDir);
+    await writeFile(path.join(root, "current.json"), `${JSON.stringify({
+      format: "huiye-local-store",
+      version: 1,
+      generationId: first.generationId,
+      updatedAt: first.updatedAt,
+    }, null, 2)}\n`, "utf8");
+
+    const recovered = await readLocalData(root);
+    assert.equal(recovered.generationId, second.generationId);
+    assert.equal(recovered.data.entries.length, 3);
+    assert.equal(JSON.parse(await readFile(path.join(root, "current.json"), "utf8")).generationId, second.generationId);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

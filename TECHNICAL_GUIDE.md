@@ -94,13 +94,15 @@ OpenRouter 模型
   → 候选：当前 MVP 传入少量已有记录
   → AI 严格判断：无确实价值则不返回
   → 校验：引用必须是候选原文中的精确片段
-  → 私人云端保存 Echo（pending / opened / continued / irrelevant）
+  → 本地保存 Echo（pending / opened / continued / irrelevant）
   → 回响页最多展示一张 pending 卡片
 ```
 
 回响 API 不是“相似文本搜索”。当前实现主要覆盖关系延续：模型必须判断 A 与 B 之间是否存在旧假设、条件、证据或判断的变化；仅关键词相同必须拒绝。时间延续尚未进入当前代码流程。
 
 ## 数据模型
+
+字段、允许值、物理目录和关系图统一维护在 [DATA_SCHEMA.md](DATA_SCHEMA.md)。本节只说明当前兼容结构与迁移方向，不再复制完整字段字典。
 
 ### Entry
 

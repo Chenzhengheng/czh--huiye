@@ -23,14 +23,9 @@ type OrganizationExample = { id: number; original: string; title: string; conten
  type HuiyeBackup = { format: "huiye-backup"; version: 1; exportedAt: string; entries: Entry[]; echoes: Echo[]; echoCheckedIds: number[] };
 type Echo = { id: string; currentEntryId: number; previousEntryId: number; quote: string; reason: string; createdAt: string; status: "pending" | "opened" | "continued" | "irrelevant" };
  type StorageStatus = "loading" | "saving" | "saved" | "error";
- type LocalData = { data: HuiyeBackup; kind: "emergency" | "legacy" };
- const ENTRIES_KEY = "ai-diary-entries";
- const EMERGENCY_DATA_KEY = "huiye-emergency-data-v1";
  const DRAFT_KEY = "huiye-writing-draft-v1";
  const PROMPT_KEY = "huiye-organization-prompt-v1";
  const EXAMPLES_KEY = "huiye-organization-examples-v1";
- const ECHOES_KEY = "huiye-thought-echoes-v1";
- const ECHO_CHECKS_KEY = "huiye-echo-checked-entries-v1";
  const WRITE_LINE_HEIGHT = 41;
  const WRITE_MIN_LINES = 6;
  const WRITE_MAX_LINES = 15;
@@ -83,47 +78,6 @@ function createData(entries: Entry[], echoes: Echo[], echoCheckedIds: number[]):
     echoes,
     echoCheckedIds,
   };
-}
-
-function readLocalData(): LocalData | null {
-  try {
-    const emergency = localStorage.getItem(EMERGENCY_DATA_KEY);
-    if (emergency) {
-      const data = JSON.parse(emergency) as HuiyeBackup;
-      if (data.format === "huiye-backup" && data.version === 1 && Array.isArray(data.entries)) {
-        return { data, kind: "emergency" };
-      }
-    }
-    const savedEntries = localStorage.getItem(ENTRIES_KEY);
-    if (!savedEntries) return null;
-    const entries = JSON.parse(savedEntries) as Entry[];
-    const echoes = JSON.parse(localStorage.getItem(ECHOES_KEY) || "[]") as Echo[];
-    const echoCheckedIds = JSON.parse(localStorage.getItem(ECHO_CHECKS_KEY) || "[]") as number[];
-    if (!Array.isArray(entries)) return null;
-    const migratedEntries = entries.map(entry => {
-      const current = { ...entry } as Entry & { originalContent?: string };
-      delete current.originalContent;
-      return current;
-    });
-    return {
-      data: createData(
-        migratedEntries,
-        Array.isArray(echoes) ? echoes : [],
-        Array.isArray(echoCheckedIds) ? echoCheckedIds : [],
-      ),
-      kind: "legacy",
-    };
-  } catch {
-    return null;
-  }
-}
-
-function cacheEmergencyData(data: HuiyeBackup) {
-  try {
-    localStorage.setItem(EMERGENCY_DATA_KEY, JSON.stringify(data));
-  } catch {
-    // The cloud copy remains authoritative; a large image may exceed browser storage.
-  }
 }
 
 async function savePrivateData(data: HuiyeBackup): Promise<string> {
@@ -384,7 +338,6 @@ export default function Home() {
   useEffect(() => {
     let cancelled = false;
     async function loadPrivateData() {
-      const local = readLocalData();
       try {
         const response = await fetch("/api/data", { cache: "no-store" });
         const result = await response.json() as { data?: HuiyeBackup | null; updatedAt?: string | null; storageKind?: "local-folder" | "cloud"; error?: string };
@@ -395,20 +348,17 @@ export default function Home() {
         setEntries(data.entries);
         setEchoes(data.echoes);
         setEchoCheckedIds(data.echoCheckedIds);
-        setStorageKind(result.storageKind || "cloud");
+        if (result.storageKind !== "local-folder") throw new Error("当前不是本地数据服务");
+        setStorageKind("local-folder");
         setStorageStatus("saved");
+        setStorageReady(true);
       } catch {
         if (cancelled) return;
-        const fallback = local?.data ?? createData([], [], []);
-        setEntries(fallback.entries);
-        setEchoes(fallback.echoes);
-        setEchoCheckedIds(fallback.echoCheckedIds);
         setStorageStatus("error");
       } finally {
         if (!cancelled) {
           setEchoesReady(true);
           setEchoChecksReady(true);
-          setStorageReady(true);
         }
       }
     }
@@ -449,10 +399,7 @@ export default function Home() {
           setStorageUpdatedAt(updatedAt);
           setStorageStatus("saved");
         })
-        .catch(() => {
-          cacheEmergencyData(data);
-          setStorageStatus("error");
-        });
+        .catch(() => setStorageStatus("error"));
     }, 700);
     return () => window.clearTimeout(timer);
   }, [entries, echoes, echoCheckedIds, storageReady]);
@@ -620,7 +567,7 @@ export default function Home() {
     setFeedbackOpen(false); setIssueOptionsOpen(false);
     notify(kind === "good" ? "已收为好样例，用于之后校准整理规则" : `已记录：${reason}。它会帮助我们守住边界。`);
   }
-  function saveEntry(rawText?: string) {
+  async function saveEntry(rawText?: string) {
     const content = (rawText ?? text).trim();
     if (!content && !attachments.length) {
       notify("还没有内容可保存");
@@ -637,9 +584,22 @@ export default function Home() {
       attachments,
       continuesFrom: continuingFrom ?? undefined,
     };
-    setEntries(current => [entry, ...current]);
-    resetWritingEditor(""); setAttachments([]); setContinuingFrom(null);
-    notify("已保存这篇思考");
+    const nextEntries = [entry, ...entries];
+    const data = createData(nextEntries, echoes, echoCheckedIds);
+    setStorageStatus("saving");
+    notify("正在安全写入本地文件夹…");
+    try {
+      const updatedAt = await queuePrivateSave(data);
+      skipInitialSaveRef.current = true;
+      setEntries(nextEntries);
+      setStorageUpdatedAt(updatedAt);
+      setStorageStatus("saved");
+      resetWritingEditor(""); setAttachments([]); setContinuingFrom(null);
+      notify("已安全保存到本地文件夹");
+    } catch {
+      setStorageStatus("error");
+      notify("保存失败，正文仍保留在编辑区，请不要刷新");
+    }
   }
   function openEntry(entry: Entry) {
     setSelectedId(entry.id);
@@ -712,7 +672,7 @@ export default function Home() {
           <div className="paper-tools"><span>{text.length} 字 · {attachments.length} 张图片</span><div><button onClick={pasteText}>粘贴</button><button onClick={() => fileRef.current?.click()}>＋ 手写 / 图片</button><input ref={fileRef} hidden type="file" accept="image/*" multiple onChange={event => { addFiles(event.target.files); event.target.value = ""; }} /></div></div>
         </div>        {attachments.length > 0 && <div className="attachment-row">{attachments.map((attachment, index) => <div key={`${attachment.name}-${index}`}><img src={attachment.data} alt={attachment.name} /><button onClick={() => setAttachments(current => current.filter((_, itemIndex) => itemIndex !== index))}>×</button></div>)}</div>}
         <div className="write-link-control"><Toggle checked={link} onChange={() => setLink(!link)} label="参与未来回响" hint="当未来与它产生联系时，回页可能让它再次出现" /></div>
-        <div className="save-row"><span>{link ? "它会安静留在这里，等待未来的联系" : "它只会被保存，不参与未来回响"}</span><button className="primary" onClick={() => saveEntry(text)}>保存这篇记录 <b>→</b></button></div>
+        <div className="save-row"><span>{link ? "它会安静留在这里，等待未来的联系" : "它只会被保存，不参与未来回响"}</span><button className="primary" disabled={storageStatus === "saving" || !storageReady} onClick={() => void saveEntry(text)}>{storageStatus === "saving" ? "正在写入本地…" : "保存这篇记录"} <b>→</b></button></div>
       </div>}      {view === "pool" && <div className="page pool-page"><div className="page-title"><div><div className="eyebrow">你的思考原野</div><h1>日记池</h1><p className="lead">不用整理。它们会留在这里，等待与未来的某个时刻发生联系。</p></div><button className="primary small" onClick={() => setView("write")}>＋ 写一篇</button></div><div className="search"><span>⌕</span><input placeholder="搜索一个词、一段记忆或一个问题…" value={search} onChange={event => setSearch(event.target.value)} /></div><div className="filter-row"><button className="selected">全部 {entries.length}</button><button>未闭合 {entries.filter(entry => entry.status === "open").length}</button><button>已有回响 {entries.filter(entry => entry.status === "echoed").length}</button></div><div className="entry-grid">{filtered.map(entry => <article className="entry" key={entry.id} onClick={() => openEntry(entry)} onKeyDown={event => { if (event.key === "Enter") openEntry(entry); }} role="button" tabIndex={0}><div className="entry-meta"><span>{formatTimestamp(entry, now)}</span></div><h3>{entry.title}</h3><p className="entry-preview">{markdownPreviewText(entry.content)}</p><div className="entry-foot"><span>{entry.source}{entry.attachments?.length ? ` · ${entry.attachments.length} 张图` : ""}</span><div>{entry.tags.map(tag => <b key={tag}>{tag}</b>)}</div></div></article>)}</div></div>}
       {view === "settings" && <div className="page settings-page"><div className="eyebrow">你的思考，只属于你</div><h1>数据与迁移</h1><p className="lead">日记、图片和回响直接保存在项目的 local-data 文件夹；应用只读取当前有效的数据代次。</p><section className="prompt-card"><div><h2>本地数据</h2><p>{storageStatus === "loading" ? "正在读取本地文件夹…" : storageStatus === "saving" ? "正在写入并校验新的数据代次…" : storageStatus === "error" ? "本地文件夹暂时无法写入；当前页面内容未被自动删除，请先不要刷新。" : storageKind === "local-folder" ? "已安全保存到本地文件夹。" : "当前不是本地运行模式，请不要在此写入私人日记。"}</p>{storageUpdatedAt && storageStatus === "saved" && <small>最近保存：{new Date(storageUpdatedAt).toLocaleString("zh-CN")}</small>}</div><div className="migration-actions"><button className="primary" type="button" onClick={downloadBackup}>导出一份副本</button><button type="button" onClick={() => importRef.current?.click()}>从 JSON 导入</button><input ref={importRef} hidden type="file" accept="application/json,.json" onChange={event => void importBackup(event.target.files?.[0])} /></div><small>本地文件夹是唯一主数据源。每次写入先创建并校验新代次，旧代次不会自动删除；JSON 导入同样只会新增代次。</small></section><section className="prompt-example"><details><summary>导出 Markdown：用于阅读与归档</summary><p className="example-note">Markdown 会导出你选中的「我的思考」、时间、来源和标签。它适合自己保存、阅读或交给其他工具，但不能恢复回响关系。</p><button className="export-link-button" type="button" onClick={() => { setExportIds(entries.map(entry => entry.id)); setExportOpen(true); }}>选择要导出的思考</button></details></section></div>}      {view === "echo" && <div className="page echo-page">
         <div className="eyebrow">过去与现在，在这里相遇</div>

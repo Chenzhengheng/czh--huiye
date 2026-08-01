@@ -56,6 +56,21 @@ async function readJson(filePath) {
   return JSON.parse(await readFile(filePath, "utf8"));
 }
 
+async function renameWithRetry(from, to) {
+  let lastError;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      await rename(from, to);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (!["EPERM", "EACCES", "EBUSY", "ENOTEMPTY"].includes(error?.code) || attempt === 7) throw error;
+      await new Promise(resolve => setTimeout(resolve, 50 * (attempt + 1)));
+    }
+  }
+  throw lastError;
+}
+
 function parseAttachmentData(data) {
   if (typeof data !== "string") return { encoding: "text", bytes: Buffer.from("") };
   const match = /^data:([^;,]+)?(?:;charset=[^;,]+)?;base64,([\s\S]*)$/.exec(data);
@@ -147,6 +162,68 @@ async function readGeneration(generationDir) {
   return { data, generation };
 }
 
+async function switchCurrentPointer(rootDir, generationId, updatedAt) {
+  const historyDir = path.join(rootDir, "pointer-history");
+  await mkdir(historyDir, { recursive: true });
+  const currentPath = path.join(rootDir, "current.json");
+  try {
+    await stat(currentPath);
+    await copyFile(currentPath, path.join(historyDir, `${generationId}.previous.json`));
+  } catch {
+    // The first valid generation has no previous pointer.
+  }
+  const nextPointer = path.join(rootDir, `current.${generationId}.next.json`);
+  const pointerContents = `${JSON.stringify({ format: STORE_FORMAT, version: STORE_VERSION, generationId, updatedAt }, null, 2)}\n`;
+  await writeFile(nextPointer, pointerContents, { encoding: "utf8", flag: "w" });
+  try {
+    await rename(nextPointer, currentPath);
+  } catch {
+    const archivedPointer = path.join(historyDir, `${generationId}.${Date.now()}.replaced.json`);
+    try { await renameWithRetry(currentPath, archivedPointer); } catch { /* Current may not exist. */ }
+    await renameWithRetry(nextPointer, currentPath);
+  }
+}
+
+export async function recoverInterruptedWrites(rootDir) {
+  let currentUpdatedAt = "";
+  try {
+    const current = await readJson(path.join(rootDir, "current.json"));
+    const active = await readGeneration(path.join(rootDir, "generations", safeName(current.generationId, "generation")));
+    currentUpdatedAt = active.generation.updatedAt || "";
+  } catch {
+    // A broken pointer can be recovered from a complete staging generation.
+  }
+
+  let names = [];
+  try {
+    names = (await readdir(path.join(rootDir, "generations"), { withFileTypes: true }))
+      .filter(item => item.isDirectory() && item.name.startsWith(".staging-"))
+      .map(item => item.name);
+  } catch {
+    return null;
+  }
+
+  const candidates = [];
+  for (const name of names) {
+    try {
+      const staged = await readGeneration(path.join(rootDir, "generations", name));
+      if ((staged.generation.updatedAt || "") > currentUpdatedAt) candidates.push({ name, ...staged });
+    } catch {
+      // Incomplete staging folders are preserved for manual inspection.
+    }
+  }
+  candidates.sort((a, b) => String(b.generation.updatedAt).localeCompare(String(a.generation.updatedAt)));
+  const newest = candidates[0];
+  if (!newest) return null;
+
+  const generationId = newest.generation.generationId;
+  const stagingDir = path.join(rootDir, "generations", newest.name);
+  const finalDir = path.join(rootDir, "generations", generationId);
+  await renameWithRetry(stagingDir, finalDir);
+  await switchCurrentPointer(rootDir, generationId, newest.generation.updatedAt);
+  return { generationId, generation: newest.generation, data: newest.data };
+}
+
 async function listGenerationIds(rootDir) {
   const generationsDir = path.join(rootDir, "generations");
   try {
@@ -161,6 +238,7 @@ async function listGenerationIds(rootDir) {
 }
 
 export async function readLocalData(rootDir) {
+  await recoverInterruptedWrites(rootDir);
   let preferred = null;
   try {
     preferred = (await readJson(path.join(rootDir, "current.json"))).generationId;
@@ -217,26 +295,8 @@ export async function writeLocalData(rootDir, input, options = {}) {
 
   const staged = await readGeneration(stagingDir);
   if (staged.data.entries.length !== data.entries.length) throw new Error("本地数据写入校验失败");
-  await rename(stagingDir, finalDir);
-
-  const historyDir = path.join(rootDir, "pointer-history");
-  await mkdir(historyDir, { recursive: true });
-  const currentPath = path.join(rootDir, "current.json");
-  try {
-    await stat(currentPath);
-    await copyFile(currentPath, path.join(historyDir, `${generationId}.previous.json`));
-  } catch {
-    // First generation has no previous pointer.
-  }
-  const nextPointer = path.join(rootDir, `current.${generationId}.next.json`);
-  await writeJson(nextPointer, { format: STORE_FORMAT, version: STORE_VERSION, generationId, updatedAt });
-  try {
-    await rename(nextPointer, currentPath);
-  } catch {
-    const archivedPointer = path.join(historyDir, `${generationId}.replaced.json`);
-    try { await rename(currentPath, archivedPointer); } catch { /* Current may not exist. */ }
-    await rename(nextPointer, currentPath);
-  }
+  await renameWithRetry(stagingDir, finalDir);
+  await switchCurrentPointer(rootDir, generationId, updatedAt);
 
   return { generationId, updatedAt, counts: staged.generation.counts, dataSha256: staged.generation.dataSha256 };
 }

@@ -36,6 +36,12 @@ export function isLocalDataRequestAllowed(request) {
 
 export function localDataPlugin(options = {}) {
   const rootDir = path.resolve(options.rootDir || "local-data");
+  let dataOperation = Promise.resolve();
+  const serialize = task => {
+    const next = dataOperation.then(task, task);
+    dataOperation = next.catch(() => undefined);
+    return next;
+  };
   return {
     name: "huiye-local-data",
     apply: "serve",
@@ -46,7 +52,7 @@ export function localDataPlugin(options = {}) {
         try {
           if (!isLocalDataRequestAllowed(request)) return sendJson(response, 403, { error: "拒绝非本地同源的数据请求" });
           if (request.method === "GET") {
-            const stored = await readLocalData(rootDir);
+            const stored = await serialize(() => readLocalData(rootDir));
             return sendJson(response, 200, {
               data: stored?.data ?? null,
               updatedAt: stored?.generation.updatedAt ?? null,
@@ -59,7 +65,7 @@ export function localDataPlugin(options = {}) {
               return sendJson(response, 415, { error: "本地数据写入只接受 JSON" });
             }
             const data = JSON.parse(await readBody(request));
-            const saved = await writeLocalData(rootDir, data, { source: "local-app" });
+            const saved = await serialize(() => writeLocalData(rootDir, data, { source: "local-app" }));
             return sendJson(response, 200, { saved: true, storageKind: "local-folder", ...saved });
           }
           response.setHeader("allow", "GET, PUT");

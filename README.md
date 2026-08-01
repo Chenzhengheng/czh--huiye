@@ -8,7 +8,7 @@
 
 > 求职展示：独立的公开作品集网站只使用脱敏演示内容，并链接代码仓库；它与私人日记应用分开发布。
 
-> 文档导航：[完整索引](DOCUMENTATION_INDEX.md) · [阶段规划](ROADMAP.md) · [技术指南](TECHNICAL_GUIDE.md)
+> 文档导航：[完整索引](DOCUMENTATION_INDEX.md) · [阶段规划](ROADMAP.md) · [技术指南](TECHNICAL_GUIDE.md) · [本地数据结构](DATA_SCHEMA.md)
 
 ## 一句话
 
