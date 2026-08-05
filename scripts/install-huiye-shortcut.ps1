@@ -4,7 +4,7 @@ $assetsDir = Join-Path $projectRoot "assets"
 $iconPath = Join-Path $assetsDir "huiye.ico"
 $launcherPath = Join-Path $projectRoot "scripts\start-huiye-ui.ps1"
 $desktop = [Environment]::GetFolderPath("Desktop")
-$shortcutPath = Join-Path $desktop ((-join ([char[]](0x56DE, 0x9875))) + ".lnk")
+$shortcutPath = Join-Path $desktop ((-join ([char[]](0x56DE, 0x9875))) + " · AI Diary.lnk")
 
 New-Item -ItemType Directory -Path $assetsDir -Force | Out-Null
 Add-Type -AssemblyName System.Drawing

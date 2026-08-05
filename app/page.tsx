@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { EchoCard, type EchoEventType, type EchoMode, type EchoRecordV2 } from "./echo-card";
 
 type View = "write" | "pool" | "echo" | "chat" | "settings";
 type Attachment = { name: string; type: string; data: string };
@@ -18,57 +19,14 @@ type Entry = {
   continuesFrom?: number;
 };
 type Draft = { title: string; content: string; tags: string[]; aiLink: boolean };
-type OrganizationExample = { id: number; original: string; title: string; content: string; tags: string[]; prompt: string; createdAt: string; kind?: "good" | "needs_work"; reason?: string };
- type SavedDraft = { text: string; attachments: Attachment[]; link: boolean; updatedAt: string };
+ type SavedDraft = { text: string; attachments: Attachment[]; tags?: string[]; link: boolean; updatedAt: string };
  type HuiyeBackup = { format: "huiye-backup"; version: 1; exportedAt: string; entries: Entry[]; echoes: Echo[]; echoCheckedIds: number[] };
 type Echo = { id: string; currentEntryId: number; previousEntryId: number; quote: string; reason: string; createdAt: string; status: "pending" | "opened" | "continued" | "irrelevant" };
  type StorageStatus = "loading" | "saving" | "saved" | "error";
  const DRAFT_KEY = "huiye-writing-draft-v1";
- const PROMPT_KEY = "huiye-organization-prompt-v1";
- const EXAMPLES_KEY = "huiye-organization-examples-v1";
  const WRITE_LINE_HEIGHT = 41;
  const WRITE_MIN_LINES = 6;
  const WRITE_MAX_LINES = 15;
- const DEFAULT_ORGANIZE_PROMPT = `你是“回页”的轻量整理助手。
-
-你的职责是降低用户未来回看日记时的管理成本和阅读成本。你不是作者、导师、心理咨询师或总结者；你不替用户思考，不替用户下结论。
-
-用户原文是唯一事实来源。原文优先；整理稿必须尽可能保留用户原本的表达、语气、顺序与思考轨迹。AI 应该尽量隐形。
-
-任务：为未命名或标题过于通用的记录提供建议标题；生成一份最小整理稿；提供 0–3 个标签建议。
-
-不得添加原文中不存在的事实、因果、案例、动机、结论、建议或技术细节；不得删除有信息或思考价值的句子；不得改变原文推理顺序；不得消除犹豫、保留意见、括号、疑问、矛盾、跳跃、未完成句或自我提醒；不得将并列想法强行组织成完整论证；不得进行心理分析、人格判断、价值评判、鼓励式总结或温情化表达。
-
-不得使用“总结”“启示”“核心结论”“建议”“为什么”等自行创造的概念性小标题。仅允许分段与留白、修正明显错别字或标点、把原文明确并列内容变为列表，以及将用户原本已有的转折词、例子提示、拆解词或延伸词单独成行作为轻微阅读锚点。不得自行创造锚点。
-
-如果用户已有明确标题，原样保留；“未命名记录”“快速记录”等通用标题视为无标题。标签必须来自原文明确出现或可直接对应的具体概念；最多 3 个；不确定时宁可少给。`;
-
-const ORGANIZATION_SAMPLE = {
-  original: `一句浓缩的话确实能表达出最精华的部分，但是你只读这句话，你是完全用不出来的，第一，不知道其产生的背景，第二，不知道适用的边界条件，第三，不知道做到什么程度。
-把书从厚读薄我认为也是这个道理，你看到最精华的部分，脑海里自动会产生与精华相关的背景、流程、边界、延申，而不仅仅是这句话。得先有厚再有薄。
-举例，在社交媒体上，大量的人（此处代指发声的人，可能大博主，可能小人物）告诉你做产品要差异化，因为要和别人的产品显得不同。这个并不是深层原因，我认为“不同”深层原因是稀缺性。再往下拆解，稀缺性分对象可以是，真的稀缺&用户认为稀缺/你营销的稀缺。假设真的产品性能一样，用户选谁不是选，那么拼的就是营销，谁的用户心智不一样（这里我瞎说的）。由这个延申出来，背景就是任何人的资源是有限的，需要选他们认为在该场景下最具性价比的一个。`,
-  title: "精华为什么不能脱离它的背景与边界？",
-  content: `一句浓缩的话确实能表达出最精华的部分，但是你只读这句话，你是完全用不出来的：
-
-- 不知道其产生的背景；
-- 不知道适用的边界条件；
-- 不知道做到什么程度。
-
-把书从厚读薄，我认为也是这个道理。你看到最精华的部分，脑海里自动会产生与精华相关的背景、流程、边界、延申，而不仅仅是这句话。得先有厚，再有薄。
-
-举例
-
-在社交媒体上，大量的人（此处代指发声的人，可能大博主，可能小人物）告诉你做产品要差异化，因为要和别人的产品显得不同。
-
-这个并不是深层原因。我认为“不同”背后的深层原因是稀缺性。
-
-再往下拆解
-
-稀缺性分对象可以是：真的稀缺、用户认为稀缺、你营销的稀缺。假设真的产品性能一样，用户选谁不是选，那么拼的就是营销，谁的用户心智不一样（这里我瞎说的）。
-
-由这个延申出来，背景就是：任何人的资源是有限的，需要选他们认为在该场景下最具性价比的一个。`,
-  tags: ["阅读方法", "产品差异化", "稀缺性"],
-};
 function createData(entries: Entry[], echoes: Echo[], echoCheckedIds: number[]): HuiyeBackup {
   return {
     format: "huiye-backup",
@@ -119,6 +77,26 @@ function formatTimestamp(entry: Entry, now: number) {
   }
   if (created.getFullYear() === current.getFullYear()) return `${created.getMonth() + 1}月${created.getDate()}日`;
   return `${created.getFullYear()}年${created.getMonth() + 1}月${created.getDate()}日`;
+}
+
+async function saveEchoEvent(echoRecordId: string, type: EchoEventType, resultEntryId?: number): Promise<EchoRecordV2> {
+  const response = await fetch("/api/echo-events", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ echoRecordId, type, ...(resultEntryId === undefined ? {} : { resultEntryId }) }),
+  });
+  const result = await response.json() as { record?: EchoRecordV2; error?: string };
+  if (!response.ok || !result.record) throw new Error(result.error || "回响记录失败");
+  return result.record;
+}
+
+function formatWritingDate(now: number) {
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "long",
+  }).format(new Date(now));
 }
 
 function visualLineCount(value: string, charactersPerLine = 50) {
@@ -269,40 +247,27 @@ export default function Home() {
   const [text, setText] = useState("");
   const [pendingDraft, setPendingDraft] = useState<SavedDraft | null>(null);
   const [draftReady, setDraftReady] = useState(false);
-  const [organizePrompt, setOrganizePrompt] = useState(DEFAULT_ORGANIZE_PROMPT);
-  const [promptReady, setPromptReady] = useState(false);
-  const [organizationExamples, setOrganizationExamples] = useState<OrganizationExample[]>([]);
   const [echoes, setEchoes] = useState<Echo[]>([]);
-  const [echoesReady, setEchoesReady] = useState(false);
   const [echoCheckedIds, setEchoCheckedIds] = useState<number[]>([]);
-  const [echoChecksReady, setEchoChecksReady] = useState(false);
+  const [echoRecords, setEchoRecords] = useState<EchoRecordV2[]>([]);
+  const [echoMode, setEchoMode] = useState<EchoMode>("relational");
+  const [echoLoadError, setEchoLoadError] = useState(false);
   const [storageReady, setStorageReady] = useState(false);
   const [storageStatus, setStorageStatus] = useState<StorageStatus>("loading");
   const [storageUpdatedAt, setStorageUpdatedAt] = useState<string | null>(null);
   const [storageKind, setStorageKind] = useState<"unknown" | "local-folder" | "cloud">("unknown");
-  const [echoLoading, setEchoLoading] = useState(false);
   const [continuingFrom, setContinuingFrom] = useState<number | null>(null);
-  const [examplesReady, setExamplesReady] = useState(false);
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const [issueOptionsOpen, setIssueOptionsOpen] = useState(false);
+  const [continuingEchoId, setContinuingEchoId] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [organize, setOrganize] = useState(true);
+  const [writeTags, setWriteTags] = useState<string[]>([]);
   const [link, setLink] = useState(true);
-  const [stage, setStage] = useState<"idle" | "organizing" | "review">("idle");
-  const [review, setReview] = useState<Draft>({ title: "", content: "", tags: [], aiLink: true });
-  const [reviewOriginal, setReviewOriginal] = useState("");
-  const [originalEdit, setOriginalEdit] = useState("");
-  const [reviewEntryId, setReviewEntryId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [edit, setEdit] = useState<Draft | null>(null);
-  const [showOriginal, setShowOriginal] = useState(false);
   const [previewMarkdown, setPreviewMarkdown] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [exportIds, setExportIds] = useState<number[]>([]);
-  const [chatInput, setChatInput] = useState("");
-  const [messages, setMessages] = useState<{ role: "user" | "ai"; text: string }[]>([]);
   const [now, setNow] = useState(() => Date.now());
   const fileRef = useRef<HTMLInputElement>(null);
   const importRef = useRef<HTMLInputElement>(null);
@@ -346,20 +311,31 @@ export default function Home() {
         if (!cancelled) setStorageUpdatedAt(result.updatedAt || null);
         if (cancelled) return;
         setEntries(data.entries);
-        setEchoes(data.echoes);
-        setEchoCheckedIds(data.echoCheckedIds);
+        // Legacy Echo v1 is intentionally retired. Only Entry data is loaded
+        // until the reviewed EchoRecord model replaces the old recall flow.
+        setEchoes([]);
+        setEchoCheckedIds([]);
         if (result.storageKind !== "local-folder") throw new Error("当前不是本地数据服务");
         setStorageKind("local-folder");
         setStorageStatus("saved");
         setStorageReady(true);
+        try {
+          const echoResponse = await fetch("/api/echo-records", { cache: "no-store" });
+          const echoResult = await echoResponse.json() as { records?: EchoRecordV2[]; error?: string };
+          if (!echoResponse.ok || !Array.isArray(echoResult.records)) throw new Error(echoResult.error || "无法读取回响记录");
+          if (!cancelled) {
+            setEchoRecords(echoResult.records);
+            setEchoLoadError(false);
+          }
+        } catch {
+          if (!cancelled) {
+            setEchoRecords([]);
+            setEchoLoadError(true);
+          }
+        }
       } catch {
         if (cancelled) return;
         setStorageStatus("error");
-      } finally {
-        if (!cancelled) {
-          setEchoesReady(true);
-          setEchoChecksReady(true);
-        }
       }
     }
     void loadPrivateData();
@@ -372,19 +348,10 @@ export default function Home() {
   useEffect(() => {
     if (!draftReady || pendingDraft) return;
     try {
-      if (text.trim() || attachments.length) localStorage.setItem(DRAFT_KEY, JSON.stringify({ text, attachments, link, updatedAt: new Date().toISOString() }));
+      if (text.trim() || attachments.length || writeTags.length) localStorage.setItem(DRAFT_KEY, JSON.stringify({ text, attachments, tags: writeTags, link, updatedAt: new Date().toISOString() }));
       else localStorage.removeItem(DRAFT_KEY);
     } catch { /* Draft storage is best effort when attachments are too large. */ }
-  }, [text, attachments, organize, link, draftReady, pendingDraft]);
-  useEffect(() => {
-    try { const savedPrompt = localStorage.getItem(PROMPT_KEY); if (savedPrompt) setOrganizePrompt(savedPrompt); } catch { /* Keep the default prompt. */ }
-    setPromptReady(true);
-  }, []);
-  useEffect(() => { if (promptReady) localStorage.setItem(PROMPT_KEY, organizePrompt); }, [organizePrompt, promptReady]);  useEffect(() => {
-    try { const savedExamples = localStorage.getItem(EXAMPLES_KEY); if (savedExamples) setOrganizationExamples(JSON.parse(savedExamples) as OrganizationExample[]); } catch { /* Ignore a broken local sample library. */ }
-    setExamplesReady(true);
-  }, []);
-  useEffect(() => { if (examplesReady) localStorage.setItem(EXAMPLES_KEY, JSON.stringify(organizationExamples)); }, [organizationExamples, examplesReady]);
+  }, [text, attachments, writeTags, link, draftReady, pendingDraft]);
   useEffect(() => {
     if (!storageReady) return;
     if (skipInitialSaveRef.current) {
@@ -407,21 +374,15 @@ export default function Home() {
 
   const filtered = useMemo(() => entries.filter(entry => `${entry.title}${entry.content}${entry.tags.join("")}`.toLowerCase().includes(search.toLowerCase())), [entries, search]);
   const selected = entries.find(entry => entry.id === selectedId) ?? null;
-  const pendingEcho = useMemo(() => echoes.filter(echo => echo.status === "pending").sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ?? null, [echoes]);
-  const recentEcho = useMemo(() => echoes.filter(echo => echo.status !== "irrelevant").sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ?? null, [echoes]);
-  const visibleEcho = pendingEcho ?? recentEcho;
-  const echoedEntry = visibleEcho ? entries.find(entry => entry.id === visibleEcho.previousEntryId) ?? null : null;
-  const echoSourceEntry = visibleEcho ? entries.find(entry => entry.id === visibleEcho.currentEntryId) ?? null : null;
   const continuingEntry = continuingFrom ? entries.find(entry => entry.id === continuingFrom) ?? null : null;
+  const eligibleEchoRecords = echoRecords.filter(record => Date.parse(record.eligibleAfter) <= now);
+  const activeEchoRecords = eligibleEchoRecords.filter(record => record.mode === echoMode);
   const writeRows = Math.min(WRITE_MAX_LINES, Math.max(WRITE_MIN_LINES, writeLines + 3));
   const editLines = visualLineCount(edit?.content || "", 55);
   const editRows = Math.min(15, Math.max(6, editLines + 3));
-  const reviewLines = visualLineCount(review.content, 52);
-  const reviewRows = Math.min(15, Math.max(5, reviewLines + 3));
 
   const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(""), 2600); };
-  const closeEdit = () => { setSelectedId(null); setEdit(null); setOriginalEdit(""); setShowOriginal(false); setPreviewMarkdown(false); };
-  const originalToSave = text.trim() || "今天有一些还没整理好的想法，先把它留在这里。";
+  const closeEdit = () => { setSelectedId(null); setEdit(null); setPreviewMarkdown(false); };
 
   function measureWritingEditor() {
     const editor = editorRef.current;
@@ -498,74 +459,24 @@ export default function Home() {
     });
   }
 
-  async function beginReview(entry?: Entry) {
-    const original = entry?.originalContent || entry?.content || originalToSave;
-    if (entry) closeEdit();
-    setStage("organizing");
-    try {
-      const response = await fetch("/api/organize", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: entry?.title || "", content: original, systemPrompt: organizePrompt }),
-      });
-      const result = await response.json() as { title?: string; content?: string; tags?: string[]; error?: string };
-      if (!response.ok || !result.content) throw new Error(result.error || "AI 整理暂时没有完成，请稍后再试。");
-      setReviewOriginal(original);
-      setReviewEntryId(entry?.id ?? null);
-      setReview({ title: result.title || "未命名记录", content: result.content, tags: result.tags || [], aiLink: entry?.aiLink ?? link });
-      setStage("review");
-    } catch (error) {
-      setStage("idle");
-      notify(error instanceof Error ? error.message : "AI 整理暂时没有完成，请稍后再试。");
-    }
-  }
   function restoreDraft() {
     if (!pendingDraft) return;
-    resetWritingEditor(pendingDraft.text); setAttachments(pendingDraft.attachments || []); setLink(pendingDraft.link); setPendingDraft(null); notify("已恢复刚才的记录");
+    resetWritingEditor(pendingDraft.text); setAttachments(pendingDraft.attachments || []); setWriteTags(pendingDraft.tags || []); setLink(pendingDraft.link); setPendingDraft(null); notify("已恢复刚才的记录");
   }
   function discardDraft() { localStorage.removeItem(DRAFT_KEY); setPendingDraft(null); notify("已丢弃未保存的记录"); }
-  async function prepareEcho(entry: Entry, catalogue: Entry[], force = false) {
-    if (!entry.aiLink || (!force && echoCheckedIds.includes(entry.id))) return;
-    const candidates = catalogue.filter(item => item.id !== entry.id && item.aiLink && item.content.trim()).slice(0, 18);
-    setEchoCheckedIds(current => current.includes(entry.id) ? current : [...current, entry.id]);
-    if (!candidates.length) return;
-    setEchoLoading(true);
-    try {
-      const response = await fetch("/api/recall", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          current: { id: entry.id, title: entry.title, content: entry.content, createdAt: entry.createdAt, date: entry.date },
-          candidates: candidates.map(item => ({ id: item.id, title: item.title, content: item.content, createdAt: item.createdAt, date: item.date })),
-        }),
-      });
-      const result = await response.json() as { echo?: { candidateId: number; quote: string; reason: string } | null };
-      if (!response.ok || !result.echo) return;
-      const previous = candidates.find(item => item.id === result.echo?.candidateId);
-      if (!previous || !previous.content.includes(result.echo.quote)) return;
-      const echo: Echo = { id: `${entry.id}-${previous.id}`, currentEntryId: entry.id, previousEntryId: previous.id, quote: result.echo.quote, reason: result.echo.reason, createdAt: new Date().toISOString(), status: "pending" };
-      setEchoes(current => force ? [echo, ...current.filter(item => item.id !== echo.id)] : (current.some(item => item.id === echo.id) ? current : [echo, ...current]));
-    } catch { /* Recall is intentionally silent; the saved diary remains unaffected. */ }
-    finally { setEchoLoading(false); }
+  async function recordEchoEvent(echoRecordId: string, type: EchoEventType, resultEntryId?: number) {
+    const updated = await saveEchoEvent(echoRecordId, type, resultEntryId);
+    setEchoRecords(current => current.map(record => record.id === updated.id ? updated : record));
+    return updated;
   }
-
-  useEffect(() => {
-    if (view !== "echo" || !echoesReady || !echoChecksReady || echoLoading) return;
-    const latestAllowed = entries.find(entry => entry.aiLink);
-    if (latestAllowed && !echoCheckedIds.includes(latestAllowed.id)) void prepareEcho(latestAllowed, entries);
-  }, [view, entries, echoesReady, echoChecksReady, echoCheckedIds, echoLoading]);
-
-  function reconsiderLatestEcho() {
-    const latestAllowed = entries.find(entry => entry.aiLink);
-    if (!latestAllowed) return notify("还没有参与未来回响的记录");
-    void prepareEcho(latestAllowed, entries, true);
+  function continueFromEcho(record: EchoRecordV2) {
+    setContinuingEchoId(record.id);
+    setContinuingFrom(record.sourceEntryIds[record.sourceEntryIds.length - 1] ?? null);
+    setView("write");
+    void recordEchoEvent(record.id, "continuation_started").catch(() => notify("可以继续写；回响操作暂未记入本地"));
   }
-  function saveOrganizationExample(kind: "good" | "needs_work" = "good", reason?: string) {
-    if (!reviewOriginal.trim() || !review.content.trim()) return;
-    const example: OrganizationExample = { id: Date.now(), original: reviewOriginal, title: review.title, content: review.content, tags: review.tags, prompt: organizePrompt, createdAt: new Date().toISOString(), kind, reason };
-    setOrganizationExamples(current => [example, ...current.filter(item => item.original !== example.original || item.content !== example.content)].slice(0, 30));
-    setFeedbackOpen(false); setIssueOptionsOpen(false);
-    notify(kind === "good" ? "已收为好样例，用于之后校准整理规则" : `已记录：${reason}。它会帮助我们守住边界。`);
+  function postponeEcho(record: EchoRecordV2) {
+    void recordEchoEvent(record.id, "not_now").then(() => notify("已记下：这次没有感觉")).catch(() => notify("暂时无法记录这次反馈"));
   }
   async function saveEntry(rawText?: string) {
     const content = (rawText ?? text).trim();
@@ -578,7 +489,7 @@ export default function Home() {
       createdAt: new Date().toISOString(),
       title: titleFromContent(content),
       content,
-      tags: [],
+      tags: writeTags,
       source: attachments.length ? "图片与快速记录" : "快速记录",
       aiLink: link,
       attachments,
@@ -594,8 +505,13 @@ export default function Home() {
       setEntries(nextEntries);
       setStorageUpdatedAt(updatedAt);
       setStorageStatus("saved");
-      resetWritingEditor(""); setAttachments([]); setContinuingFrom(null);
-      notify("已安全保存到本地文件夹");
+      let echoEventFailed = false;
+      if (continuingEchoId) {
+        try { await recordEchoEvent(continuingEchoId, "continuation_saved", entry.id); }
+        catch { echoEventFailed = true; }
+      }
+      resetWritingEditor(""); setAttachments([]); setWriteTags([]); setContinuingFrom(null); setContinuingEchoId(null);
+      notify(echoEventFailed ? "日记已安全保存；回响关系暂未记入，请稍后重试" : "已安全保存到本地文件夹");
     } catch {
       setStorageStatus("error");
       notify("保存失败，正文仍保留在编辑区，请不要刷新");
@@ -637,8 +553,10 @@ export default function Home() {
       if (parsed.format !== "huiye-backup" || parsed.version !== 1 || !Array.isArray(parsed.entries)) throw new Error("这不是回页的完整备份文件");
       if (!window.confirm("导入 " + parsed.entries.length + " 篇思考？这会创建一个新的本地数据代次；导入前的数据仍会保留。")) return;
       const restored = parsed.entries.map(({ originalContent: _legacyOriginal, ...entry }) => entry);
-      const restoredEchoes = Array.isArray(parsed.echoes) ? parsed.echoes : [];
-      const restoredChecks = Array.isArray(parsed.echoCheckedIds) ? parsed.echoCheckedIds : [];
+      // v1 Echo and echoCheckedIds are deliberately not restored. Their
+      // semantics cannot be safely mapped to the reviewed EchoRecord model.
+      const restoredEchoes: Echo[] = [];
+      const restoredChecks: number[] = [];
       setStorageStatus("saving");
       const updatedAt = await queuePrivateSave(createData(restored, restoredEchoes, restoredChecks));
       setEntries(restored);
@@ -653,36 +571,31 @@ export default function Home() {
       if (importRef.current) importRef.current.value = "";
     }
   }
-  function sendChat(preset?: string) {
-    const question = preset || chatInput.trim();
-    if (!question) return;
-    setMessages(current => [...current, { role: "user", text: question }]); setChatInput("");
-    window.setTimeout(() => setMessages(current => [...current, { role: "ai", text: "你在 4 月留下的疑问是：目标已经清楚，为什么仍然拖延？当时你猜测是任务拆得不够小。5 月的项目复盘给了另一种真实反馈——你更在意暴露不成熟。今天写下“先交出可以讨论的版本”，像是在回应那个旧问题。你觉得这次改变的是方法，还是你对“不成熟”的接受程度？" }]), 450);
-  }
-
   return <main className="app-shell">
     <aside className="sidebar"><div className="brand"><span className="brand-mark">回</span><span>回页<small>让思考继续生长</small></span></div><nav>{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><i>{item.icon}</i>{item.label}{item.id === "echo" && echoes.filter(echo => echo.status === "pending").length > 0 && <b>{echoes.filter(echo => echo.status === "pending").length}</b>}</button>)}</nav><div className="side-bottom"><button onClick={() => setView("settings")}><i>⚙</i>设置</button><button onClick={() => { setExportIds([]); setExportOpen(true); }}><i>↓</i>导出 / 导入</button><div className="privacy"><span>◉</span><div><strong>{storageKind === "local-folder" ? "内容保存在本地文件夹" : "正在确认数据位置"}</strong><small>你始终拥有原文与控制权</small></div></div></div></aside>
     <section className="content">
       <header className="mobile-head"><div className="brand"><span className="brand-mark">回</span><span>回页</span></div><button onClick={() => setView("pool")}>日记池</button></header>
       {view === "write" && <div className="page write-page" style={{ maxWidth: 960, paddingTop: 44, transform: `translateY(-${Math.min(190, Math.max(0, writeLines - 5) * 20)}px)`, transition: "transform .28s ease" }}>
-        <div className="eyebrow">2026 年 7 月 17 日 · 星期五</div><h1>此刻，想留下什么？</h1><p className="lead">不用想标题，也不用急着归类。先写下来就好。</p>{continuingEntry && <div className="continuation-hint">沿着《{continuingEntry.title}》继续写</div>}
+        <div className="eyebrow" suppressHydrationWarning>{formatWritingDate(now)}</div><h1>此刻，想留下什么？</h1><p className="lead">不用想标题，也不用急着归类。先写下来就好。</p>{continuingEntry && <div className="continuation-hint">沿着《{continuingEntry.title}》继续写</div>}
         <div ref={paperRef} className="paper rich-paper" style={{ height: writeRows * WRITE_LINE_HEIGHT + (writeLines < WRITE_MAX_LINES ? 58 : 100), overflow: "visible", transition: "height .28s ease" }}>
           <div key={editorVersion} ref={editorRef} className="rich-editor" style={{ paddingBottom: writeLines >= WRITE_MAX_LINES ? 72 : 0, overflowY: writeLines >= WRITE_MAX_LINES ? "auto" : "hidden" }} contentEditable={true} role="textbox" aria-multiline="true" tabIndex={0} autoFocus suppressContentEditableWarning spellCheck onInput={syncEditor} onMouseUp={showSelectionMenu} onKeyUp={showSelectionMenu} onBlur={() => window.setTimeout(hideSelectionMenu, 120)} data-placeholder="一个疑问、一段推理，或只是此刻不想忘记的感受……" />
           {selectionMenu.visible && <div className="selection-format-menu" style={{ left: selectionMenu.left, top: selectionMenu.top }} onMouseDown={event => event.preventDefault()}><button type="button" title="标题" onClick={() => applyEditorCommand("formatBlock", "H1")}>T</button><button type="button" title="小标题" onClick={() => applyEditorCommand("formatBlock", "H2")}>T₂</button><i /><button type="button" title="加粗" onClick={() => applyEditorCommand("bold")}>B</button><button type="button" title="斜体" onClick={() => applyEditorCommand("italic")}>I</button><button type="button" title="删除线" onClick={() => applyEditorCommand("strikeThrough")}>S</button><button type="button" title="下划线" onClick={() => applyEditorCommand("underline")}>U</button><i /><button type="button" title="引用" onClick={() => applyEditorCommand("formatBlock", "BLOCKQUOTE")}>❝</button><button type="button" title="列表" onClick={() => applyEditorCommand("insertUnorderedList")}>•</button><button type="button" title="居中" onClick={() => applyEditorCommand("justifyCenter")}>≡</button></div>}
           <div className="paper-tools"><span>{text.length} 字 · {attachments.length} 张图片</span><div><button onClick={pasteText}>粘贴</button><button onClick={() => fileRef.current?.click()}>＋ 手写 / 图片</button><input ref={fileRef} hidden type="file" accept="image/*" multiple onChange={event => { addFiles(event.target.files); event.target.value = ""; }} /></div></div>
         </div>        {attachments.length > 0 && <div className="attachment-row">{attachments.map((attachment, index) => <div key={`${attachment.name}-${index}`}><img src={attachment.data} alt={attachment.name} /><button onClick={() => setAttachments(current => current.filter((_, itemIndex) => itemIndex !== index))}>×</button></div>)}</div>}
+        <div className="write-tags"><span>标签</span><TagEditor tags={writeTags} onChange={setWriteTags} /></div>
         <div className="write-link-control"><Toggle checked={link} onChange={() => setLink(!link)} label="参与未来回响" hint="当未来与它产生联系时，回页可能让它再次出现" /></div>
         <div className="save-row"><span>{link ? "它会安静留在这里，等待未来的联系" : "它只会被保存，不参与未来回响"}</span><button className="primary" disabled={storageStatus === "saving" || !storageReady} onClick={() => void saveEntry(text)}>{storageStatus === "saving" ? "正在写入本地…" : "保存这篇记录"} <b>→</b></button></div>
       </div>}      {view === "pool" && <div className="page pool-page"><div className="page-title"><div><div className="eyebrow">你的思考原野</div><h1>日记池</h1><p className="lead">不用整理。它们会留在这里，等待与未来的某个时刻发生联系。</p></div><button className="primary small" onClick={() => setView("write")}>＋ 写一篇</button></div><div className="search"><span>⌕</span><input placeholder="搜索一个词、一段记忆或一个问题…" value={search} onChange={event => setSearch(event.target.value)} /></div><div className="filter-row"><button className="selected">全部 {entries.length}</button><button>未闭合 {entries.filter(entry => entry.status === "open").length}</button><button>已有回响 {entries.filter(entry => entry.status === "echoed").length}</button></div><div className="entry-grid">{filtered.map(entry => <article className="entry" key={entry.id} onClick={() => openEntry(entry)} onKeyDown={event => { if (event.key === "Enter") openEntry(entry); }} role="button" tabIndex={0}><div className="entry-meta"><span>{formatTimestamp(entry, now)}</span></div><h3>{entry.title}</h3><p className="entry-preview">{markdownPreviewText(entry.content)}</p><div className="entry-foot"><span>{entry.source}{entry.attachments?.length ? ` · ${entry.attachments.length} 张图` : ""}</span><div>{entry.tags.map(tag => <b key={tag}>{tag}</b>)}</div></div></article>)}</div></div>}
       {view === "settings" && <div className="page settings-page"><div className="eyebrow">你的思考，只属于你</div><h1>数据与迁移</h1><p className="lead">日记、图片和回响直接保存在项目的 local-data 文件夹；应用只读取当前有效的数据代次。</p><section className="prompt-card"><div><h2>本地数据</h2><p>{storageStatus === "loading" ? "正在读取本地文件夹…" : storageStatus === "saving" ? "正在写入并校验新的数据代次…" : storageStatus === "error" ? "本地文件夹暂时无法写入；当前页面内容未被自动删除，请先不要刷新。" : storageKind === "local-folder" ? "已安全保存到本地文件夹。" : "当前不是本地运行模式，请不要在此写入私人日记。"}</p>{storageUpdatedAt && storageStatus === "saved" && <small>最近保存：{new Date(storageUpdatedAt).toLocaleString("zh-CN")}</small>}</div><div className="migration-actions"><button className="primary" type="button" onClick={downloadBackup}>导出一份副本</button><button type="button" onClick={() => importRef.current?.click()}>从 JSON 导入</button><input ref={importRef} hidden type="file" accept="application/json,.json" onChange={event => void importBackup(event.target.files?.[0])} /></div><small>本地文件夹是唯一主数据源。每次写入先创建并校验新代次，旧代次不会自动删除；JSON 导入同样只会新增代次。</small></section><section className="prompt-example"><details><summary>导出 Markdown：用于阅读与归档</summary><p className="example-note">Markdown 会导出你选中的「我的思考」、时间、来源和标签。它适合自己保存、阅读或交给其他工具，但不能恢复回响关系。</p><button className="export-link-button" type="button" onClick={() => { setExportIds(entries.map(entry => entry.id)); setExportOpen(true); }}>选择要导出的思考</button></details></section></div>}      {view === "echo" && <div className="page echo-page">
         <div className="eyebrow">过去与现在，在这里相遇</div>
         <h1>回响</h1>
-        <p className="lead">{echoLoading ? "正在安静地看看，过去与现在之间是否出现了新的联系。" : visibleEcho ? (visibleEcho.status === "pending" ? "一段旧思考，或许正值得你再看一眼。" : "你最近看过的一段回响，仍留在这里。") : "这里不追求每天都有答案。没有足够真实的联系时，回页会保持安静。"}</p>
-        {echoLoading ? <div className="echo-empty"><span className="orb pulse">✦</span><p>只留下有原句、有来由的联系。</p></div> : visibleEcho && echoedEntry ? <div className="echo-card real-echo"><div className="echo-top"><span className="spark large">✦</span><div><small>{formatTimestamp(echoedEntry, now)} · {echoedEntry.source}{visibleEcho.status !== "pending" ? " · 已看过" : ""}</small><h2>{echoedEntry.title === "未命名记录" ? "一段旧思考" : echoedEntry.title}</h2></div></div><div className="echo-quote"><Markdown content={visibleEcho.quote} /></div><div className="echo-reason"><span>为什么在这里</span><p>{visibleEcho.reason}</p>{echoSourceEntry && <p className="echo-connection">它是在你写下《{echoSourceEntry.title === "未命名记录" ? "一段新思考" : echoSourceEntry.title}》之后，被带回来的。</p>}</div><div className="echo-actions"><button onClick={() => { setEchoes(current => current.map(echo => echo.id === visibleEcho.id ? { ...echo, status: "opened" } : echo)); openEntry(echoedEntry); }}>打开看看</button><button className="primary" onClick={() => { setEchoes(current => current.map(echo => echo.id === visibleEcho.id ? { ...echo, status: "continued" } : echo)); setContinuingFrom(echoedEntry.id); resetWritingEditor(""); setView("write"); notify("从这段旧思考旁边，继续写下去吧"); }}>沿着它继续写</button><button className="quiet" onClick={() => { setEchoes(current => current.map(echo => echo.id === visibleEcho.id ? { ...echo, status: "irrelevant" } : echo)); notify("记下了：这次不再把它带回来"); }}>这次无关</button></div></div> : <div className="echo-empty"><span className="orb">✦</span><h2>先让思考沉一沉</h2><p>{entries.filter(entry => entry.aiLink).length < 2 ? "至少留下两篇允许关联的记录后，回页才有机会找到它们之间的联系。" : "当新的思考与过去真正相遇时，它会在这里等你。"}</p>{entries.filter(entry => entry.aiLink).length >= 2 && <button className="echo-recheck" onClick={reconsiderLatestEcho}>重新看看最近的思考</button>}</div>}
-      </div>}      {view === "chat" && <div className="page chat-page"><div className="eyebrow">带着过去，聊聊现在</div><h1>和 AI 聊聊</h1><p className="lead">AI 只会引用你允许关联的记录，并告诉你它从哪里找到这些内容。</p><div className="chat-box">{messages.length === 0 ? <div className="chat-empty"><span className="orb">✦</span><h2>现在有什么想理一理的吗？</h2><p>不必组织语言。你可以从眼前的困惑开始。</p><div className="prompts"><button onClick={() => sendChat("我以前思考过拖延这件事吗？")}>我以前思考过拖延这件事吗？</button><button onClick={() => sendChat("最近的我，有什么变化？")}>最近的我，有什么变化？</button></div></div> : <div className="messages">{messages.map((message, index) => <div key={index} className={`message ${message.role}`}><span>{message.role === "ai" ? "回页" : "我"}</span><p>{message.text}</p>{message.role === "ai" && <div className="sources">引用了 3 篇你允许关联的记录 · 可查看原文</div>}</div>)}</div>}<div className="chat-input"><textarea value={chatInput} onChange={event => setChatInput(event.target.value)} placeholder="从一个念头开始…" onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendChat(); } }} /><button onClick={() => sendChat()}>↑</button></div></div></div>}
+        <p className="lead">只展示能够回到原文核验的候选联系。约 80% 来自两篇思考的联系，约 20% 是一篇旧记录的受约束回看；质量始终优先于比例。</p>
+        <div className="echo-mode-switch" aria-label="切换回响类型"><button type="button" className={echoMode === "relational" ? "selected" : ""} aria-pressed={echoMode === "relational"} onClick={() => setEchoMode("relational")}>联系回响 · 约 80%</button><button type="button" className={echoMode === "reflective_revisit" ? "selected" : ""} aria-pressed={echoMode === "reflective_revisit"} onClick={() => setEchoMode("reflective_revisit")}>回看回响 · 约 20%</button></div>
+        {echoLoadError ? <div className="echo-empty"><span className="orb">✦</span><h2>回响记录暂时无法读取</h2><p>15 篇日记仍然安全，本页不会因此阻止写作或修改原文。</p></div> : activeEchoRecords.length ? <div className="echo-v2-list">{activeEchoRecords.map(record => <EchoCard key={record.id} record={record} entries={entries} renderContent={content => <Markdown content={content} />} onContinue={continueFromEcho} onNotNow={postponeEcho} />)}</div> : <div className="echo-empty"><span className="orb">✦</span><h2>先让思考沉一沉</h2><p>当前没有达到展示时间和质量门槛的这一类回响。</p></div>}
+      </div>}      {view === "chat" && <div className="page chat-page"><div className="eyebrow">带着过去，聊聊现在</div><h1>和 AI 聊聊</h1><p className="lead">只有在能够引用真实 Entry、展示出处并遵守回响权限后，这里才会开始回答。</p><div className="chat-box"><div className="chat-empty"><span className="orb">✦</span><h2>真实关联还在校准</h2><p>旧的演示回答已经移除。这里不会用虚构日记假装理解你。</p></div></div></div>}
       <nav className="mobile-nav">{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><i>{item.icon}</i><span>{item.label}</span></button>)}</nav>
     </section>
     {pendingDraft && <div className="modal-back"><div className="draft-restore"><span className="orb">✦</span><small>检测到未保存的记录</small><h2>要继续刚才的思考吗？</h2><p>{pendingDraft.text.trim() ? `${pendingDraft.text.slice(0, 66)}${pendingDraft.text.length > 66 ? "…" : ""}` : "你刚才添加了图片附件。"}</p><div><button onClick={discardDraft}>丢弃</button><button className="primary" onClick={restoreDraft}>恢复记录</button></div></div></div>}
-    {selected && edit && <div className="modal-back" onMouseDown={closeEdit}><div className="review edit-modal" onMouseDown={event => event.stopPropagation()}><div className="review-head"><div><span className="spark">□</span><div><small>{formatTimestamp(selected, now)} · {selected.source}</small><h2>查看与编辑思考</h2></div></div><button onClick={closeEdit}>×</button></div><div className="review-body"><label>标题</label><input value={edit.title} onChange={event => setEdit({ ...edit, title: event.target.value })} /><label>正文</label><div className="markdown-mode"><span>{previewMarkdown ? "Markdown 预览" : "Markdown 编辑"}</span><button type="button" onClick={() => setPreviewMarkdown(!previewMarkdown)}>{previewMarkdown ? "继续编辑" : "预览 Markdown"}</button></div>{previewMarkdown ? <div className="markdown-preview"><Markdown content={edit.content} /></div> : <textarea style={{ height: editRows * 29 + (editLines < 15 ? 40 : 70), minHeight: 0, overflowY: editLines >= 15 ? "auto" : "hidden", paddingBottom: editLines >= 15 ? 52 : 11 }} value={edit.content} onChange={event => setEdit({ ...edit, content: event.target.value })} />}<div className="edit-tags-row"><div><label>标签</label><TagEditor tags={edit.tags} onChange={tags => setEdit({ ...edit, tags })} /></div></div><Toggle checked={edit.aiLink} onChange={() => setEdit({ ...edit, aiLink: !edit.aiLink })} label="参与未来回响" hint="关闭后，它只会被保存，不会参与未来回响" /></div><div className="review-note">这里是这篇思考唯一的当前版本；未来回响与导出都会使用它。</div><div className="review-actions edit-actions"><button onClick={() => { if (window.confirm("确定删除《" + selected.title + "》吗？删除后无法恢复。")) { setEntries(current => current.filter(entry => entry.id !== selected.id)); closeEdit(); notify("思考已删除"); } }} className="danger">删除思考</button><span><button onClick={() => downloadMarkdown([selected], selected.title)}>导出本篇</button><button className="primary" onClick={saveEdit}>保存修改</button></span></div></div></div>}    {exportOpen && <div className="modal-back" onMouseDown={() => setExportOpen(false)}><div className="review export-modal" onMouseDown={event => event.stopPropagation()}><div className="review-head"><div><span className="spark">↓</span><div><small>导出思考</small><h2>带走你的记录</h2></div></div><button onClick={() => setExportOpen(false)}>×</button></div><div className="export-tools"><button onClick={() => setExportIds(entries.map(entry => entry.id))}>全选</button><button onClick={() => setExportIds([])}>清空</button><span>已选 {exportIds.length} 篇</span></div><div className="export-list">{entries.map(entry => <label key={entry.id}><input type="checkbox" checked={exportIds.includes(entry.id)} onChange={() => setExportIds(ids => ids.includes(entry.id) ? ids.filter(id => id !== entry.id) : [...ids, entry.id])} /><span><strong>{entry.title}</strong><small>{formatTimestamp(entry, now)} · {entry.tags.join("、") || "无标签"}</small></span></label>)}</div><div className="backup-note">完整备份会保存全部思考、附件、关联许可和回响反馈，可在另一台电脑恢复。</div><div className="review-actions"><button onClick={downloadBackup}>导出完整备份 JSON</button><button className="primary" disabled={!exportIds.length} onClick={() => downloadMarkdown(entries.filter(entry => exportIds.includes(entry.id)))}>导出所选 Markdown</button></div></div></div>}    {toast && <div className="toast">✦ {toast}</div>}
+    {selected && edit && <div className="modal-back" onMouseDown={closeEdit}><div className="review edit-modal" onMouseDown={event => event.stopPropagation()}><div className="review-head"><div><span className="spark">□</span><div><small>{formatTimestamp(selected, now)} · {selected.source}</small><h2>查看与编辑思考</h2></div></div><button onClick={closeEdit}>×</button></div><div className="review-body"><label>标题</label><input value={edit.title} onChange={event => setEdit({ ...edit, title: event.target.value })} /><label>正文</label><div className="markdown-mode"><span>{previewMarkdown ? "Markdown 预览" : "Markdown 编辑"}</span><button type="button" onClick={() => setPreviewMarkdown(!previewMarkdown)}>{previewMarkdown ? "继续编辑" : "预览 Markdown"}</button></div>{previewMarkdown ? <div className="markdown-preview"><Markdown content={edit.content} /></div> : <textarea style={{ height: editRows * 29 + (editLines < 15 ? 40 : 70), minHeight: 0, overflowY: editLines >= 15 ? "auto" : "hidden", paddingBottom: editLines >= 15 ? 52 : 11 }} value={edit.content} onChange={event => setEdit({ ...edit, content: event.target.value })} />}<div className="edit-tags-row"><div><label>标签</label><TagEditor tags={edit.tags} onChange={tags => setEdit({ ...edit, tags })} /></div></div><Toggle checked={edit.aiLink} onChange={() => setEdit({ ...edit, aiLink: !edit.aiLink })} label="参与未来回响" hint="关闭后，它只会被保存，不会参与未来回响" /></div><div className="review-note">这里是这篇思考唯一的当前版本；未来回响与导出都会使用它。</div><div className="review-actions edit-actions"><button className="danger" type="button" disabled title="回收站完成后开放">删除（回收站待完成）</button><span><button onClick={() => downloadMarkdown([selected], selected.title)}>导出本篇</button><button className="primary" onClick={saveEdit}>保存修改</button></span></div></div></div>}    {exportOpen && <div className="modal-back" onMouseDown={() => setExportOpen(false)}><div className="review export-modal" onMouseDown={event => event.stopPropagation()}><div className="review-head"><div><span className="spark">↓</span><div><small>导出思考</small><h2>带走你的记录</h2></div></div><button onClick={() => setExportOpen(false)}>×</button></div><div className="export-tools"><button onClick={() => setExportIds(entries.map(entry => entry.id))}>全选</button><button onClick={() => setExportIds([])}>清空</button><span>已选 {exportIds.length} 篇</span></div><div className="export-list">{entries.map(entry => <label key={entry.id}><input type="checkbox" checked={exportIds.includes(entry.id)} onChange={() => setExportIds(ids => ids.includes(entry.id) ? ids.filter(id => id !== entry.id) : [...ids, entry.id])} /><span><strong>{entry.title}</strong><small>{formatTimestamp(entry, now)} · {entry.tags.join("、") || "无标签"}</small></span></label>)}</div><div className="backup-note">完整备份会保存全部思考、附件、关联许可和回响反馈，可在另一台电脑恢复。</div><div className="review-actions"><button onClick={downloadBackup}>导出完整备份 JSON</button><button className="primary" disabled={!exportIds.length} onClick={() => downloadMarkdown(entries.filter(entry => exportIds.includes(entry.id)))}>导出所选 Markdown</button></div></div></div>}    {toast && <div className="toast">✦ {toast}</div>}
   </main>;
 }

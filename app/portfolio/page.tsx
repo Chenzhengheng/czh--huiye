@@ -14,7 +14,7 @@ export default function PortfolioPage() {
       <h1>让过去的思考，<br />在值得的时候回到当下。</h1>
       <p>回页不是替用户总结人生的 AI。它保存用户确认过的思考，在过去与现在出现可核对的联系时轻轻发问，并把是否继续写交还给用户。</p>
       <div className={styles.actions}><a href="#mechanism">理解回响机制</a><a className={styles.secondary} href={githubUrl}>查看代码仓库</a></div>
-      <div className={styles.status}><span>当前阶段</span><strong>回响 0.1</strong><small>使用 14 篇私人思考验证；作品集不展示私人原文</small></div>
+      <div className={styles.status}><span>当前阶段</span><strong>回响 0.1</strong><small>使用 15 篇私人思考校准；作品集不展示私人原文</small></div>
     </section>
 
     <section className={styles.problem}>
@@ -26,7 +26,7 @@ export default function PortfolioPage() {
       <header><span>02 · TWO MODES</span><h2>两种思考延续</h2></header>
       <div className={styles.modeGrid}>
         <article><div className={styles.formula}>A + B → C</div><h3>关系延续</h3><p>当下的 B 与过去的 A 出现判断变化、冲突或未表达的联系。系统展示两边证据，邀请用户亲自写下 C。</p><small>系统只能说“似乎出现变化”，不能替用户断言已经改变。</small></article>
-        <article><div className={styles.formula}>A + 现在 → B</div><h3>时间延续</h3><p>一段旧思考经过一定时间重新进入当下。系统交还当时的原句、时间和“为什么是现在”，等待用户重新判断。</p><small>不追求每日提醒；没有足够理由时保持安静。</small></article>
+        <article><div className={styles.formula}>A + 现在 → B</div><h3>时间延续</h3><p>一段旧思考经过一定时间，以受约束随机的方式重新进入当下。系统交还当时的原句和时间，不虚构它今天出现的原因，等待用户重新感受。</p><small>不追求每日提醒；没有符合时间、权限和冷却条件的记录时保持安静。</small></article>
       </div>
     </section>
 
@@ -36,18 +36,20 @@ export default function PortfolioPage() {
     </section>
 
     <section className={styles.localFirst}>
-      <div><span>04 · LOCAL FIRST</span><h2>私人数据留在用户拥有的文件夹。</h2><p>真实应用在本地运行。每篇思考保存为可阅读的 Markdown 与结构化元数据；联系和反馈独立记录。写入失败不会覆盖上一份有效数据。</p></div>
+      <div><span>04 · LOCAL FIRST</span><h2>私人数据留在用户拥有的文件夹。</h2><p>真实应用在本地运行。当前 Entry 仍由经过校验的不可变 generation 保存；新的 EchoRecord 已作为独立本地文件接入。目标是一篇 Entry 对应一个带元数据的 Markdown，迁移完成前不覆盖现有唯一副本。</p></div>
       <pre>{`local-data/
-├─ entries/<id>/content.md
-├─ entries/<id>/record.json
-├─ relations/
-├─ associations/
-└─ generations/`}</pre>
+├─ current.json
+├─ generations/<generationId>/
+│  └─ entries/<entryId>/
+│     ├─ content.md
+│     └─ record.json
+├─ echoes/<echoRecordId>.json
+└─ backups/`}</pre>
     </section>
 
     <section className={styles.validation} id="validation">
       <header><span>05 · VALIDATION</span><h2>用 good case 和 bad case，<br />而不是功能数量判断价值。</h2></header>
-      <div className={styles.validationGrid}><article><b>成功信号</b><h3>continuation_saved</h3><p>只有用户沿着一次回响真正保存了新的思考，才算延续发生。</p></article><article><b>当前进行中</b><h3>案例验证尚未完成</h3><p>下一步将从真实思考中筛选关系延续与时间延续案例，公开内容只使用脱敏或重新编写的演示版本。</p></article></div>
+      <div className={styles.validationGrid}><article><b>成功信号</b><h3>continuation_saved</h3><p>只有用户沿着一次回响真正保存了新的思考，才算延续发生。</p></article><article><b>当前进行中</b><h3>候选卡片已接入，案例评测尚未开始</h3><p>本地已有两类候选回响卡片；下一步记录 good case 与 bad case。公开内容只使用脱敏或重新编写的演示版本。</p></article></div>
     </section>
 
     <footer className={styles.footer}><div><span className={styles.footerMark}>回</span><h2>回页 · AI Diary</h2><p>独立产品定义、交互设计与实现。</p></div><a href={githubUrl}>GitHub ↗</a></footer>

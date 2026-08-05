@@ -1,0 +1,226 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2200" height="1100" viewBox="0 0 2200 1100" role="img" aria-labelledby="title desc">
+  <title id="title">回页用户路径 BPMN 2.0 流程图</title>
+  <desc id="desc">三个竖向泳道从左到右依次为写作、日记池和回响，展示直接写作、主动检索、错位回响、AI 对话，以及保存后形成已验证关系的循环。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#53634f"/>
+    </marker>
+    <style>
+      .canvas { fill:#f7f3e8; }
+      .pool { fill:none; stroke:#4f5e4b; stroke-width:2; }
+      .lane-write { fill:#faf8f0; stroke:#667860; stroke-width:1.5; }
+      .lane-pool { fill:#f1f5ee; stroke:#667860; stroke-width:1.5; }
+      .lane-echo { fill:#fbf4ea; stroke:#b48952; stroke-width:1.5; }
+      .header-write { fill:#e9ede4; stroke:#667860; stroke-width:1.5; }
+      .header-pool { fill:#dfe8da; stroke:#667860; stroke-width:1.5; }
+      .header-echo { fill:#efe0cb; stroke:#b48952; stroke-width:1.5; }
+      .task-write { fill:#f4f1e8; stroke:#5f7259; stroke-width:2; }
+      .task-pool { fill:#e7ece3; stroke:#5f7259; stroke-width:2; }
+      .task-echo { fill:#f1e5d4; stroke:#a77b43; stroke-width:2; }
+      .task-plan { fill:#f0eee7; stroke:#918a7b; stroke-width:2; }
+      .gateway { fill:#fffdf7; stroke:#667860; stroke-width:2; }
+      .event { fill:#fffdf7; stroke:#5f7259; stroke-width:2.5; }
+      .end { fill:#fffdf7; stroke:#5f7259; stroke-width:5; }
+      .flow { fill:none; stroke:#53634f; stroke-width:2; marker-end:url(#arrow); stroke-linejoin:miter; }
+      .association { fill:none; stroke:#918a7b; stroke-width:1.5; stroke-dasharray:6 5; }
+      .annotation { fill:#f7f3e8; stroke:#918a7b; stroke-width:1.5; stroke-dasharray:6 5; }
+      .lane-title { font:500 24px 'Microsoft YaHei UI','PingFang SC',sans-serif; fill:#273129; }
+      .lane-subtitle { font:400 14px 'Microsoft YaHei UI','PingFang SC',sans-serif; fill:#6f756a; }
+      .text { font:400 16px 'Microsoft YaHei UI','PingFang SC',sans-serif; fill:#273129; text-anchor:middle; dominant-baseline:middle; }
+      .small { font:400 13px 'Microsoft YaHei UI','PingFang SC',sans-serif; fill:#5d6259; text-anchor:middle; }
+      .label { font:500 13px 'Microsoft YaHei UI','PingFang SC',sans-serif; fill:#485345; paint-order:stroke; stroke:#f7f3e8; stroke-width:5; stroke-linejoin:round; }
+      .scenario { font:500 14px 'Microsoft YaHei UI','PingFang SC',sans-serif; fill:#7b694f; }
+      .note { font:400 13px 'Microsoft YaHei UI','PingFang SC',sans-serif; fill:#666157; }
+    </style>
+  </defs>
+
+  <rect class="canvas" width="2200" height="1100" rx="24"/>
+  <rect class="pool" x="20" y="20" width="2160" height="1060" rx="8"/>
+
+  <rect class="lane-write" x="20" y="20" width="620" height="1060"/>
+  <rect class="lane-pool" x="640" y="20" width="650" height="1060"/>
+  <rect class="lane-echo" x="1290" y="20" width="890" height="1060"/>
+  <rect class="header-write" x="20" y="20" width="620" height="58"/>
+  <rect class="header-pool" x="640" y="20" width="650" height="58"/>
+  <rect class="header-echo" x="1290" y="20" width="890" height="58"/>
+
+  <text class="lane-title" x="330" y="48" text-anchor="middle">01 · 写作</text>
+  <text class="lane-title" x="965" y="48" text-anchor="middle">02 · 日记池</text>
+  <text class="lane-title" x="1735" y="48" text-anchor="middle">03 · 回响</text>
+
+  <text class="scenario" x="42" y="102">场景 1｜直接写作与未来回响</text>
+  <text class="scenario" x="42" y="455">场景 2｜回响后继续写</text>
+  <text class="scenario" x="662" y="735">场景 3｜主动检索</text>
+  <text class="scenario" x="42" y="905">场景 4｜和 AI 聊聊（规划）</text>
+
+  <!-- Sequence flows: direct writing and candidate creation -->
+  <path class="flow" d="M98 140 H120"/>
+  <path class="flow" d="M300 140 H380"/>
+  <path class="flow" d="M560 140 H680"/>
+  <path class="flow" d="M860 140 H878"/>
+  <path class="flow" d="M942 140 H978"/>
+  <path class="flow" d="M1042 140 H1080"/>
+  <path class="flow" d="M1250 140 H1330"/>
+  <path class="flow" d="M1520 140 H1558"/>
+  <path class="flow" d="M1622 140 H1678"/>
+  <path class="flow" d="M1742 140 H1770 V102 H1800"/>
+  <path class="flow" d="M1710 172 V222 H1800"/>
+  <path class="flow" d="M1970 102 H1994 V140 H1998"/>
+  <path class="flow" d="M1970 222 H1994 V140 H1998"/>
+  <path class="flow" d="M2062 140 H2084"/>
+  <path class="flow" d="M2110 166 V315 H1415 V360"/>
+
+  <!-- Permission / quality negative branches -->
+  <path class="flow" d="M1010 172 V224"/>
+  <path class="flow" d="M1590 172 V224"/>
+
+  <!-- Echo presentation and decision -->
+  <path class="flow" d="M1500 395 H1550"/>
+  <path class="flow" d="M1760 395 H1808"/>
+  <path class="flow" d="M1872 395 H1910 V535 H1940"/>
+  <path class="flow" d="M1840 427 V445 H210 V480 H120"/>
+  <path class="flow" d="M300 515 H380"/>
+  <path class="flow" d="M560 515 H680"/>
+  <path class="flow" d="M870 515 H1330"/>
+  <path class="flow" d="M1540 515 H1580 V650 H910 V172"/>
+  <path class="flow" d="M2120 535 H2150 V552"/>
+
+  <!-- Search path -->
+  <path class="flow" d="M708 780 H740"/>
+  <path class="flow" d="M920 780 H990"/>
+  <path class="flow" d="M1180 780 H1212"/>
+
+  <!-- AI chat path and join to the same echo card -->
+  <path class="flow" d="M98 960 H120"/>
+  <path class="flow" d="M300 960 H690"/>
+  <path class="flow" d="M880 960 H908"/>
+  <path class="flow" d="M972 960 H1010"/>
+  <path class="flow" d="M940 928 V880 H1330"/>
+  <path class="flow" d="M1180 960 H1212"/>
+  <path class="flow" d="M1530 915 H1580 V430 H1655 V430"/>
+
+  <!-- Start / end events -->
+  <circle class="event" cx="80" cy="140" r="18"/>
+  <text class="small" x="80" y="174">开始写</text>
+  <circle class="end" cx="1010" cy="250" r="18"/>
+  <text class="small" x="1010" y="283">仅保存</text>
+  <circle class="end" cx="1590" cy="250" r="18"/>
+  <text class="small" x="1590" y="283">保持安静</text>
+  <circle class="end" cx="2150" cy="570" r="18"/>
+  <text class="small" x="2118" y="603">本次结束</text>
+  <circle class="event" cx="690" cy="780" r="18"/>
+  <text class="small" x="690" y="814">打开日记池</text>
+  <circle class="end" cx="1230" cy="780" r="18"/>
+  <text class="small" x="1230" y="814">返回日记池</text>
+  <circle class="event" cx="80" cy="960" r="18"/>
+  <text class="small" x="80" y="994">发起对话</text>
+  <circle class="end" cx="1230" cy="960" r="18"/>
+  <text class="small" x="1230" y="994">不虚构引用</text>
+
+  <!-- Tasks: writing -->
+  <rect class="task-write" x="120" y="105" width="180" height="70" rx="12"/>
+  <text class="text" x="210" y="140">主动写下一篇日记</text>
+  <rect class="task-write" x="380" y="105" width="180" height="70" rx="12"/>
+  <text class="text" x="470" y="140">用户确认保存</text>
+  <rect class="task-write" x="120" y="480" width="180" height="70" rx="12"/>
+  <text class="text" x="210" y="515">从回响继续写</text>
+  <rect class="task-write" x="380" y="480" width="180" height="70" rx="12"/>
+  <text class="text" x="470" y="515">确认保存新思考</text>
+  <rect class="task-plan" x="120" y="925" width="180" height="70" rx="12"/>
+  <text class="text" x="210" y="952">和 AI 聊聊</text>
+  <text class="small" x="210" y="978">对话本身不自动保存</text>
+
+  <!-- Tasks and gateways: diary pool -->
+  <rect class="task-pool" x="680" y="105" width="180" height="70" rx="12"/>
+  <text class="text" x="770" y="132">写入 Entry</text>
+  <text class="small" x="770" y="158">local-data 权威原文</text>
+  <polygon class="gateway" points="910,108 942,140 910,172 878,140"/>
+  <path d="M897 127 L923 153 M923 127 L897 153" stroke="#667860" stroke-width="2.5"/>
+  <text class="small" x="910" y="194">合并保存入口</text>
+  <polygon class="gateway" points="1010,108 1042,140 1010,172 978,140"/>
+  <path d="M997 127 L1023 153 M1023 127 L997 153" stroke="#667860" stroke-width="2.5"/>
+  <text class="small" x="1010" y="194">允许参与回响？</text>
+  <rect class="task-pool" x="1080" y="105" width="170" height="70" rx="12"/>
+  <text class="text" x="1165" y="132">标记可回响</text>
+  <text class="small" x="1165" y="158">保留用户权限</text>
+  <rect class="task-pool" x="680" y="480" width="190" height="70" rx="12"/>
+  <text class="text" x="775" y="507">写入结果 Entry</text>
+  <text class="small" x="775" y="533">先保存正文，再记关系</text>
+  <rect class="task-pool" x="740" y="745" width="180" height="70" rx="12"/>
+  <text class="text" x="830" y="780">搜索 / 筛选</text>
+  <rect class="task-pool" x="990" y="745" width="190" height="70" rx="12"/>
+  <text class="text" x="1085" y="780">查看或编辑原文</text>
+  <rect class="task-plan" x="690" y="925" width="190" height="70" rx="12"/>
+  <text class="text" x="785" y="952">检索可引用 Entry</text>
+  <text class="small" x="785" y="978">服从回响权限</text>
+  <polygon class="gateway" points="940,928 972,960 940,992 908,960"/>
+  <path d="M927 947 L953 973 M953 947 L927 973" stroke="#667860" stroke-width="2.5"/>
+  <text class="small" x="940" y="1020">找到可核验原文？</text>
+  <rect class="task-plan" x="1010" y="925" width="170" height="70" rx="12"/>
+  <text class="text" x="1095" y="952">不引用过去</text>
+  <text class="small" x="1095" y="978">不假装理解用户</text>
+
+  <!-- Tasks, gateways and timer: echo -->
+  <rect class="task-plan" x="1330" y="105" width="190" height="70" rx="12"/>
+  <text class="text" x="1425" y="132">发现候选关系</text>
+  <text class="small" x="1425" y="158">自动流程尚未开发</text>
+  <polygon class="gateway" points="1590,108 1622,140 1590,172 1558,140"/>
+  <path d="M1577 127 L1603 153 M1603 127 L1577 153" stroke="#667860" stroke-width="2.5"/>
+  <text class="small" x="1590" y="194">达到质量门槛？</text>
+  <polygon class="gateway" points="1710,108 1742,140 1710,172 1678,140"/>
+  <path d="M1697 127 L1723 153 M1723 127 L1697 153" stroke="#667860" stroke-width="2.5"/>
+  <text class="small" x="1710" y="194">选择回响类型</text>
+  <rect class="task-echo" x="1800" y="70" width="170" height="65" rx="12"/>
+  <text class="text" x="1885" y="95">联系回响 · 约 80%</text>
+  <text class="small" x="1885" y="119">A + B → C</text>
+  <rect class="task-echo" x="1800" y="190" width="170" height="65" rx="12"/>
+  <text class="text" x="1885" y="215">回看回响 · 约 20%</text>
+  <text class="small" x="1885" y="239">A + 现在 → B</text>
+  <polygon class="gateway" points="2030,108 2062,140 2030,172 1998,140"/>
+  <path d="M2017 127 L2043 153 M2043 127 L2017 153" stroke="#667860" stroke-width="2.5"/>
+  <text class="small" x="2030" y="194">合并类型</text>
+  <circle class="event" cx="2110" cy="140" r="26"/>
+  <circle fill="none" stroke="#5f7259" stroke-width="1.5" cx="2110" cy="140" r="20"/>
+  <path d="M2110 124 V140 L2121 147 M2098 122 L2096 116 M2122 122 L2124 116" fill="none" stroke="#5f7259" stroke-width="2"/>
+  <text class="small" x="2110" y="184">等待错位时间</text>
+  <rect class="task-echo" x="1330" y="360" width="170" height="70" rx="12"/>
+  <text class="text" x="1415" y="387">用户打开回响</text>
+  <text class="small" x="1415" y="413">不在保存当下弹出</text>
+  <rect class="task-echo" x="1550" y="360" width="210" height="70" rx="12"/>
+  <text class="text" x="1655" y="385">展示回响卡片</text>
+  <text class="small" x="1655" y="411">原文证据 · AI 浓缩 · 问题</text>
+  <polygon class="gateway" points="1840,363 1872,395 1840,427 1808,395"/>
+  <path d="M1827 382 L1853 408 M1853 382 L1827 408" stroke="#667860" stroke-width="2.5"/>
+  <text class="small" x="1840" y="451">是否继续写？</text>
+  <rect class="task-echo" x="1940" y="500" width="180" height="70" rx="12"/>
+  <text class="text" x="2030" y="527">记录反馈</text>
+  <text class="small" x="2030" y="553">没有感受 / 暂不回应</text>
+  <rect class="task-echo" x="1330" y="480" width="210" height="70" rx="12"/>
+  <text class="text" x="1435" y="507">记录 continuation_saved</text>
+  <text class="small" x="1435" y="533">关系进入已验证思考拓扑</text>
+  <rect class="task-plan" x="1330" y="880" width="200" height="70" rx="12"/>
+  <text class="text" x="1430" y="907">形成带出处的回响</text>
+  <text class="small" x="1430" y="933">进入同一套回响卡片</text>
+
+  <!-- Conditions -->
+  <text class="label" x="1052" y="127">是</text>
+  <text class="label" x="1022" y="215">否</text>
+  <text class="label" x="1640" y="127">是</text>
+  <text class="label" x="1602" y="215">否</text>
+  <text class="label" x="1760" y="92">联系</text>
+  <text class="label" x="1730" y="224">回看</text>
+  <text class="label" x="1885" y="423">否</text>
+  <text class="label" x="1725" y="440">是｜回到写作</text>
+  <text class="label" x="987" y="948">否</text>
+  <text class="label" x="1020" y="872">是</text>
+  <text class="label" x="1080" y="633">新 Entry 进入下一轮资格判断</text>
+
+  <!-- Planning annotations -->
+  <rect class="annotation" x="1330" y="280" width="330" height="54" rx="4"/>
+  <text class="note" x="1348" y="303">规划能力：自动发现、质量判断与错位调度尚未开发。</text>
+  <text class="note" x="1348" y="323">当前两条 EchoRecord 是人工校准候选。</text>
+  <path class="association" d="M1425 175 V280"/>
+  <rect class="annotation" x="280" y="1015" width="430" height="44" rx="4"/>
+  <text class="note" x="298" y="1042">规划能力：AI 只引用允许回响且能够展示出处的真实 Entry。</text>
+  <path class="association" d="M300 960 H330 V1015"/>
+</svg>

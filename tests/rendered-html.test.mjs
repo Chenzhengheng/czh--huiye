@@ -9,24 +9,6 @@ async function loadWorker() {
   return worker;
 }
 
-function createDataBucket() {
-  const objects = new Map();
-  return {
-    objects,
-    async get(key) {
-      const value = objects.get(key);
-      if (!value) return null;
-      return {
-        uploaded: value.uploaded,
-        async text() { return value.contents; },
-      };
-    },
-    async put(key, contents) {
-      objects.set(key, { contents, uploaded: new Date() });
-    },
-  };
-}
-
 async function render() {
   const worker = await loadWorker();
 
@@ -79,70 +61,75 @@ test("never seeds or clears diary data automatically", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
 
   assert.doesNotMatch(page, /const seedEntries|createData\(seedEntries|clearLegacyData/);
+  assert.doesNotMatch(page, /删除后无法恢复|setEntries\(current => current\.filter\(entry => entry\.id !== selected\.id\)/);
   assert.match(page, /createData\(\[\], \[\], \[\]\)/);
   assert.match(page, /内容保存在本地文件夹/);
   assert.match(page, /旧代次不会自动删除/);
+  assert.match(page, /删除（回收站待完成）/);
 });
 
-test("requires a signed-in ChatGPT user for private data", async () => {
-  const worker = await loadWorker();
-  const response = await worker.fetch(
-    new Request("http://localhost/api/data"),
-    { DATA: createDataBucket() },
-    { waitUntil() {}, passThroughOnException() {} },
-  );
+test("saves user tags from the writing page into the new Entry", async () => {
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
 
-  assert.equal(response.status, 401);
+  assert.match(page, /const \[writeTags, setWriteTags\] = useState<string\[\]>\(\[\]\)/);
+  assert.match(page, /<TagEditor tags=\{writeTags\} onChange=\{setWriteTags\}/);
+  assert.match(page, /tags: writeTags/);
+  assert.match(page, /setWriteTags\(\[\]\)/);
+  assert.match(page, /tags: writeTags, link/);
+  assert.match(page, /setWriteTags\(pendingDraft\.tags \|\| \[\]\)/);
 });
 
-test("persists data separately for each signed-in account", async () => {
-  const worker = await loadWorker();
-  const bucket = createDataBucket();
-  const env = { DATA: bucket };
-  const context = { waitUntil() {}, passThroughOnException() {} };
-  const data = {
-    format: "huiye-backup",
-    version: 1,
-    exportedAt: "2026-07-31T00:00:00.000Z",
-    entries: [{ id: 1, title: "私人思考" }],
-    echoes: [],
-    echoCheckedIds: [],
-  };
+test("does not revive the retired v1 echo flow", async () => {
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const worker = await readFile(new URL("../worker/index.ts", import.meta.url), "utf8");
 
-  const saveResponse = await worker.fetch(
-    new Request("http://localhost/api/data", {
-      method: "PUT",
-      headers: {
-        "content-type": "application/json",
-        "oai-authenticated-user-email": "owner@example.com",
-      },
-      body: JSON.stringify(data),
-    }),
-    env,
-    context,
-  );
-  assert.equal(saveResponse.status, 200);
-  assert.equal(bucket.objects.size, 1);
-  assert.doesNotMatch([...bucket.objects.keys()][0], /owner@example\.com/);
+  assert.doesNotMatch(page, /fetch\("\/api\/recall"/);
+  assert.doesNotMatch(page, /function prepareEcho|reconsiderLatestEcho/);
+  assert.match(page, /setEchoes\(\[\]\)/);
+  assert.match(page, /const restoredEchoes: Echo\[\] = \[\]/);
+  assert.match(page, /<EchoCard/);
+  assert.match(page, /\/api\/echo-records/);
+  assert.match(page, /\/api\/echo-events/);
+  assert.match(page, /联系回响 · 约 80%/);
+  assert.match(page, /回看回响 · 约 20%/);
+  assert.doesNotMatch(worker, /\/api\/recall|prepareRecall|RECALL_SCHEMA|OPENROUTER_API_KEY/);
+});
 
-  const readResponse = await worker.fetch(
-    new Request("http://localhost/api/data", {
-      headers: { "oai-authenticated-user-email": "owner@example.com" },
-    }),
-    env,
-    context,
-  );
-  assert.equal(readResponse.status, 200);
-  const saved = await readResponse.json();
-  assert.equal(saved.data.entries[0].title, "私人思考");
+test("uses the confirmed three-level source disclosure without embedding private diary text in code", async () => {
+  const card = await readFile(new URL("../app/echo-card.tsx", import.meta.url), "utf8");
 
-  const otherResponse = await worker.fetch(
-    new Request("http://localhost/api/data", {
-      headers: { "oai-authenticated-user-email": "other@example.com" },
-    }),
-    env,
-    context,
-  );
-  assert.equal(otherResponse.status, 200);
-  assert.equal((await otherResponse.json()).data, null);
+  assert.match(card, /点击查看原文/);
+  assert.match(card, /原文节选/);
+  assert.match(card, /点击这段，展开整篇思考/);
+  assert.match(card, /完整原文/);
+  assert.match(card, /AI 浓缩 · 不是原文/);
+  assert.doesNotMatch(card, /第一份工作强调的是|出类拔萃，一定是热爱|腾讯、Joe/);
+});
+
+test("uses the real date and never fabricates diary-backed chat", async () => {
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+
+  assert.match(page, /function formatWritingDate/);
+  assert.match(page, /formatWritingDate\(now\)/);
+  assert.doesNotMatch(page, /2026 年 7 月 17 日/);
+  assert.doesNotMatch(page, /你在 4 月留下的疑问|引用了 3 篇你允许关联的记录/);
+  assert.match(page, /不会用虚构日记假装理解你/);
+});
+
+test("does not retain the retired AI organization client", async () => {
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const worker = await readFile(new URL("../worker/index.ts", import.meta.url), "utf8");
+
+  assert.doesNotMatch(page, /fetch\("\/api\/organize"/);
+  assert.doesNotMatch(page, /DEFAULT_ORGANIZE_PROMPT|ORGANIZATION_SAMPLE|OrganizationExample/);
+  assert.doesNotMatch(page, /huiye-organization-prompt-v1|huiye-organization-examples-v1/);
+  assert.doesNotMatch(worker, /\/api\/organize|organizeDiary|ORGANIZE_PROMPT|ORGANIZE_SCHEMA/);
+});
+
+test("keeps hosted builds free of private data APIs and bindings", async () => {
+  const worker = await readFile(new URL("../worker/index.ts", import.meta.url), "utf8");
+  const hosting = JSON.parse(await readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"));
+
+  assert.doesNotMatch(worker, /\/api\/data|R2Bucket|huiye-data\.json|oai-authenticated-user-email/);
+  assert.equal(hosting.r2, null);
 });

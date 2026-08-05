@@ -1,4 +1,5 @@
 import path from "node:path";
+import { appendEchoEvent, readEchoRecords } from "./echo-record-store.mjs";
 import { readLocalData, writeLocalData } from "./local-data-store.mjs";
 
 function sendJson(response, statusCode, value) {
@@ -48,9 +49,29 @@ export function localDataPlugin(options = {}) {
     configureServer(server) {
       server.middlewares.use(async (request, response, next) => {
         const pathname = new URL(request.url || "/", "http://127.0.0.1").pathname;
-        if (pathname !== "/api/data") return next();
+        if (!["/api/data", "/api/echo-records", "/api/echo-events"].includes(pathname)) return next();
         try {
           if (!isLocalDataRequestAllowed(request)) return sendJson(response, 403, { error: "拒绝非本地同源的数据请求" });
+          if (pathname === "/api/echo-records") {
+            if (request.method !== "GET") {
+              response.setHeader("allow", "GET");
+              return sendJson(response, 405, { error: "Method Not Allowed" });
+            }
+            const records = await serialize(() => readEchoRecords(rootDir));
+            return sendJson(response, 200, { records, storageKind: "local-folder" });
+          }
+          if (pathname === "/api/echo-events") {
+            if (request.method !== "POST") {
+              response.setHeader("allow", "POST");
+              return sendJson(response, 405, { error: "Method Not Allowed" });
+            }
+            if (!String(request.headers["content-type"] || "").toLowerCase().startsWith("application/json")) {
+              return sendJson(response, 415, { error: "回响事件只接受 JSON" });
+            }
+            const event = JSON.parse(await readBody(request, 64 * 1024));
+            const record = await serialize(() => appendEchoEvent(rootDir, event.echoRecordId, event));
+            return sendJson(response, 200, { saved: true, storageKind: "local-folder", record });
+          }
           if (request.method === "GET") {
             const stored = await serialize(() => readLocalData(rootDir));
             return sendJson(response, 200, {

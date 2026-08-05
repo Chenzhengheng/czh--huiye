@@ -3,6 +3,7 @@ import { mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promi
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { appendEchoEvent, readEchoRecords, writeEchoRecord } from "../build/echo-record-store.mjs";
 import { readLocalData, writeLocalData } from "../build/local-data-store.mjs";
 import { isLocalDataRequestAllowed } from "../build/local-data-vite-plugin.mjs";
 
@@ -34,6 +35,30 @@ function fixture() {
     ],
     echoes: [{ id: "echo-1", currentEntryId: 102, previousEntryId: 101, quote: "原句必须完整保留。", reason: "条件发生变化", createdAt: "2026-08-01T02:00:00.000Z", status: "pending" }],
     echoCheckedIds: [102],
+  };
+}
+
+function echoFixture() {
+  return {
+    schemaVersion: 2,
+    id: "echo-test-1",
+    mode: "relational",
+    sourceEntryIds: [101, 102],
+    triggerEntryId: 102,
+    evidence: [
+      { entryId: 101, quote: "原句必须完整保留。" },
+      { entryId: 102, quote: "用于建立关系。" },
+    ],
+    sourceSummaries: [
+      { entryId: 101, text: "第一篇的浓缩" },
+      { entryId: 102, text: "第二篇的浓缩" },
+    ],
+    reason: "两篇记录出现了可核验的变化。",
+    question: "这次变化对你意味着什么？",
+    discoveredAt: "2026-08-02T00:00:00.000Z",
+    eligibleAfter: "2026-08-03T00:00:00.000Z",
+    ruleVersion: "test-1",
+    events: [],
   };
 }
 
@@ -130,4 +155,33 @@ test("allows only loopback same-origin requests to the local data API", () => {
   assert.equal(isLocalDataRequestAllowed({ headers: { host: "localhost:4317" } }), true);
   assert.equal(isLocalDataRequestAllowed({ headers: { host: "127.0.0.1:4317", origin: "https://attacker.example", "sec-fetch-site": "cross-site" } }), false);
   assert.equal(isLocalDataRequestAllowed({ headers: { host: "192.168.1.20:4317" } }), false);
+});
+
+test("stores reviewed EchoRecords separately and appends verified continuation events", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "huiye-echo-store-"));
+  try {
+    await writeEchoRecord(root, echoFixture());
+    const records = await readEchoRecords(root);
+    assert.equal(records.length, 1);
+    assert.equal(records[0].sourceSummaries.length, 2);
+
+    await appendEchoEvent(root, "echo-test-1", { type: "continuation_started", createdAt: "2026-08-04T00:00:00.000Z" });
+    const saved = await appendEchoEvent(root, "echo-test-1", { type: "continuation_saved", resultEntryId: 103, createdAt: "2026-08-04T01:00:00.000Z" });
+    assert.deepEqual(saved.events.map(event => event.type), ["continuation_started", "continuation_saved"]);
+    assert.equal(saved.events[1].resultEntryId, 103);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("rejects incomplete EchoRecords before creating a private relation file", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "huiye-echo-store-"));
+  try {
+    const invalid = echoFixture();
+    invalid.sourceSummaries = invalid.sourceSummaries.slice(0, 1);
+    await assert.rejects(() => writeEchoRecord(root, invalid), /sourceSummaries/);
+    assert.deepEqual(await readEchoRecords(root), []);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
