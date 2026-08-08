@@ -131,6 +131,7 @@ test("keeps two ThoughtLine assignment entries and formal echo boundary", async 
   assert.match(page, /label: "思考线"/);
   assert.match(page, /writeThoughtLineSelections/);
   assert.match(page, /edit\.thoughtLineSelections/);
+  assert.doesNotMatch(page, /setLineBatchIds/);
   assert.doesNotMatch(page, /从日记池加入|搜索要加入的笔记|加入选中的/);
   assert.match(page, /record\.thoughtLineId/);
   assert.match(page, /record\.lifecycle !== "legacy_evaluation"/);

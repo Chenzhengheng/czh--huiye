@@ -1916,7 +1916,6 @@ export default function Home() {
                   className="line-back"
                   onClick={() => {
                     setSelectedLineId(null);
-                    setLineBatchIds([]);
                     setExpandedLineEntryIds([]);
                   }}
                 >
