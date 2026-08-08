@@ -14,7 +14,9 @@ const EVENT_TYPES = new Set([
   "continuation_started",
   "continuation_saved",
 ]);
-const FEEDBACK_TYPES = new Set(["resonated", "accurate_no_resonance", "not_quite"]);
+const FEEDBACK_TYPES = new Set(["clarified", "already_known", "not_quite", "resonated", "accurate_no_resonance"]);
+const RELATION_TYPES = new Set(["continuation", "revision", "branch", "conflict", "unresolved_question", "other"]);
+const LIFECYCLE_TYPES = new Set(["candidate", "legacy_evaluation", "invalidated"]);
 const REJECTION_SCOPES = new Set(["interpretation", "relationship", "evidence", "other"]);
 
 function requireIsoDate(value, field) {
@@ -39,6 +41,9 @@ export function validateEchoRecord(input) {
   if (input.schemaVersion !== 2) throw new Error("EchoRecord schemaVersion 必须为 2");
   safeRecordId(input.id);
   if (!ECHO_MODES.has(input.mode)) throw new Error("EchoRecord mode 无效");
+  if (input.thoughtLineId !== undefined) safeRecordId(input.thoughtLineId);
+  if (input.relationType !== undefined && !RELATION_TYPES.has(input.relationType)) throw new Error("EchoRecord relationType 无效");
+  if (input.lifecycle !== undefined && !LIFECYCLE_TYPES.has(input.lifecycle)) throw new Error("EchoRecord lifecycle 无效");
   if (!Array.isArray(input.sourceEntryIds)) throw new Error("sourceEntryIds 必须是数组");
   const sourceEntryIds = input.sourceEntryIds.map((id, index) => {
     requireEntryId(id, `sourceEntryIds[${index}]`);

@@ -44,7 +44,31 @@ function assertBackup(data) {
     const id = String(entry.id);
     if (ids.has(id)) throw new Error(`日记 ID 重复：${id}`);
     ids.add(id);
+    if (entry.thoughtLineIds !== undefined && (!Array.isArray(entry.thoughtLineIds) || entry.thoughtLineIds.some(value => typeof value !== "string" || !value))) {
+      throw new Error(`日记 ${id} 的 thoughtLineIds 无效`);
+    }
   }
+  const thoughtLines = data.thoughtLines;
+  if (thoughtLines !== undefined) {
+    if (!Array.isArray(thoughtLines)) throw new Error("thoughtLines 必须是数组");
+    const lineIds = new Set();
+    const activeNames = new Set();
+    for (const line of thoughtLines) {
+      if (!line || typeof line.id !== "string" || !line.id || typeof line.name !== "string" || !line.name.trim()) throw new Error("存在无效思考线");
+      if (lineIds.has(line.id)) throw new Error(`思考线 ID 重复：${line.id}`);
+      lineIds.add(line.id);
+      if (!new Set(["active", "archived", "merged"]).has(line.status)) throw new Error(`思考线状态无效：${line.id}`);
+      if (typeof line.allowEcho !== "boolean") throw new Error(`思考线权限无效：${line.id}`);
+      if (line.status !== "merged") {
+        if (activeNames.has(line.name)) throw new Error(`思考线名称重复：${line.name}`);
+        activeNames.add(line.name);
+      }
+    }
+    for (const entry of data.entries) {
+      for (const lineId of entry.thoughtLineIds ?? []) if (!lineIds.has(lineId)) throw new Error(`日记 ${entry.id} 引用了不存在的思考线：${lineId}`);
+    }
+  }
+  if (data.caseRecords !== undefined && !Array.isArray(data.caseRecords)) throw new Error("caseRecords 必须是数组");
   return data;
 }
 
@@ -54,6 +78,11 @@ async function writeJson(filePath, value) {
 
 async function readJson(filePath) {
   return JSON.parse(await readFile(filePath, "utf8"));
+}
+
+async function readOptionalJson(filePath, fallback) {
+  try { return await readJson(filePath); }
+  catch (error) { if (error?.code === "ENOENT") return fallback; throw error; }
 }
 
 async function renameWithRetry(from, to) {
@@ -150,6 +179,8 @@ async function readGeneration(generationDir) {
   const entries = [];
   for (const name of names) entries.push(await readEntry(path.join(entriesDir, name)));
 
+  const thoughtLines = await readOptionalJson(path.join(generationDir, "relations", "thought-lines.json"), undefined);
+  const caseRecords = await readOptionalJson(path.join(generationDir, "relations", "case-records.json"), undefined);
   const data = assertBackup({
     format: BACKUP_FORMAT,
     version: BACKUP_VERSION,
@@ -157,6 +188,8 @@ async function readGeneration(generationDir) {
     entries,
     echoes: await readJson(path.join(generationDir, "relations", "echoes.json")),
     echoCheckedIds: await readJson(path.join(generationDir, "relations", "echo-checked-ids.json")),
+    ...(thoughtLines === undefined ? {} : { thoughtLines }),
+    ...(caseRecords === undefined ? {} : { caseRecords }),
   });
   if (generation.dataSha256 && generation.dataSha256 !== sha256(stableStringify(data))) throw new Error("本地数据代次校验失败");
   return { data, generation };
@@ -277,6 +310,8 @@ export async function writeLocalData(rootDir, input, options = {}) {
   await writeJson(path.join(stagingDir, "relations", "entry-order.json"), data.entries.map(entry => entry.id));
   await writeJson(path.join(stagingDir, "relations", "echoes.json"), data.echoes);
   await writeJson(path.join(stagingDir, "relations", "echo-checked-ids.json"), data.echoCheckedIds);
+  if (Array.isArray(data.thoughtLines)) await writeJson(path.join(stagingDir, "relations", "thought-lines.json"), data.thoughtLines);
+  if (Array.isArray(data.caseRecords)) await writeJson(path.join(stagingDir, "relations", "case-records.json"), data.caseRecords);
   await writeJson(path.join(stagingDir, "backup.json"), data);
   await writeJson(path.join(stagingDir, "generation.json"), {
     format: STORE_FORMAT,
@@ -289,6 +324,8 @@ export async function writeLocalData(rootDir, input, options = {}) {
       echoes: data.echoes.length,
       echoCheckedIds: data.echoCheckedIds.length,
       attachments: data.entries.reduce((sum, entry) => sum + (Array.isArray(entry.attachments) ? entry.attachments.length : 0), 0),
+      thoughtLines: Array.isArray(data.thoughtLines) ? data.thoughtLines.length : 0,
+      caseRecords: Array.isArray(data.caseRecords) ? data.caseRecords.length : 0,
     },
     dataSha256: sha256(stableStringify(data)),
   });

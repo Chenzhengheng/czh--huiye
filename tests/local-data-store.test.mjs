@@ -103,6 +103,30 @@ test("rejects invalid writes without changing the current generation", async () 
   }
 });
 
+test("persists thought lines, memberships and evaluation records in a recoverable generation", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "huiye-local-store-"));
+  try {
+    const data = fixture();
+    data.thoughtLines = [{
+      id: "line-product",
+      name: "回页-产品",
+      status: "active",
+      allowEcho: true,
+      createdAt: "2026-08-08T00:00:00.000Z",
+      updatedAt: "2026-08-08T00:00:00.000Z",
+    }];
+    data.entries[0].thoughtLineIds = ["line-product"];
+    data.caseRecords = [{ id: "case-1", echoRecordId: "echo-test-1", verdict: "good", feedback: "clarified" }];
+    await writeLocalData(root, data, { source: "test" });
+    const restored = (await readLocalData(root)).data;
+    assert.deepEqual(restored.thoughtLines, data.thoughtLines);
+    assert.deepEqual(restored.entries[0].thoughtLineIds, ["line-product"]);
+    assert.deepEqual(restored.caseRecords, data.caseRecords);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("recovers from a broken current pointer by scanning valid generations", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "huiye-local-store-"));
   try {

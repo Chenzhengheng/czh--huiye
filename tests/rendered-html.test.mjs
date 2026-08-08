@@ -34,7 +34,7 @@ test("server-renders the Huiye writing canvas", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>回页 · 让写下的自己再次回来<\/title>/i);
+  assert.match(html, /<title>回页 · 让思考继续生长<\/title>/i);
   assert.match(html, /此刻，想留下什么？/);
   assert.match(html, /class="paper rich-paper"/);
   assert.match(html, /class="rich-editor"/);
@@ -75,7 +75,7 @@ test("saves user tags from the writing page into the new Entry", async () => {
   assert.match(page, /<TagEditor tags=\{writeTags\} onChange=\{setWriteTags\}/);
   assert.match(page, /tags: writeTags/);
   assert.match(page, /setWriteTags\(\[\]\)/);
-  assert.match(page, /tags: writeTags, link/);
+  assert.match(page, /thoughtLineSelections: writeThoughtLineSelections/);
   assert.match(page, /setWriteTags\(pendingDraft\.tags \|\| \[\]\)/);
 });
 
@@ -105,21 +105,35 @@ test("uses the confirmed three-level source disclosure without embedding private
   assert.match(card, /原文节选/);
   assert.match(card, /展开整篇/);
   assert.match(card, /完整原文/);
-  assert.match(card, /AI 初步看见 · 可以不同意/);
-  assert.match(card, /有那种感觉/);
-  assert.match(card, /说得对，但没感觉/);
+  assert.match(card, /AI 暂时看见 · 由你判断/);
+  assert.match(card, /看清了一点/);
+  assert.match(card, /我已经知道了/);
   assert.match(card, /不太对/);
   assert.doesNotMatch(card, /第一份工作强调的是|出类拔萃，一定是热爱|腾讯、Joe/);
 });
 
-test("uses the real date and never fabricates diary-backed chat", async () => {
+test("uses the real date and keeps demo data isolated from private evaluation", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
 
   assert.match(page, /function formatWritingDate/);
   assert.match(page, /formatWritingDate\(now\)/);
   assert.doesNotMatch(page, /2026 年 7 月 17 日/);
   assert.doesNotMatch(page, /你在 4 月留下的疑问|引用了 3 篇你允许关联的记录/);
-  assert.match(page, /不会用虚构日记假装理解你/);
+  assert.match(page, /展示模式永不读取或展示私人日记/);
+  assert.match(page, /evaluationMode === "demo"/);
+});
+
+test("exposes the three ThoughtLine assignment entries and formal echo boundary", async () => {
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+
+  assert.match(page, /label: "思考线"/);
+  assert.match(page, /writeThoughtLineSelections/);
+  assert.match(page, /edit\.thoughtLineSelections/);
+  assert.match(page, /从日记池加入/);
+  assert.match(page, /record\.thoughtLineId/);
+  assert.match(page, /record\.lifecycle !== "legacy_evaluation"/);
+  assert.match(page, /line\.allowEcho/);
+  assert.match(page, /entry\?\.aiLink/);
 });
 
 test("does not retain the retired AI organization client", async () => {
