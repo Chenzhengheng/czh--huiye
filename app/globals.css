@@ -206,6 +206,26 @@
 .line-entry-reading {
   min-width: 0;
 }
+.line-entry-title-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.line-entry-tags {
+  display: inline-flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.line-entry-tags > span {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #efeee8;
+  color: #77746c;
+  font-size: 9px;
+  font-weight: 400;
+  line-height: 1.4;
+}
 .line-entry-preview {
   display: -webkit-box;
   overflow: hidden;

@@ -176,7 +176,11 @@ test("shows newest ThoughtLine entries first with five-line inline expansion", a
   assert.match(page, /aria-expanded=\{expanded\}/);
   assert.match(page, /expanded \? "收起原文" : "展开原文"/);
   assert.match(page, /className="line-entry-full"/);
+  assert.match(page, /className="line-entry-title-row"/);
+  assert.match(page, /className="line-entry-tags"/);
+  assert.match(page, /\(entry\.tags \?\? \[\]\)\.map/);
   assert.match(css, /\.line-entry-preview\s*\{[^}]*-webkit-line-clamp:\s*5/s);
+  assert.match(css, /\.line-entry-tags > span\s*\{/);
 });
 
 test("aligns primary desktop page tops while preserving mobile header spacing", async () => {

@@ -2023,7 +2023,19 @@ export default function Home() {
                                 )
                               }
                             >
-                              <strong>{entry.title}</strong>
+                              <span className="line-entry-title-row">
+                                <strong>{entry.title}</strong>
+                                {!!(entry.tags ?? []).length && (
+                                  <span
+                                    className="line-entry-tags"
+                                    aria-label="普通标签"
+                                  >
+                                    {(entry.tags ?? []).map((tag) => (
+                                      <span key={tag}>{tag}</span>
+                                    ))}
+                                  </span>
+                                )}
+                              </span>
                               {!expanded && (
                                 <p className="line-entry-preview">
                                   {markdownPreviewText(entry.content)}
