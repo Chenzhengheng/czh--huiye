@@ -531,6 +531,11 @@ button {
   padding: 72px 46px 100px;
   animation: rise 0.35s ease;
 }
+.pool-page,
+.thought-lines-page,
+.echo-page {
+  padding-top: 20px;
+}
 @keyframes rise {
   from {
     opacity: 0;
@@ -1189,6 +1194,11 @@ h1 {
   }
   .page {
     padding: 38px 20px 95px;
+  }
+  .pool-page,
+  .thought-lines-page,
+  .echo-page {
+    padding-top: 38px;
   }
   .mobile-head {
     display: flex;

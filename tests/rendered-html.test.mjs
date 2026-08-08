@@ -177,6 +177,19 @@ test("shows newest ThoughtLine entries first with five-line inline expansion", a
   assert.match(css, /\.line-entry-preview\s*\{[^}]*-webkit-line-clamp:\s*5/s);
 });
 
+test("aligns primary desktop page tops while preserving mobile header spacing", async () => {
+  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.match(
+    css,
+    /\.pool-page,\s*\.thought-lines-page,\s*\.echo-page\s*\{[^}]*padding-top:\s*20px/s,
+  );
+  assert.match(
+    css,
+    /@media \(max-width: 760px\)[\s\S]*?\.pool-page,\s*\.thought-lines-page,\s*\.echo-page\s*\{[^}]*padding-top:\s*38px/s,
+  );
+});
+
 test("does not retain the retired AI organization client", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const worker = await readFile(new URL("../worker/index.ts", import.meta.url), "utf8");
