@@ -159,6 +159,8 @@ test("keeps ThoughtLine assignment as a marked tag and fits the first writing sc
   assert.match(page, /paddingTop: 20/);
   assert.match(css, /\.write-page \.save-row/);
   assert.match(css, /\.thought-line-tag-editor > button/);
+  assert.match(css, /\.edit-tags-row\s*\{[^}]*display:\s*grid/s);
+  assert.match(css, /\.edit-tags-row > div\s*\{[^}]*width:\s*100%/s);
 });
 
 test("does not retain the retired AI organization client", async () => {

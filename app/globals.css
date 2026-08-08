@@ -1453,14 +1453,13 @@ h1 {
   overflow: auto;
 }
 .edit-tags-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 20px;
+  display: grid;
+  gap: 14px;
   margin-top: 4px;
 }
 .edit-tags-row > div {
   min-width: 0;
+  width: 100%;
 }
 .original-switch {
   border: 1px solid #d5d1c5;
