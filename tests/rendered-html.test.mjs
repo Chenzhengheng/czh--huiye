@@ -36,6 +36,8 @@ test("server-renders the Huiye writing canvas", async () => {
   const html = await response.text();
   assert.match(html, /<title>回页 · 让思考继续生长<\/title>/i);
   assert.match(html, /此刻，想留下什么？/);
+  assert.match(html, /不急着下结论，顺着念头再想一点。/);
+  assert.match(html, /一段推理、一个疑问，或正在形成的看法……/);
   assert.match(html, /class="paper rich-paper"/);
   assert.match(html, /class="rich-editor"/);
   assert.match(html, /height:304px/);

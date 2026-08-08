@@ -1598,7 +1598,7 @@ export default function Home() {
               {formatWritingDate(now)}
             </div>
             <h1>此刻，想留下什么？</h1>
-            <p className="lead">不用想标题，也不用急着归类。先写下来就好。</p>
+            <p className="lead">不急着下结论，顺着念头再想一点。</p>
             {continuingEntry && (
               <div className="continuation-hint">
                 沿着《{continuingEntry.title}》继续写
@@ -1634,7 +1634,7 @@ export default function Home() {
                 onMouseUp={showSelectionMenu}
                 onKeyUp={showSelectionMenu}
                 onBlur={() => window.setTimeout(hideSelectionMenu, 120)}
-                data-placeholder="一个念头、一种感受、一句想说的话，或只是今天发生的一小段……"
+                data-placeholder="一段推理、一个疑问，或正在形成的看法……"
               />
               {selectionMenu.visible && (
                 <div
