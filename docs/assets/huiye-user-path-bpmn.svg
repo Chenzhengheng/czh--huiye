@@ -102,8 +102,8 @@
   <text class="node-title" x="635" y="1060">可选反馈</text>
   <text class="body" x="635" y="1086">看清一点 / 已知 / 不太对</text>
   <rect class="green" x="930" y="950" width="200" height="105" rx="16"/>
-  <text class="node-title" x="960" y="991">保存回应</text>
-  <text class="body" x="960" y="1022">形成新的 Entry</text>
+  <text class="node-title" x="960" y="991">保存 EchoReply</text>
+  <text class="body" x="960" y="1022">留在卡片下方，不进入日记池</text>
   <path class="edge" d="M184 992H234"/>
   <path class="edge" d="M510 980H594"/>
   <path class="edge" d="M510 1025C545 1065 560 1065 594 1065"/>
@@ -118,7 +118,7 @@
   <text class="body" x="1270" y="1010">真实线内候选</text>
   <rect class="node" x="1500" y="948" width="205" height="85" rx="15"/>
   <text class="node-title" x="1530" y="984">人工判断与归因</text>
-  <text class="body" x="1530" y="1010">good / bad + 反馈</text>
+  <text class="body" x="1530" y="1010">good / bad 与反馈分别判断</text>
   <path class="dash" d="M1445 990H1489"/>
   <path class="dash" d="M1602 1033V1082H1343V1044"/>
   <text class="small" x="1380" y="1105">积累评测集 → 形成标准 → 迭代 Prompt 与规则</text>

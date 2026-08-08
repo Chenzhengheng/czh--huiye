@@ -116,12 +116,42 @@ test("persists thought lines, memberships and evaluation records in a recoverabl
       updatedAt: "2026-08-08T00:00:00.000Z",
     }];
     data.entries[0].thoughtLineIds = ["line-product"];
-    data.caseRecords = [{ id: "case-1", echoRecordId: "echo-test-1", verdict: "good", feedback: "clarified" }];
+    data.caseRecords = [{
+      id: "case-1",
+      echoRecordId: "echo-test-1",
+      verdict: "good",
+      feedback: "clarified",
+      reasonCodes: ["manifested_change", "recent_understanding_low_increment"],
+      userFeedbackText: "变化确实存在，但因为刚刚悟出来，感触增量较低。",
+      createdAt: "2026-08-08T00:00:00.000Z",
+    }];
+    data.echoReplies = [{
+      id: "reply-1",
+      echoRecordId: "echo-test-1",
+      content: "AI 可以帮我看清变化，但初稿仍应由我完成。",
+      createdAt: "2026-08-08T00:01:00.000Z",
+      updatedAt: "2026-08-08T00:01:00.000Z",
+    }];
     await writeLocalData(root, data, { source: "test" });
     const restored = (await readLocalData(root)).data;
     assert.deepEqual(restored.thoughtLines, data.thoughtLines);
     assert.deepEqual(restored.entries[0].thoughtLineIds, ["line-product"]);
     assert.deepEqual(restored.caseRecords, data.caseRecords);
+    assert.deepEqual(restored.echoReplies, data.echoReplies);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("rejects duplicate EchoReplies for the same EchoRecord", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "huiye-local-store-"));
+  try {
+    const data = fixture();
+    data.echoReplies = [
+      { id: "reply-1", echoRecordId: "echo-test-1", content: "第一条", createdAt: "2026-08-08T00:00:00.000Z", updatedAt: "2026-08-08T00:00:00.000Z" },
+      { id: "reply-2", echoRecordId: "echo-test-1", content: "第二条", createdAt: "2026-08-08T00:00:00.000Z", updatedAt: "2026-08-08T00:00:00.000Z" },
+    ];
+    await assert.rejects(() => writeLocalData(root, data), /一条回响只能保存一个回应/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -242,6 +272,18 @@ test("rejects incomplete EchoRecords before creating a private relation file", a
     invalid.sourceSummaries = invalid.sourceSummaries.slice(0, 1);
     await assert.rejects(() => writeEchoRecord(root, invalid), /sourceSummaries/);
     assert.deepEqual(await readEchoRecords(root), []);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("accepts an evaluation-only EchoRecord without promoting it to a formal candidate", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "huiye-echo-store-"));
+  try {
+    const record = echoFixture();
+    record.lifecycle = "evaluation_only";
+    await writeEchoRecord(root, record);
+    assert.equal((await readEchoRecords(root))[0].lifecycle, "evaluation_only");
   } finally {
     await rm(root, { recursive: true, force: true });
   }

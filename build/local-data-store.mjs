@@ -69,6 +69,21 @@ function assertBackup(data) {
     }
   }
   if (data.caseRecords !== undefined && !Array.isArray(data.caseRecords)) throw new Error("caseRecords 必须是数组");
+  if (data.echoReplies !== undefined) {
+    if (!Array.isArray(data.echoReplies)) throw new Error("echoReplies 必须是数组");
+    const replyIds = new Set();
+    const repliedEchoIds = new Set();
+    for (const reply of data.echoReplies) {
+      if (!reply || typeof reply.id !== "string" || !reply.id.trim()) throw new Error("存在无效回响回应");
+      if (replyIds.has(reply.id)) throw new Error(`回响回应 ID 重复：${reply.id}`);
+      replyIds.add(reply.id);
+      if (typeof reply.echoRecordId !== "string" || !reply.echoRecordId.trim()) throw new Error(`回响回应缺少 EchoRecord：${reply.id}`);
+      if (repliedEchoIds.has(reply.echoRecordId)) throw new Error(`一条回响只能保存一个回应：${reply.echoRecordId}`);
+      repliedEchoIds.add(reply.echoRecordId);
+      if (typeof reply.content !== "string" || !reply.content.trim()) throw new Error(`回响回应正文不能为空：${reply.id}`);
+      for (const field of ["createdAt", "updatedAt"]) if (typeof reply[field] !== "string" || Number.isNaN(Date.parse(reply[field]))) throw new Error(`回响回应时间无效：${reply.id}`);
+    }
+  }
   return data;
 }
 
@@ -181,6 +196,7 @@ async function readGeneration(generationDir) {
 
   const thoughtLines = await readOptionalJson(path.join(generationDir, "relations", "thought-lines.json"), undefined);
   const caseRecords = await readOptionalJson(path.join(generationDir, "relations", "case-records.json"), undefined);
+  const echoReplies = await readOptionalJson(path.join(generationDir, "relations", "echo-replies.json"), undefined);
   const data = assertBackup({
     format: BACKUP_FORMAT,
     version: BACKUP_VERSION,
@@ -190,6 +206,7 @@ async function readGeneration(generationDir) {
     echoCheckedIds: await readJson(path.join(generationDir, "relations", "echo-checked-ids.json")),
     ...(thoughtLines === undefined ? {} : { thoughtLines }),
     ...(caseRecords === undefined ? {} : { caseRecords }),
+    ...(echoReplies === undefined ? {} : { echoReplies }),
   });
   if (generation.dataSha256 && generation.dataSha256 !== sha256(stableStringify(data))) throw new Error("本地数据代次校验失败");
   return { data, generation };
@@ -312,6 +329,7 @@ export async function writeLocalData(rootDir, input, options = {}) {
   await writeJson(path.join(stagingDir, "relations", "echo-checked-ids.json"), data.echoCheckedIds);
   if (Array.isArray(data.thoughtLines)) await writeJson(path.join(stagingDir, "relations", "thought-lines.json"), data.thoughtLines);
   if (Array.isArray(data.caseRecords)) await writeJson(path.join(stagingDir, "relations", "case-records.json"), data.caseRecords);
+  if (Array.isArray(data.echoReplies)) await writeJson(path.join(stagingDir, "relations", "echo-replies.json"), data.echoReplies);
   await writeJson(path.join(stagingDir, "backup.json"), data);
   await writeJson(path.join(stagingDir, "generation.json"), {
     format: STORE_FORMAT,
@@ -326,6 +344,7 @@ export async function writeLocalData(rootDir, input, options = {}) {
       attachments: data.entries.reduce((sum, entry) => sum + (Array.isArray(entry.attachments) ? entry.attachments.length : 0), 0),
       thoughtLines: Array.isArray(data.thoughtLines) ? data.thoughtLines.length : 0,
       caseRecords: Array.isArray(data.caseRecords) ? data.caseRecords.length : 0,
+      echoReplies: Array.isArray(data.echoReplies) ? data.echoReplies.length : 0,
     },
     dataSha256: sha256(stableStringify(data)),
   });

@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 export type EchoMode = "relational" | "reflective_revisit";
 export type EchoFeedback =
@@ -44,7 +44,11 @@ export type EchoRecordV2 = {
   mode: EchoMode;
   thoughtLineId?: string;
   relationType?: EchoRelationType;
-  lifecycle?: "candidate" | "legacy_evaluation" | "invalidated";
+  lifecycle?:
+    | "candidate"
+    | "evaluation_only"
+    | "legacy_evaluation"
+    | "invalidated";
   sourceEntryIds: number[];
   triggerEntryId?: number;
   evidence: Array<{ entryId: number; quote: string }>;
@@ -65,6 +69,14 @@ export type EchoEntry = {
   date?: string;
   title: string;
   content: string;
+};
+
+export type EchoReply = {
+  id: string;
+  echoRecordId: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export function echoResponseEntryIds(record: EchoRecordV2) {
@@ -181,7 +193,10 @@ export function EchoCard({
   entries,
   lineName,
   renderContent,
-  onRespond,
+  reply,
+  selectedFeedback,
+  onSaveReply,
+  onDeleteReply,
   onFeedback,
   onOpenEntry,
 }: {
@@ -189,10 +204,15 @@ export function EchoCard({
   entries: EchoEntry[];
   lineName?: string;
   renderContent: (content: string) => ReactNode;
-  onRespond: (record: EchoRecordV2) => void;
+  reply?: EchoReply;
+  selectedFeedback?: EchoFeedback;
+  onSaveReply: (record: EchoRecordV2, content: string) => void;
+  onDeleteReply: (record: EchoRecordV2) => void;
   onFeedback: (record: EchoRecordV2, feedback: EchoFeedback) => void;
   onOpenEntry: (entryId: number) => void;
 }) {
+  const [replyOpen, setReplyOpen] = useState(Boolean(reply));
+  const [replyDraft, setReplyDraft] = useState(reply?.content ?? "");
   const sources = record.sourceEntryIds
     .map((id) => entries.find((entry) => entry.id === id))
     .filter((entry): entry is EchoEntry => Boolean(entry));
@@ -265,7 +285,7 @@ export function EchoCard({
       </section>
       {responseEntries.length > 0 && (
         <section className="echo-v2-responses">
-          <strong>这次连接后来留下</strong>
+          <strong>过去以日记保存的回应</strong>
           {responseEntries.map((entry) => (
             <button
               type="button"
@@ -278,13 +298,49 @@ export function EchoCard({
           ))}
         </section>
       )}
+      {replyOpen && (
+        <section className="echo-reply" aria-label="回响回应">
+          <label htmlFor={`echo-reply-${record.id}`}>
+            {reply ? "你留在这条回响下的话" : "此刻想回应什么？"}
+          </label>
+          <textarea
+            id={`echo-reply-${record.id}`}
+            value={replyDraft}
+            onChange={(event) => setReplyDraft(event.target.value)}
+            placeholder="可以是一句话，也可以慢慢写。"
+            rows={Math.min(10, Math.max(3, replyDraft.split("\n").length + 1))}
+          />
+          <div>
+            {reply && (
+              <button
+                type="button"
+                className="quiet"
+                onClick={() => {
+                  onDeleteReply(record);
+                  setReplyDraft("");
+                  setReplyOpen(false);
+                }}
+              >
+                删除回应
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={!replyDraft.trim()}
+              onClick={() => onSaveReply(record, replyDraft)}
+            >
+              {reply ? "保存修改" : "留下回应"}
+            </button>
+          </div>
+        </section>
+      )}
       <section className="echo-v2-end">
         <button
           className="echo-response-action"
           type="button"
-          onClick={() => onRespond(record)}
+          onClick={() => setReplyOpen((open) => !open)}
         >
-          回一句，或写下此刻
+          {replyOpen ? "先收起回应" : "回一句，或写下此刻"}
         </button>
         <div className="echo-v2-feedback">
           <span>它有没有让你更清楚？可不选</span>
@@ -293,6 +349,8 @@ export function EchoCard({
               <button
                 type="button"
                 key={item.value}
+                className={selectedFeedback === item.value ? "selected" : ""}
+                aria-pressed={selectedFeedback === item.value}
                 onClick={() => onFeedback(record, item.value)}
               >
                 {item.label}

@@ -112,7 +112,7 @@ export default function PortfolioPage() {
           </li>
           <li>
             <b>生长</b>
-            <p>回应可以现在写，也可以未来再写；保存后成为新的 Entry。</p>
+            <p>回应可以现在写，也可以未来再写；它直接留在回响下方，不自动成为 Entry。</p>
           </li>
         </ol>
       </section>
@@ -125,7 +125,7 @@ export default function PortfolioPage() {
             case，不读取真实日记。每次本地写入生成可校验的新数据代次，旧代次不自动删除。
           </p>
         </div>
-        <pre>{`Entry（原文）\n  ↕ 用户多选归线\nThoughtLine（意图边界）\n  ↓ 双重权限允许\nEchoRecord（AI 观察）\n  ↙       ↓        ↘\n沉默     反馈      回应 Entry`}</pre>
+        <pre>{`Entry（原文）\n  ↕ 用户多选归线\nThoughtLine（意图边界）\n  ↓ 双重权限允许\nEchoRecord（AI 观察）\n  ↙       ↓        ↘\n沉默   可选反馈   EchoReply`}</pre>
       </section>
       <section className={styles.validation} id="validation">
         <header>

@@ -2706,6 +2706,52 @@ h1 {
   color: #99958b;
   font-size: 10px;
 }
+.echo-reply {
+  display: grid;
+  gap: 10px;
+  padding: 18px 20px;
+  border-radius: 11px;
+  background: #f7f5ee;
+}
+.echo-reply label {
+  color: #6d6a60;
+  font-size: 11px;
+}
+.echo-reply textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid #dedbd1;
+  border-radius: 8px;
+  background: #fffefa;
+  padding: 12px 13px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.8;
+}
+.echo-reply > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.echo-reply button,
+.evaluation-verdict-controls button {
+  border: 1px solid #d8d4c9;
+  border-radius: 16px;
+  background: #697a65;
+  padding: 7px 12px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 10px;
+}
+.echo-reply button.quiet {
+  background: transparent;
+  color: #8a6256;
+}
+.echo-reply button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
 .echo-v2-end {
   display: grid;
   gap: 20px;
@@ -2748,6 +2794,11 @@ h1 {
   border-color: #bca784;
   color: #655a48;
   background: #faf7f0;
+}
+.echo-v2-feedback button.selected {
+  border-color: #72806c;
+  background: #e5ebe1;
+  color: #50604a;
 }
 .echo-rest {
   border-style: solid;
@@ -3156,6 +3207,57 @@ h1 {
 .evaluation-case-head strong {
   font-size: 14px;
   font-weight: 500;
+}
+.evaluation-echo-card {
+  padding: 18px 20px;
+}
+.evaluation-echo-card .echo-v2-card {
+  margin: 0;
+  box-shadow: none;
+}
+.evaluation-assessment {
+  display: grid;
+  gap: 12px;
+  padding: 17px 20px;
+  border-top: 1px solid #e8e5dc;
+  background: #f7f6f0;
+}
+.evaluation-verdict-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.evaluation-verdict-controls span {
+  margin-right: auto;
+  color: #77756b;
+  font-size: 10px;
+}
+.evaluation-verdict-controls button {
+  background: transparent;
+  color: #77746b;
+}
+.evaluation-verdict-controls button.selected {
+  border-color: #72806c;
+  background: #e5ebe1;
+  color: #50604a;
+}
+.evaluation-assessment blockquote {
+  margin: 0;
+  border-left: 3px solid #b89a70;
+  padding: 10px 13px;
+  background: #fffefa;
+}
+.evaluation-assessment blockquote strong,
+.evaluation-assessment small {
+  color: #77756b;
+  font-size: 10px;
+}
+.evaluation-assessment blockquote p {
+  margin: 5px 0 0;
+  color: #55534c;
+  font-size: 12px;
+  line-height: 1.8;
 }
 .evaluation-verdict {
   border-radius: 14px;

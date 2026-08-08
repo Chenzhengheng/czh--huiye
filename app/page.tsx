@@ -6,6 +6,7 @@ import {
   echoResponseEntryIds,
   type EchoEventType,
   type EchoFeedback,
+  type EchoReply,
   type EchoRecordV2,
 } from "./echo-card";
 import {
@@ -57,9 +58,10 @@ type SavedDraft = {
 type CaseRecord = {
   id: string;
   echoRecordId: string;
-  verdict: "good" | "bad";
-  feedback: "clarified" | "already_known" | "not_quite";
-  reasonCodes: string[];
+  verdict?: "good" | "bad";
+  feedback?: "clarified" | "already_known" | "not_quite";
+  reasonCodes?: string[];
+  userFeedbackText?: string;
   notes?: string;
   createdAt: string;
 };
@@ -72,6 +74,7 @@ type HuiyeBackup = {
   echoCheckedIds: number[];
   thoughtLines?: ThoughtLine[];
   caseRecords?: CaseRecord[];
+  echoReplies?: EchoReply[];
 };
 type Echo = {
   id: string;
@@ -93,6 +96,7 @@ function createData(
   echoCheckedIds: number[],
   thoughtLines: ThoughtLine[] = [],
   caseRecords: CaseRecord[] = [],
+  echoReplies: EchoReply[] = [],
 ): HuiyeBackup {
   return {
     format: "huiye-backup",
@@ -103,6 +107,7 @@ function createData(
     echoCheckedIds,
     thoughtLines,
     caseRecords,
+    echoReplies,
   };
 }
 
@@ -191,6 +196,7 @@ function selectCurrentEcho(
       .filter(
         (record) =>
           record.lifecycle !== "legacy_evaluation" &&
+          record.lifecycle !== "evaluation_only" &&
           record.lifecycle !== "invalidated",
       )
       .filter((record) => Boolean(record.thoughtLineId))
@@ -634,10 +640,10 @@ export default function Home() {
   const [echoCheckedIds, setEchoCheckedIds] = useState<number[]>([]);
   const [thoughtLines, setThoughtLines] = useState<ThoughtLine[]>([]);
   const [caseRecords, setCaseRecords] = useState<CaseRecord[]>([]);
+  const [echoReplies, setEchoReplies] = useState<EchoReply[]>([]);
   const [echoRecords, setEchoRecords] = useState<EchoRecordV2[]>([]);
   const [currentEchoId, setCurrentEchoId] = useState<string | null>(null);
   const [echoSeenThisSession, setEchoSeenThisSession] = useState(false);
-  const [echoSessionDone, setEchoSessionDone] = useState(false);
   const [echoLoadError, setEchoLoadError] = useState(false);
   const [storageReady, setStorageReady] = useState(false);
   const [storageStatus, setStorageStatus] = useState<StorageStatus>("loading");
@@ -645,11 +651,6 @@ export default function Home() {
   const [storageKind, setStorageKind] = useState<
     "unknown" | "local-folder" | "cloud"
   >("unknown");
-  const [continuingFrom, setContinuingFrom] = useState<number | null>(null);
-  const [continuingEchoId, setContinuingEchoId] = useState<string | null>(null);
-  const [continuingThoughtLineId, setContinuingThoughtLineId] = useState<
-    string | null
-  >(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [writeTags, setWriteTags] = useState<string[]>([]);
   const [writeThoughtLineSelections, setWriteThoughtLineSelections] = useState<
@@ -734,6 +735,7 @@ export default function Home() {
         setEntries(loadedEntries);
         setThoughtLines(loadedLines);
         setCaseRecords(data.caseRecords ?? []);
+        setEchoReplies(data.echoReplies ?? []);
         // Legacy Echo v1 is intentionally retired. Only Entry data is loaded
         // until the reviewed EchoRecord model replaces the old recall flow.
         setEchoes([]);
@@ -842,6 +844,7 @@ export default function Home() {
       echoCheckedIds,
       thoughtLines,
       caseRecords,
+      echoReplies,
     );
     const timer = window.setTimeout(() => {
       setStorageStatus("saving");
@@ -859,6 +862,7 @@ export default function Home() {
     echoCheckedIds,
     thoughtLines,
     caseRecords,
+    echoReplies,
     storageReady,
   ]);
   useEffect(() => {
@@ -876,9 +880,6 @@ export default function Home() {
     [entries, search],
   );
   const selected = entries.find((entry) => entry.id === selectedId) ?? null;
-  const continuingEntry = continuingFrom
-    ? (entries.find((entry) => entry.id === continuingFrom) ?? null)
-    : null;
   const currentEchoRecord =
     echoRecords.find((record) => record.id === currentEchoId) ?? null;
   const selectedLine =
@@ -924,28 +925,56 @@ export default function Home() {
     setPreviewMarkdown(false);
   };
 
-  function saveCase(
+  function saveCaseFeedback(
     record: EchoRecordV2,
     feedback: "clarified" | "already_known" | "not_quite",
   ) {
-    const next: CaseRecord = {
-      id: `case-${Date.now()}`,
-      echoRecordId: record.id,
-      verdict: feedback === "not_quite" ? "bad" : "good",
-      feedback,
-      reasonCodes:
-        feedback === "clarified"
-          ? ["manifested_change"]
-          : feedback === "already_known"
-            ? ["already_explicit"]
-            : ["interpretation_wrong"],
-      createdAt: new Date().toISOString(),
-    };
-    setCaseRecords((current) => [
-      next,
-      ...current.filter((item) => item.echoRecordId !== record.id),
-    ]);
-    notify("已记入回响评测集，不会进入正式回响");
+    setCaseRecords((current) => {
+      const existing = current.find(
+        (item) => item.echoRecordId === record.id,
+      );
+      const next: CaseRecord = {
+        ...(existing ?? {
+          id: `case-${Date.now()}`,
+          echoRecordId: record.id,
+          createdAt: new Date().toISOString(),
+        }),
+        feedback,
+        reasonCodes:
+          feedback === "clarified"
+            ? ["manifested_change"]
+            : feedback === "already_known"
+              ? ["already_explicit"]
+              : ["interpretation_wrong"],
+      };
+      return [
+        next,
+        ...current.filter((item) => item.echoRecordId !== record.id),
+      ];
+    });
+    notify("反馈已记录；good / bad 仍由你单独判断");
+  }
+
+  function setCaseVerdict(record: EchoRecordV2, verdict: "good" | "bad") {
+    setCaseRecords((current) => {
+      const existing = current.find(
+        (item) => item.echoRecordId === record.id,
+      );
+      const next: CaseRecord = {
+        ...(existing ?? {
+          id: `case-${Date.now()}`,
+          echoRecordId: record.id,
+          reasonCodes: [],
+          createdAt: new Date().toISOString(),
+        }),
+        verdict,
+      };
+      return [
+        next,
+        ...current.filter((item) => item.echoRecordId !== record.id),
+      ];
+    });
+    notify(`已标记为 ${verdict}`);
   }
 
   function updateLineName() {
@@ -1149,19 +1178,38 @@ export default function Home() {
       );
     }
   }
-  function respondFromEcho(record: EchoRecordV2) {
-    setContinuingEchoId(record.id);
-    setContinuingFrom(
-      record.sourceEntryIds[record.sourceEntryIds.length - 1] ?? null,
+  function saveEchoReply(record: EchoRecordV2, content: string) {
+    const trimmed = content.trim();
+    if (!trimmed) return notify("回应还没有内容");
+    const timestamp = new Date().toISOString();
+    setEchoReplies((current) => {
+      const existing = current.find(
+        (reply) => reply.echoRecordId === record.id,
+      );
+      if (existing)
+        return current.map((reply) =>
+          reply.id === existing.id
+            ? { ...reply, content: trimmed, updatedAt: timestamp }
+            : reply,
+        );
+      return [
+        {
+          id: `reply-${Date.now()}`,
+          echoRecordId: record.id,
+          content: trimmed,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        },
+        ...current,
+      ];
+    });
+    notify("回应已留在这条回响下方");
+  }
+  function deleteEchoReply(record: EchoRecordV2) {
+    setEchoReplies((current) =>
+      current.filter((reply) => reply.echoRecordId !== record.id),
     );
-    setContinuingThoughtLineId(record.thoughtLineId ?? null);
-    setWriteThoughtLineSelections(
-      record.thoughtLineId ? [record.thoughtLineId] : [],
-    );
-    setView("write");
-    void recordEchoEvent(record.id, { type: "response_started" }).catch(() =>
-      notify("可以写下回应；这次打开暂未记入本地"),
-    );
+    notify("已删除这条回响回应");
   }
   function submitEchoFeedback(record: EchoRecordV2, feedback: EchoFeedback) {
     const reasonCodes =
@@ -1174,7 +1222,6 @@ export default function Home() {
             : feedback === "accurate_no_resonance"
               ? ["legacy_accurate_no_resonance"]
               : ["interpretation_wrong"];
-    setEchoSessionDone(true);
     void recordEchoEvent(record.id, {
       type: "feedback_submitted",
       feedback,
@@ -1195,7 +1242,6 @@ export default function Home() {
         ),
       )
       .catch(() => {
-        setEchoSessionDone(false);
         notify("暂时无法记录这次反馈");
       });
   }
@@ -1205,14 +1251,9 @@ export default function Home() {
       notify("还没有内容可保存");
       return;
     }
-    const selections =
-      continuingThoughtLineId &&
-      !writeThoughtLineSelections.includes(continuingThoughtLineId)
-        ? [...writeThoughtLineSelections, continuingThoughtLineId]
-        : writeThoughtLineSelections;
     const materialized = materializeThoughtLineSelections(
       thoughtLines,
-      selections,
+      writeThoughtLineSelections,
     );
     const entry: Entry = {
       id: Date.now(),
@@ -1224,7 +1265,6 @@ export default function Home() {
       source: attachments.length ? "图片与快速记录" : "快速记录",
       aiLink: link,
       attachments,
-      continuesFrom: continuingFrom ?? undefined,
     };
     const nextEntries = [entry, ...entries];
     const data = createData(
@@ -1233,6 +1273,7 @@ export default function Home() {
       echoCheckedIds,
       materialized.lines,
       caseRecords,
+      echoReplies,
     );
     setStorageStatus("saving");
     notify("正在安全写入本地文件夹…");
@@ -1243,30 +1284,11 @@ export default function Home() {
       setThoughtLines(materialized.lines);
       setStorageUpdatedAt(updatedAt);
       setStorageStatus("saved");
-      let echoEventFailed = false;
-      if (continuingEchoId) {
-        try {
-          await recordEchoEvent(continuingEchoId, {
-            type: "response_saved",
-            resultEntryId: entry.id,
-          });
-          setEchoSessionDone(true);
-        } catch {
-          echoEventFailed = true;
-        }
-      }
       resetWritingEditor("");
       setAttachments([]);
       setWriteTags([]);
       setWriteThoughtLineSelections([]);
-      setContinuingFrom(null);
-      setContinuingEchoId(null);
-      setContinuingThoughtLineId(null);
-      notify(
-        echoEventFailed
-          ? "日记已安全保存；回响关系暂未记入，请稍后重试"
-          : "已安全保存到本地文件夹",
-      );
+      notify("已安全保存到本地文件夹");
     } catch {
       setStorageStatus("error");
       notify("保存失败，正文仍保留在编辑区，请不要刷新");
@@ -1345,6 +1367,7 @@ export default function Home() {
       echoCheckedIds,
       thoughtLines,
       caseRecords,
+      echoReplies,
     );
     triggerDownload(
       JSON.stringify(backup, null, 2),
@@ -1383,6 +1406,7 @@ export default function Home() {
       setStorageStatus("saving");
       const restoredLines = parsed.thoughtLines ?? [];
       const restoredCases = parsed.caseRecords ?? [];
+      const restoredReplies = parsed.echoReplies ?? [];
       const updatedAt = await queuePrivateSave(
         createData(
           restored,
@@ -1390,11 +1414,13 @@ export default function Home() {
           restoredChecks,
           restoredLines,
           restoredCases,
+          restoredReplies,
         ),
       );
       setEntries(restored);
       setThoughtLines(restoredLines);
       setCaseRecords(restoredCases);
+      setEchoReplies(restoredReplies);
       setEchoes(restoredEchoes);
       setEchoCheckedIds(restoredChecks);
       setStorageUpdatedAt(updatedAt);
@@ -1432,6 +1458,8 @@ export default function Home() {
             <strong>
               {record.lifecycle === "legacy_evaluation"
                 ? "历史评测候选"
+                : record.lifecycle === "evaluation_only"
+                  ? "评测专用候选"
                 : "线内回响候选"}
             </strong>
           </div>
@@ -1444,49 +1472,58 @@ export default function Home() {
             </b>
           </div>
         </header>
-        <section className="evaluation-sources" aria-label="评测输入原文">
-          {record.sourceEntryIds.map((id, index) => {
-            const entry = entries.find((item) => item.id === id);
-            const evidence = record.evidence.find(
-              (item) => item.entryId === id,
-            )?.quote;
-            return (
-              <article key={id}>
-                <header>
-                  <span>来源 {String.fromCharCode(65 + index)}</span>
-                  <time>
-                    {entry ? formatTimestamp(entry, now) : "原文缺失"}
-                  </time>
-                </header>
-                <h3>{entry?.title ?? `缺失原文 ${id}`}</h3>
-                <p>“{evidence ?? "暂无可核验证据"}”</p>
-                {entry && (
-                  <button type="button" onClick={() => openEntry(entry)}>
-                    查看完整原文
-                  </button>
-                )}
-              </article>
-            );
-          })}
-        </section>
-        <section className="evaluation-observation">
-          <span>AI 模型输出 · 由你判断</span>
-          <p>{record.reason}</p>
-          {record.question && <strong>{record.question}</strong>}
-        </section>
-        <footer className="evaluation-feedback">
-          <span>这条观察是否带来了显化价值？</span>
-          <div>
-            <button onClick={() => saveCase(record, "clarified")}>
-              看清了一点
+        <div className="evaluation-echo-card">
+          <EchoCard
+            record={record}
+            entries={entries}
+            lineName={line?.name}
+            renderContent={(content) => <Markdown content={content} />}
+            reply={echoReplies.find(
+              (reply) => reply.echoRecordId === record.id,
+            )}
+            selectedFeedback={existing?.feedback}
+            onSaveReply={saveEchoReply}
+            onDeleteReply={deleteEchoReply}
+            onFeedback={(target, feedback) => {
+              if (
+                feedback === "clarified" ||
+                feedback === "already_known" ||
+                feedback === "not_quite"
+              )
+                saveCaseFeedback(target, feedback);
+            }}
+            onOpenEntry={(entryId) => {
+              const entry = entries.find((item) => item.id === entryId);
+              if (entry) openEntry(entry);
+            }}
+          />
+        </div>
+        <footer className="evaluation-assessment">
+          <div className="evaluation-verdict-controls">
+            <span>评测结论与上方反馈相互独立</span>
+            <button
+              className={existing?.verdict === "good" ? "selected" : ""}
+              onClick={() => setCaseVerdict(record, "good")}
+            >
+              标为 good
             </button>
-            <button onClick={() => saveCase(record, "already_known")}>
-              我已经知道了
-            </button>
-            <button onClick={() => saveCase(record, "not_quite")}>
-              不太对
+            <button
+              className={existing?.verdict === "bad" ? "selected" : ""}
+              onClick={() => setCaseVerdict(record, "bad")}
+            >
+              标为 bad
             </button>
           </div>
+          {existing?.userFeedbackText && (
+            <blockquote>
+              <strong>你的评测原话</strong>
+              <p>{existing.userFeedbackText}</p>
+            </blockquote>
+          )}
+          {!!existing?.reasonCodes?.length && (
+            <small>归因：{existing.reasonCodes.join(" · ")}</small>
+          )}
+          {existing?.notes && <small>备注：{existing.notes}</small>}
         </footer>
       </article>
     );
@@ -1514,8 +1551,7 @@ export default function Home() {
               {item.label}
               {item.id === "echo" &&
                 currentEchoRecord &&
-                !echoSeenThisSession &&
-                !echoSessionDone && (
+                !echoSeenThisSession && (
                   <b
                     className="echo-presence-dot"
                     aria-label="有一条线上的回响在等你"
@@ -1578,11 +1614,6 @@ export default function Home() {
             </div>
             <h1>此刻，想留下什么？</h1>
             <p className="lead">不急着下结论，顺着念头再想一点。</p>
-            {continuingEntry && (
-              <div className="continuation-hint">
-                沿着《{continuingEntry.title}》继续写
-              </div>
-            )}
             <div
               ref={paperRef}
               className="paper rich-paper"
@@ -2296,12 +2327,6 @@ export default function Home() {
                 <h2>回响暂时无法读取</h2>
                 <p>你的日记仍然安全，写作与原文阅读不会受影响。</p>
               </div>
-            ) : echoSessionDone ? (
-              <div className="echo-empty echo-rest">
-                <span className="orb">·</span>
-                <h2>这次就到这里</h2>
-                <p>回页不会马上补上下一条。让这一页先留一会儿。</p>
-              </div>
             ) : currentEchoRecord ? (
               <EchoCard
                 record={currentEchoRecord}
@@ -2312,7 +2337,17 @@ export default function Home() {
                   )?.name
                 }
                 renderContent={(content) => <Markdown content={content} />}
-                onRespond={respondFromEcho}
+                reply={echoReplies.find(
+                  (reply) => reply.echoRecordId === currentEchoRecord.id,
+                )}
+                selectedFeedback={
+                  [...currentEchoRecord.events]
+                    .reverse()
+                    .find((event) => event.type === "feedback_submitted")
+                    ?.feedback
+                }
+                onSaveReply={saveEchoReply}
+                onDeleteReply={deleteEchoReply}
                 onFeedback={submitEchoFeedback}
                 onOpenEntry={(entryId) => {
                   const entry = entries.find((item) => item.id === entryId);
@@ -2341,8 +2376,7 @@ export default function Home() {
               <span>{item.label}</span>
               {item.id === "echo" &&
                 currentEchoRecord &&
-                !echoSeenThisSession &&
-                !echoSessionDone && (
+                !echoSeenThisSession && (
                   <b className="echo-presence-dot" aria-label="有一页在等你" />
                 )}
             </button>

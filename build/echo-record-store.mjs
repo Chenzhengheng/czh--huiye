@@ -16,7 +16,7 @@ const EVENT_TYPES = new Set([
 ]);
 const FEEDBACK_TYPES = new Set(["clarified", "already_known", "not_quite", "resonated", "accurate_no_resonance"]);
 const RELATION_TYPES = new Set(["continuation", "revision", "branch", "conflict", "unresolved_question", "other"]);
-const LIFECYCLE_TYPES = new Set(["candidate", "legacy_evaluation", "invalidated"]);
+const LIFECYCLE_TYPES = new Set(["candidate", "evaluation_only", "legacy_evaluation", "invalidated"]);
 const REJECTION_SCOPES = new Set(["interpretation", "relationship", "evidence", "other"]);
 
 function requireIsoDate(value, field) {

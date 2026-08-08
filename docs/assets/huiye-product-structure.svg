@@ -76,8 +76,8 @@
   <text class="note" x="435" y="810">先重逢自己，再看解释</text>
   <rect class="card" x="745" y="712" width="290" height="120" rx="16"/>
   <text class="card-title" x="775" y="752">自由回应</text>
-  <text class="body" x="775" y="785">沉默 · 反馈 · 保存一句或一篇</text>
-  <text class="note" x="775" y="810">看过的回响留在线上成为点</text>
+  <text class="body" x="775" y="785">沉默 · 可选反馈 · 卡片内 EchoReply</text>
+  <text class="note" x="775" y="810">回应不进日记池，与反馈互不推断</text>
   <path class="edge" d="M345 772H394"/>
   <path class="edge" d="M685 772H734"/>
 
@@ -85,7 +85,7 @@
   <text class="band" x="1138" y="678" fill="#8a6538">04 · 当前验证 · 回响评测</text>
   <text class="card-title" x="1145" y="727">高频检查模型输出</text>
   <text class="body" x="1145" y="762">评测集 → 模型输出 → good / bad → 归因</text>
-  <text class="body" x="1145" y="794">反馈：看清一点 / 已经知道 / 不太对</text>
+  <text class="body" x="1145" y="794">good / bad 与三类反馈、用户原话分别保存</text>
   <line class="rule" x1="1145" y1="817" x2="1605" y2="817"/>
   <text class="note" x="1145" y="845">从真实 good case 推演参考答案，再迭代 Prompt 与规则</text>
   <path class="dash" d="M1420 570V629"/>

@@ -50,7 +50,7 @@
     <bpmn:userTask id="Task_OpenEcho" name="原句到全文，再看 AI 初判"/>
     <bpmn:exclusiveGateway id="Gateway_UserChoice" name="用户自由选择"/>
     <bpmn:serviceTask id="Task_RecordFeedback" name="记录可选反馈"/>
-    <bpmn:userTask id="Task_SaveResponse" name="保存回应 Entry"/>
+    <bpmn:userTask id="Task_SaveResponse" name="保存独立 EchoReply"/>
     <bpmn:endEvent id="End_LeaveSpace" name="本次结束，留下空白"/>
     <bpmn:manualTask id="Task_CreateCase" name="生成真实线内评测 case"/>
     <bpmn:manualTask id="Task_JudgeCase" name="判断 good / bad 并归因"/>

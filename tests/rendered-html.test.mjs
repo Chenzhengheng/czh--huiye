@@ -94,8 +94,10 @@ test("does not revive the retired v1 echo flow", async () => {
   assert.match(page, /\/api\/echo-events/);
   assert.match(page, /一次只遇见一页/);
   assert.match(page, /echo-presence-dot/);
-  assert.match(page, /response_started/);
-  assert.match(page, /response_saved/);
+  assert.match(page, /saveEchoReply/);
+  assert.match(page, /deleteEchoReply/);
+  assert.match(page, /echoReplies/);
+  assert.doesNotMatch(page, /function respondFromEcho/);
   assert.doesNotMatch(page, /约 80%|约 20%/);
   assert.doesNotMatch(worker, /\/api\/recall|prepareRecall|RECALL_SCHEMA|OPENROUTER_API_KEY/);
 });
@@ -111,6 +113,11 @@ test("uses the confirmed three-level source disclosure without embedding private
   assert.match(card, /看清了一点/);
   assert.match(card, /我已经知道了/);
   assert.match(card, /不太对/);
+  assert.match(card, /回一句，或写下此刻/);
+  assert.match(card, /此刻想回应什么？/);
+  assert.match(card, /留下回应/);
+  assert.match(card, /删除回应/);
+  assert.match(card, /selectedFeedback/);
   assert.doesNotMatch(card, /第一份工作强调的是|出类拔萃，一定是热爱|腾讯、Joe/);
 });
 
@@ -135,6 +142,7 @@ test("keeps two ThoughtLine assignment entries and formal echo boundary", async 
   assert.doesNotMatch(page, /从日记池加入|搜索要加入的笔记|加入选中的/);
   assert.match(page, /record\.thoughtLineId/);
   assert.match(page, /record\.lifecycle !== "legacy_evaluation"/);
+  assert.match(page, /record\.lifecycle !== "evaluation_only"/);
   assert.match(page, /line\.allowEcho/);
   assert.match(page, /entry\?\.aiLink/);
 });
@@ -144,13 +152,15 @@ test("structures evaluation cases and switches to an overview table after fiftee
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 
   assert.match(page, /echoRecords\.length <= 15/);
-  assert.match(page, /className="evaluation-sources"/);
-  assert.match(page, /AI 模型输出 · 由你判断/);
+  assert.match(page, /className="evaluation-echo-card"/);
+  assert.match(page, /className="evaluation-assessment"/);
+  assert.match(page, /评测结论与上方反馈相互独立/);
+  assert.match(page, /userFeedbackText/);
   assert.match(page, /className="evaluation-table"/);
   assert.match(page, /点击一个 case 编号，展开完整原文证据与评测操作/);
   assert.match(page, /参考答案将在\s*good\s*case\s*稳定后建立/);
-  assert.match(css, /\.evaluation-sources\s*\{/);
-  assert.match(css, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(css, /\.evaluation-echo-card\s*\{/);
+  assert.match(css, /\.evaluation-assessment\s*\{/);
 });
 
 test("keeps ThoughtLine assignment as a marked tag and fits the first writing screen", async () => {

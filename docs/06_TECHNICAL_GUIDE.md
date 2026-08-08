@@ -12,15 +12,15 @@ Vinext/React 客户端由 `app/page.tsx` 组合写下、日记池、思考线、
 
 ## 当前状态流
 
-1. 启动读取 Entry、ThoughtLine、CaseRecord，再读取 EchoRecord；
+1. 启动读取 Entry、ThoughtLine、CaseRecord、EchoReply，再读取 EchoRecord；
 2. 缺少 `thoughtLineIds` 的旧 Entry 在内存归一为空数组；
 3. 新思考线名称编辑时只是 `draft:` selection，保存 Entry 时才物化；
-4. 自动保存把 Entry、ThoughtLine、CaseRecord 写入新 generation；
-5. `selectCurrentEcho` 同时检查 lifecycle、线状态、整线权限、单篇权限、共同归属、时间和结束事件；
-6. 回响回应保存为新 Entry，并默认继承来源 ThoughtLine。
+4. 自动保存把 Entry、ThoughtLine、CaseRecord、EchoReply 写入新 generation；
+5. `selectCurrentEcho` 同时检查 lifecycle、线状态、整线权限、单篇权限、共同归属、时间和结束事件；`evaluation_only` 只供评测工作台读取；
+6. 回响回应在 EchoCard 内原地编辑，保存为独立 EchoReply；反馈事件与回应互不推断。
 
 ## 测试与技术债
 
 领域规则在 `thought-line-model.test.mjs`；存储兼容在 `local-data-store.test.mjs`；界面边界在 `rendered-html.test.mjs`；回响事件由 store 测试覆盖。
 
-`app/page.tsx` 仍承担较多视图编排，MVP 验证后再拆组件。当前无生产模型调用；CaseRecord 暂随主 generation 保存；`docs/assets/` 中三张正式图以 SVG 为唯一可编辑源，PNG、BPMN 与 HTML 为同步产物。
+`app/page.tsx` 仍承担较多视图编排，MVP 验证后再拆组件。当前无生产模型调用；CaseRecord 与 EchoReply 暂随主 generation 保存；`docs/assets/` 中三张正式图以 SVG 为唯一可编辑源，PNG、BPMN 与 HTML 为同步产物。

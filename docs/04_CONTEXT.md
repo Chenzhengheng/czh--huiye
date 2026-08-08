@@ -12,7 +12,9 @@
 
 **EchoRecord（回响记录）**：AI 在一条 ThoughtLine 内基于至少两篇 Entry 形成的持久观察，保存来源、证据、初判、关系类型、生命周期和事件。避免：用户手工连线、EchoCard。
 
-**CaseRecord（案例评测记录）**：对 EchoRecord 的 good/bad、反馈原因和备注，不复制私人原文，不进入正式回响。避免：正式回响、评测内容副本。
+**CaseRecord（案例评测记录）**：对 EchoRecord 的结构化反馈、用户原话、评测判断和备注；引用对应 EchoRecord，不复制来源 Entry 私人原文，也不进入正式回响。结构化反馈与用户原话必须分别保存，不能用其中一项推断另一项。避免：正式回响、来源内容副本、把“写了回应”自动判为 good。
+
+**EchoReply（回响回应）**：用户直接写在某条 EchoRecord 下方的一段回应。它可以很短或很长，可编辑、可删除；不是 Entry，不进入日记池，也不自动参与未来回响。未来可以由用户明确选择“转为日记”。避免：自动新建 Entry、把回应内容当作评测反馈、因用户回应而自动选择反馈。
 
 **EvaluationSet（评测集）**：在同一场景定义下，供人工反复检查的一组输入案例。当前由真实 Entry、ThoughtLine 和对应候选共同构成。避免：只收集模型输出、把私人原文复制成另一份数据。
 
@@ -46,7 +48,9 @@
 
 **LegacyEvaluation（历史评测）**：旧单页回看或无共同用户思考线的关系记录。只供评测和兼容读取，永不成为正式候选。
 
-**OptionalEchoFeedback（可选反馈）**：`clarified` 看清了一点、`already_known` 我已经知道了、`not_quite` 不太对。旧反馈值只兼容读取。
+**EvaluationOnly（仅评测候选）**：使用真实线内 Entry 构造、只进入评测工作台的 EchoRecord 生命周期。它用于高频校准，不得出现在正式回响入口；与只负责兼容旧机制的 LegacyEvaluation 不同。
+
+**OptionalEchoFeedback（可选反馈）**：用户对 AI 观察质量的可选判断：`clarified` 看清了一点、`already_known` 我已经知道了、`not_quite` 不太对。它与 EchoReply 相互独立：用户可以只反馈、只回应、两者都做或两者都不做；任何一方都不能自动推断另一方。旧反馈值只兼容读取。
 
 **EchoDot（回响点）**：已出现过的回响在线上留下的可点击状态标记；它是 EchoRecord 的呈现，不是新领域对象。
 

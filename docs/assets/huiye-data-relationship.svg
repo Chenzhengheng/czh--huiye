@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1700" height="1050" viewBox="0 0 1700 1050" role="img" aria-labelledby="title desc">
   <title id="title">回页数据关系图</title>
-  <desc id="desc">Entry、ThoughtLine、EchoRecord、CaseRecord 与评测工作台之间的关系。</desc>
+  <desc id="desc">Entry、ThoughtLine、EchoRecord、EchoReply、CaseRecord 与评测工作台之间的关系。</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
       <path d="M0 0 10 5 0 10Z" fill="#77786f"/>
@@ -56,7 +56,14 @@
   <line class="rule" x1="515" y1="768" x2="770" y2="768"/>
   <text class="small" x="515" y="800">至少引用同线两篇可观察日记</text>
   <text class="small" x="515" y="828">AI 初判可被用户否定</text>
-  <text class="small" x="515" y="856">查看、反馈与回应都记录为事件</text>
+  <text class="small" x="515" y="856">查看与反馈记录为事件，回应独立保存</text>
+
+  <rect class="card" x="875" y="205" width="240" height="175" rx="18"/>
+  <text class="box-title" x="905" y="247">EchoReply</text>
+  <text class="label" x="905" y="282">echoRecordId · content</text>
+  <text class="label" x="905" y="312">createdAt · updatedAt</text>
+  <line class="rule" x1="905" y1="334" x2="1085" y2="334"/>
+  <text class="small" x="905" y="363">不是 Entry，不自动参与回响</text>
 
   <rect class="amber" x="875" y="650" width="240" height="190" rx="18"/>
   <text class="box-title" x="905" y="692">CaseRecord</text>
@@ -73,8 +80,8 @@
   <text class="small" x="658" y="520">1 条线产生 0..N 条回响</text>
   <path class="edge" d="M405 445C450 505 420 675 474 690"/>
   <text class="small" x="120" y="548">EchoRecord 引用至少 2 篇来源 Entry</text>
-  <path class="dash" d="M485 835C390 930 190 880 190 516"/>
-  <text class="small" x="115" y="927">回应事件可指向新的 Entry，并继承来源思考线</text>
+  <path class="edge" d="M800 650C850 600 885 410 930 389"/>
+  <text class="small" x="812" y="600">0..1</text>
   <path class="edge" d="M800 735H864"/>
   <text class="small" x="820" y="718">0..1</text>
 
@@ -95,7 +102,7 @@
   <rect class="amber" x="1240" y="595" width="370" height="145" rx="16"/>
   <text class="box-title" x="1270" y="636">EvaluationCriteria · 评测标准</text>
   <text class="small" x="1270" y="672">先看显化价值，再看相关性与证据</text>
-  <text class="small" x="1270" y="700">结合 good / bad 与三类用户反馈归因</text>
+  <text class="small" x="1270" y="700">good / bad、三类反馈与用户原话分别归因</text>
 
   <rect class="card" x="1240" y="785" width="370" height="145" rx="16" stroke-dasharray="8 6"/>
   <text class="box-title" x="1270" y="826">ReferenceAnswer · 参考答案</text>
@@ -107,9 +114,9 @@
   <path class="dash" d="M1425 740V774"/>
   <path class="dash" d="M1115 745C1175 745 1170 670 1229 670"/>
   <text class="small" x="1072" y="625">人工反馈进入标准校准</text>
-  <path class="dash" d="M800 610C1030 500 1090 280 1229 280"/>
-  <text class="small" x="906" y="438">从真实产品记录构造输入</text>
+  <path class="dash" d="M800 610C1030 590 1120 280 1229 280"/>
+  <text class="small" x="975" y="520">从真实产品记录构造输入</text>
 
   <rect x="55" y="1005" width="1590" height="1" fill="#ddd9cf"/>
-  <text class="small" x="62" y="1033">实线：当前数据关系　·　虚线：回应派生或评测构造　·　评测对象尚未全部成为独立持久化文件</text>
+  <text class="small" x="62" y="1033">实线：当前数据关系　·　虚线：评测构造　·　EchoReply 与反馈互不推断</text>
 </svg>

@@ -24,17 +24,22 @@ ID 稳定唯一，非 merged 线名称唯一。新线只随 Entry 保存物化�
 
 ## EchoRecord v2
 
-正式扩展字段为 `thoughtLineId`、`relationType` 和 `lifecycle: candidate | legacy_evaluation | invalidated`。正式候选要求：思考线 active 且允许 AI；至少两篇来源 Entry 同属该线且 `aiLink=true`；lifecycle 不是 legacy/invalidated。原有 evidence、sourceSummaries、reason、question、时间、规则版本和事件继续保留。
+正式扩展字段为 `thoughtLineId`、`relationType` 和 `lifecycle: candidate | evaluation_only | legacy_evaluation | invalidated`。正式候选要求：思考线 active 且允许 AI；至少两篇来源 Entry 同属该线且 `aiLink=true`；lifecycle 必须是 candidate 或缺省。`evaluation_only` 只进入评测工作台，`legacy_evaluation` 只兼容旧机制，invalidated 不再有效。原有 evidence、sourceSummaries、reason、question、时间、规则版本和事件继续保留。
 
 ## CaseRecord
 
-`CaseRecord` 引用 `echoRecordId`，保存 `verdict: good | bad`、`feedback: clarified | already_known | not_quite`、reasonCodes、可选 notes 和 createdAt。它不复制 Entry 原文，不改变正式候选状态。
+`CaseRecord` 引用 `echoRecordId`，分别保存可选 `verdict: good | bad`、可选 `feedback: clarified | already_known | not_quite`、reasonCodes、可选 `userFeedbackText`、可选 notes 和 createdAt。feedback 不自动决定 verdict；userFeedbackText 逐字保存用户对反馈的说明。它不复制来源 Entry 原文，也不改变正式候选状态。
+
+## EchoReply
+
+`EchoReply` 引用 `echoRecordId`，保存 id、content、createdAt 与 updatedAt。当前一条 EchoRecord 至多对应一个 EchoReply；正文不能为空。它不是 Entry，不使用 resultEntryId，不进入日记池，也不自动参与未来回响。
 
 ## generation 文件与兼容
 
 - `entries.json`：Entry；
 - `relations/thought-lines.json`：有思考线时写入；
 - `relations/case-records.json`：有评测时写入；
+- `relations/echo-replies.json`：有回响回应时写入；
 - EchoRecord 延续独立受校验存储；
 - 旧 generation 缺少新文件时按空数组读取且不改变原哈希语义；
 - 旧反馈 `resonated`、`accurate_no_resonance` 只读兼容；
