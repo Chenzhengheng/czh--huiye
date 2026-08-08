@@ -1,99 +1,126 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
-  <title id="title">回页用户路径</title>
-  <desc id="desc">用户保存自我表达，系统低频选择一个候选，以轻提示让用户自愿打开；用户可以沉默、反馈或保存回应，随后结束留白。</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1200" viewBox="0 0 1800 1200" role="img" aria-labelledby="title desc">
+  <title id="title">回页用户流程图</title>
+  <desc id="desc">从写下、选择性归线、AI 线内观察到低打扰回响，并以虚线区分当前评测流程。</desc>
   <defs>
-    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#77756b"/></marker>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 10 5 0 10Z" fill="#77786f"/>
+    </marker>
     <style>
-      .title{font:600 30px "Microsoft YaHei",sans-serif;fill:#292821}.sub{font:400 15px "Microsoft YaHei",sans-serif;fill:#77756b}.lane-title{font:600 16px "Microsoft YaHei",sans-serif;fill:#4d5848}.node-title{font:600 15px "Microsoft YaHei",sans-serif;fill:#33342f}.node-copy{font:400 12px "Microsoft YaHei",sans-serif;fill:#77756b}.small{font:400 11px "Microsoft YaHei",sans-serif;fill:#8b877d}.line{fill:none;stroke:#77756b;stroke-width:2;marker-end:url(#arrow)}.soft-line{fill:none;stroke:#b48952;stroke-width:2;marker-end:url(#arrow)}
+      .title{font:700 34px "Microsoft YaHei","Noto Sans SC",sans-serif;fill:#292821}
+      .subtitle{font:15px "Microsoft YaHei","Noto Sans SC",sans-serif;fill:#77756b}
+      .lane-title{font:700 16px "Microsoft YaHei","Noto Sans SC",sans-serif;fill:#52604d;letter-spacing:.06em}
+      .node-title{font:700 18px "Microsoft YaHei","Noto Sans SC",sans-serif;fill:#292821}
+      .body{font:13px "Microsoft YaHei","Noto Sans SC",sans-serif;fill:#6e6c64}
+      .small{font:12px "Microsoft YaHei","Noto Sans SC",sans-serif;fill:#817e74}
+      .node{fill:#fffefa;stroke:#d8d5ca;stroke-width:1.4}
+      .green{fill:#e7ede3;stroke:#aebba9;stroke-width:1.4}
+      .amber{fill:#f5ecdf;stroke:#d1a66f;stroke-width:1.4}
+      .edge{fill:none;stroke:#77786f;stroke-width:2;marker-end:url(#arrow)}
+      .dash{fill:none;stroke:#b07b3e;stroke-width:2;stroke-dasharray:8 7;marker-end:url(#arrow)}
+      .quiet{fill:none;stroke:#a6a39a;stroke-width:1.7;stroke-dasharray:6 6;marker-end:url(#arrow)}
     </style>
   </defs>
-  <rect width="1600" height="900" fill="#f8f6ef"/>
-  <text class="title" x="70" y="62">回页 · 陪伴式跨时重逢</text>
-  <text class="sub" x="70" y="91">一次只遇见一页；回应和反馈都可选；结束后不立即补下一条。</text>
+  <rect width="1800" height="1200" fill="#f8f6ef"/>
+  <text class="title" x="62" y="62">回页 · 用户流程</text>
+  <text class="subtitle" x="62" y="91">人先写下并选择性归线；AI 只在线内显化变化。正式回响保持低打扰，评测入口用于当前高频校准。</text>
 
-  <rect x="55" y="125" width="1490" height="190" rx="18" fill="#fffefa" stroke="#dfddd3"/>
-  <rect x="55" y="330" width="1490" height="220" rx="18" fill="#f1f3ee" stroke="#d8ddd3"/>
-  <rect x="55" y="565" width="1490" height="275" rx="18" fill="#fffefa" stroke="#dfddd3"/>
-  <text class="lane-title" x="78" y="158">01 · 用户留下</text>
-  <text class="lane-title" x="78" y="363">02 · 系统在幕后</text>
-  <text class="lane-title" x="78" y="598">03 · 用户再次相遇</text>
+  <rect x="50" y="125" width="1700" height="230" rx="22" fill="#fffdfa" stroke="#ddd9cf"/>
+  <text class="lane-title" x="78" y="163">01 · 用户写下</text>
+  <rect class="node" x="105" y="205" width="260" height="105" rx="16"/>
+  <text class="node-title" x="135" y="246">写下一篇 Entry</text>
+  <text class="body" x="135" y="278">推理 · 疑问 · 感受 · 正在形成的看法</text>
+  <rect class="amber" x="465" y="205" width="260" height="105" rx="16"/>
+  <text class="node-title" x="495" y="246">是否加入思考线？</text>
+  <text class="body" x="495" y="278">完全可选，可同时选择多条线</text>
+  <rect class="green" x="825" y="205" width="270" height="105" rx="16"/>
+  <text class="node-title" x="855" y="246">加入一条或多条线</text>
+  <text class="body" x="855" y="278">入口：写下时 / 日记池编辑时</text>
+  <rect class="node" x="1195" y="205" width="245" height="105" rx="16"/>
+  <text class="node-title" x="1225" y="246">留在日记池</text>
+  <text class="body" x="1225" y="278">不强迫整理，未来可再归线</text>
+  <rect class="node" x="1510" y="205" width="190" height="105" rx="16"/>
+  <text class="node-title" x="1540" y="246">保存完成</text>
+  <text class="body" x="1540" y="278">原文与权限归用户</text>
+  <path class="edge" d="M365 257H454"/>
+  <path class="edge" d="M725 240H814"/>
+  <text class="small" x="760" y="228">是</text>
+  <path class="quiet" d="M725 282C875 340 1070 340 1195 282"/>
+  <text class="small" x="938" y="333">否</text>
+  <path class="edge" d="M1095 257H1184"/>
+  <path class="edge" d="M1440 257H1499"/>
 
-  <g transform="translate(230 175)">
-    <rect width="245" height="95" rx="14" fill="#f7f5ee" stroke="#d6d2c7"/>
-    <text class="node-title" x="122" y="35" text-anchor="middle">写下一小片自己</text>
-    <text class="node-copy" x="122" y="60" text-anchor="middle">思考、感受、疑问、生活片段</text>
-  </g>
-  <g transform="translate(650 175)">
-    <rect width="245" height="95" rx="14" fill="#e6ebe1" stroke="#bac5b4"/>
-    <text class="node-title" x="122" y="35" text-anchor="middle">明确保存 Entry</text>
-    <text class="node-copy" x="122" y="60" text-anchor="middle">原话成为可核验的时间证据</text>
-  </g>
-  <path class="line" d="M475 223H645"/>
-  <path class="line" d="M772 270V345H282V385"/>
+  <rect x="50" y="380" width="1700" height="205" rx="22" fill="#edf1ea" stroke="#ced7c9"/>
+  <text class="lane-title" x="78" y="418">02 · 用户随时查看思考线</text>
+  <rect class="green" x="205" y="455" width="330" height="90" rx="16"/>
+  <text class="node-title" x="235" y="493">打开一条思考线</text>
+  <text class="body" x="235" y="522">最新笔记在上，先看五行预览</text>
+  <rect class="node" x="710" y="455" width="330" height="90" rx="16"/>
+  <text class="node-title" x="740" y="493">展开原文或回味轨迹</text>
+  <text class="body" x="740" y="522">也可移出此线；详情页不承担归线</text>
+  <rect class="node" x="1215" y="455" width="330" height="90" rx="16"/>
+  <text class="node-title" x="1245" y="493">看见已有回响点</text>
+  <text class="body" x="1245" y="522">看过的回响留在线上，可再次打开</text>
+  <path class="edge" d="M535 500H699"/>
+  <path class="edge" d="M1040 500H1204"/>
 
-  <g transform="translate(170 390)">
-    <rect width="225" height="105" rx="14" fill="#fffefa" stroke="#cfd5ca"/>
-    <text class="node-title" x="112" y="34" text-anchor="middle">候选发现</text>
-    <text class="node-copy" x="112" y="59" text-anchor="middle">有证据的联系</text>
-    <text class="node-copy" x="112" y="80" text-anchor="middle">或受约束单页回看</text>
-  </g>
-  <g transform="translate(465 390)">
-    <rect width="225" height="105" rx="14" fill="#fffefa" stroke="#cfd5ca"/>
-    <text class="node-title" x="112" y="34" text-anchor="middle">质量判断</text>
-    <text class="node-copy" x="112" y="59" text-anchor="middle">不只相关、正确</text>
-    <text class="node-copy" x="112" y="80" text-anchor="middle">避免复述当前认知</text>
-  </g>
-  <g transform="translate(760 390)">
-    <rect width="225" height="105" rx="14" fill="#fffefa" stroke="#cfd5ca"/>
-    <text class="node-title" x="112" y="34" text-anchor="middle">时机约束</text>
-    <text class="node-copy" x="112" y="59" text-anchor="middle">时间错位 · 重复 · 冷却</text>
-    <text class="node-copy" x="112" y="80" text-anchor="middle">没有合适候选就保持安静</text>
-  </g>
-  <g transform="translate(1055 390)">
-    <rect width="225" height="105" rx="14" fill="#e8dfd0" stroke="#c7a77d"/>
-    <text class="node-title" x="112" y="34" text-anchor="middle">只准备一个候选</text>
-    <text class="node-copy" x="112" y="59" text-anchor="middle">不累计未读数</text>
-    <text class="node-copy" x="112" y="80" text-anchor="middle">不形成待清空队列</text>
-  </g>
-  <path class="line" d="M395 442H460"/><path class="line" d="M690 442H755"/><path class="line" d="M985 442H1050"/>
-  <path class="soft-line" d="M1168 495V580H222V620"/>
+  <rect x="50" y="610" width="1700" height="235" rx="22" fill="#e7ede3" stroke="#b9c5b4"/>
+  <text class="lane-title" x="78" y="648">03 · AI 在线内观察 · 用户不需要操作</text>
+  <rect class="node" x="105" y="685" width="300" height="115" rx="16"/>
+  <text class="node-title" x="135" y="727">检查候选条件</text>
+  <text class="body" x="135" y="758">同一 active 思考线 · 至少两篇</text>
+  <text class="small" x="135" y="783">整线允许 + 每篇 aiLink=true</text>
+  <rect class="node" x="500" y="685" width="300" height="115" rx="16"/>
+  <text class="node-title" x="530" y="727">观察思考变化</text>
+  <text class="body" x="530" y="758">延续 · 修正 · 分支 · 冲突</text>
+  <text class="small" x="530" y="783">或仍未解决的问题</text>
+  <rect class="amber" x="895" y="685" width="300" height="115" rx="16"/>
+  <text class="node-title" x="925" y="727">值得现在带回吗？</text>
+  <text class="body" x="925" y="758">证据充分 · 有显化价值 · 时机合适</text>
+  <text class="small" x="925" y="783">否则保持安静</text>
+  <rect class="green" x="1290" y="685" width="300" height="115" rx="16"/>
+  <text class="node-title" x="1320" y="727">形成一条 EchoRecord</text>
+  <text class="body" x="1320" y="758">原文证据 + 可修正的 AI 初判</text>
+  <text class="small" x="1320" y="783">不构成待清空的队列</text>
+  <path class="edge" d="M405 742H489"/>
+  <path class="edge" d="M800 742H884"/>
+  <path class="edge" d="M1195 742H1279"/>
+  <path class="quiet" d="M1045 800V829H760"/>
+  <text class="small" x="805" y="822">不合适：本次结束</text>
 
-  <g transform="translate(140 625)">
-    <circle cx="82" cy="58" r="47" fill="#f4ede3" stroke="#b48952" stroke-width="2"/>
-    <circle cx="82" cy="58" r="8" fill="#b48952"/>
-    <text class="node-title" x="82" y="126" text-anchor="middle">轻轻提示</text>
-    <text class="small" x="82" y="146" text-anchor="middle">“有一页在等你”</text>
-  </g>
-  <g transform="translate(370 625)">
-    <rect width="210" height="105" rx="14" fill="#f7f5ee" stroke="#d6d2c7"/>
-    <text class="node-title" x="105" y="37" text-anchor="middle">用户自愿打开</text>
-    <text class="node-copy" x="105" y="64" text-anchor="middle">原句 → 节选 → 全文</text>
-    <text class="node-copy" x="105" y="84" text-anchor="middle">AI 初判位于原文之后</text>
-  </g>
-  <path class="line" d="M305 682H365"/>
+  <rect x="50" y="870" width="1120" height="280" rx="22" fill="#fbf2e7" stroke="#dcc09a"/>
+  <text class="lane-title" x="78" y="908" fill="#8a6538">04 · 正式回响 · 温暖、低打扰</text>
+  <circle cx="145" cy="992" r="39" fill="#f5ecdf" stroke="#bd894c" stroke-width="2"/>
+  <circle cx="145" cy="992" r="9" fill="#ad7c42"/>
+  <text class="node-title" x="102" y="1060">轻提示</text>
+  <rect class="node" x="245" y="950" width="265" height="105" rx="16"/>
+  <text class="node-title" x="275" y="991">用户自愿打开</text>
+  <text class="body" x="275" y="1022">原句 → 节选 → 全文 → AI 初判</text>
+  <rect class="node" x="605" y="925" width="245" height="80" rx="16"/>
+  <text class="node-title" x="635" y="960">沉默或回味</text>
+  <text class="body" x="635" y="986">什么都不做也可以</text>
+  <rect class="green" x="605" y="1025" width="245" height="80" rx="16"/>
+  <text class="node-title" x="635" y="1060">可选反馈</text>
+  <text class="body" x="635" y="1086">看清一点 / 已知 / 不太对</text>
+  <rect class="green" x="930" y="950" width="200" height="105" rx="16"/>
+  <text class="node-title" x="960" y="991">保存回应</text>
+  <text class="body" x="960" y="1022">形成新的 Entry</text>
+  <path class="edge" d="M184 992H234"/>
+  <path class="edge" d="M510 980H594"/>
+  <path class="edge" d="M510 1025C545 1065 560 1065 594 1065"/>
+  <path class="edge" d="M850 1065H919"/>
+  <path class="quiet" d="M850 965C1000 900 1085 900 1125 940"/>
+  <text class="small" x="895" y="912">结束后不立即补下一条</text>
 
-  <g transform="translate(655 610)">
-    <rect width="225" height="76" rx="14" fill="#fffefa" stroke="#d6d2c7"/>
-    <text class="node-title" x="112" y="31" text-anchor="middle">沉默、回味、离开</text>
-    <text class="node-copy" x="112" y="54" text-anchor="middle">不写负面事件</text>
-  </g>
-  <g transform="translate(655 704)">
-    <rect width="225" height="96" rx="14" fill="#f2f3ee" stroke="#cfd5ca"/>
-    <text class="node-title" x="112" y="29" text-anchor="middle">可选反馈</text>
-    <text class="node-copy" x="112" y="52" text-anchor="middle">有感觉 · 正确无感 · 不太对</text>
-    <text class="node-copy" x="112" y="74" text-anchor="middle">校准时机或判断范围</text>
-  </g>
-  <g transform="translate(955 657)">
-    <rect width="225" height="105" rx="14" fill="#e6ebe1" stroke="#bac5b4"/>
-    <text class="node-title" x="112" y="34" text-anchor="middle">可选保存回应</text>
-    <text class="node-copy" x="112" y="59" text-anchor="middle">一句话或一篇长文都是 Entry</text>
-    <text class="node-copy" x="112" y="80" text-anchor="middle">与来源双向可读</text>
-  </g>
-  <g transform="translate(1270 657)">
-    <rect width="205" height="105" rx="52" fill="#f4ede3" stroke="#c7a77d"/>
-    <text class="node-title" x="102" y="43" text-anchor="middle">本次结束，留下空白</text>
-    <text class="node-copy" x="102" y="68" text-anchor="middle">不立即补下一条</text>
-  </g>
-  <path class="line" d="M580 677H650"/><path class="line" d="M580 688C620 688 615 752 650 752"/><path class="line" d="M580 693H950"/>
-  <path class="line" d="M880 648C1060 590 1190 622 1265 685"/><path class="line" d="M880 752H1265"/><path class="line" d="M1180 710H1265"/>
+  <rect x="1200" y="870" width="550" height="280" rx="22" fill="#f4eee4" stroke="#c79557" stroke-width="1.5" stroke-dasharray="10 8"/>
+  <text class="lane-title" x="1228" y="908" fill="#8a6538">05 · 当前评测 · 高频校准，不打扰正式体验</text>
+  <rect class="amber" x="1240" y="948" width="205" height="85" rx="15"/>
+  <text class="node-title" x="1270" y="984">生成评测 case</text>
+  <text class="body" x="1270" y="1010">真实线内候选</text>
+  <rect class="node" x="1500" y="948" width="205" height="85" rx="15"/>
+  <text class="node-title" x="1530" y="984">人工判断与归因</text>
+  <text class="body" x="1530" y="1010">good / bad + 反馈</text>
+  <path class="dash" d="M1445 990H1489"/>
+  <path class="dash" d="M1602 1033V1082H1343V1044"/>
+  <text class="small" x="1380" y="1105">积累评测集 → 形成标准 → 迭代 Prompt 与规则</text>
+  <path class="dash" d="M1440 800V859"/>
 </svg>

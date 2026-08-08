@@ -1,19 +1,115 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="860" viewBox="0 0 1500 860" role="img" aria-labelledby="title desc">
-  <title id="title">回页数据关系图</title><desc id="desc">Entry、EchoRecord、呈现快照、反馈、回应 Entry 和 CaseRecord 的关系。</desc>
-  <defs><marker id="a" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#6f716a"/></marker><style>.t{font:600 30px "Microsoft YaHei",sans-serif;fill:#292821}.s{font:400 14px "Microsoft YaHei",sans-serif;fill:#77756b}.h{font:600 17px "Microsoft YaHei",sans-serif;fill:#33342f}.p{font:400 12px "Microsoft YaHei",sans-serif;fill:#6f716a}.l{fill:none;stroke:#6f716a;stroke-width:2;marker-end:url(#a)}.d{fill:none;stroke:#b48952;stroke-width:2;stroke-dasharray:7 6;marker-end:url(#a)}</style></defs>
-  <rect width="1500" height="860" fill="#f8f6ef"/><text class="t" x="65" y="60">回页 · 数据关系</text><text class="s" x="65" y="88">只保存三类业务记录；呈现、反馈与双向连接从记录中推导。</text>
-  <g transform="translate(80 170)"><rect width="270" height="125" rx="15" fill="#fffefa" stroke="#d7d3c8"/><text class="h" x="135" y="37" text-anchor="middle">来源 Entry A</text><text class="p" x="135" y="66" text-anchor="middle">用户确认的原话</text><text class="p" x="135" y="89" text-anchor="middle">原意受到保护</text></g>
-  <g transform="translate(80 405)"><rect width="270" height="125" rx="15" fill="#fffefa" stroke="#d7d3c8"/><text class="h" x="135" y="37" text-anchor="middle">来源 Entry B（可选）</text><text class="p" x="135" y="66" text-anchor="middle">联系回响需要两篇或更多</text><text class="p" x="135" y="89" text-anchor="middle">单页回看只引用一篇</text></g>
-  <g transform="translate(475 270)"><rect width="310" height="180" rx="18" fill="#e6ebe1" stroke="#bac5b4" stroke-width="2"/><text class="h" x="155" y="39" text-anchor="middle">EchoRecord</text><text class="p" x="155" y="70" text-anchor="middle">来源 ID · 原文证据</text><text class="p" x="155" y="94" text-anchor="middle">发现时间 · 最早展示时间</text><text class="p" x="155" y="118" text-anchor="middle">呈现历史 · 反馈 · 回应事件</text><text class="p" x="155" y="148" text-anchor="middle">不是卡片，也不是 AI 结论</text></g>
-  <path class="l" d="M350 232H425V325H470"/><path class="l" d="M350 468H425V395H470"/>
-  <g transform="translate(900 125)"><rect width="305" height="150" rx="16" fill="#f4ede3" stroke="#c7a77d"/><text class="h" x="152" y="37" text-anchor="middle">EchoPresentation</text><text class="p" x="152" y="67" text-anchor="middle">当次 AI 浓缩与解释性初判</text><text class="p" x="152" y="91" text-anchor="middle">可选问题 · Prompt/规则/模型版本</text><text class="p" x="152" y="119" text-anchor="middle">同一关系可有新的呈现快照</text></g>
-  <path class="l" d="M785 323C835 323 838 200 895 200"/>
-  <g transform="translate(900 340)"><rect width="305" height="145" rx="16" fill="#fffefa" stroke="#d7d3c8"/><text class="h" x="152" y="36" text-anchor="middle">可选反馈事件</text><text class="p" x="152" y="65" text-anchor="middle">有那种感觉</text><text class="p" x="152" y="88" text-anchor="middle">说得对，但没感觉</text><text class="p" x="152" y="111" text-anchor="middle">不太对 + 可选否定范围</text></g>
-  <path class="l" d="M785 360H895"/>
-  <g transform="translate(900 565)"><rect width="305" height="145" rx="16" fill="#e6ebe1" stroke="#bac5b4"/><text class="h" x="152" y="36" text-anchor="middle">回应 Entry C / D / …</text><text class="p" x="152" y="66" text-anchor="middle">一句话与长文资格相同</text><text class="p" x="152" y="90" text-anchor="middle">允许多个、分叉、矛盾并存</text><text class="p" x="152" y="115" text-anchor="middle">保存后与全部来源双向可读</text></g>
-  <path class="l" d="M730 450C730 625 820 638 895 638"/><path class="d" d="M900 672C650 800 240 730 215 535"/><path class="d" d="M900 610C650 520 355 580 215 300"/>
-  <g transform="translate(1270 335)"><rect width="180" height="150" rx="16" fill="#f2f3ee" stroke="#cfd5ca"/><text class="h" x="90" y="37" text-anchor="middle">CaseRecord</text><text class="p" x="90" y="67" text-anchor="middle">good / bad</text><text class="p" x="90" y="91" text-anchor="middle">reason codes</text><text class="p" x="90" y="115" text-anchor="middle">只引用，不复制正文</text></g>
-  <path class="l" d="M1205 412H1265"/>
-  <g transform="translate(80 690)"><rect width="520" height="100" rx="14" fill="#f2f3ee" stroke="#cfd5ca"/><text class="h" x="25" y="35">派生视图（不单独保存）</text><text class="p" x="25" y="65">当前单个候选 · 双向连接 · 思考线 · 思考拓扑</text></g>
-  <path class="d" d="M630 450V650C630 700 605 730 600 730"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1700" height="1050" viewBox="0 0 1700 1050" role="img" aria-labelledby="title desc">
+  <title id="title">回页数据关系图</title>
+  <desc id="desc">Entry、ThoughtLine、EchoRecord、CaseRecord 与评测工作台之间的关系。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 10 5 0 10Z" fill="#77786f"/>
+    </marker>
+    <style>
+      .title{font:700 34px "Microsoft YaHei","Noto Sans SC",sans-serif;fill:#292821}
+      .subtitle{font:15px "Microsoft YaHei","Noto Sans SC",sans-serif;fill:#77756b}
+      .lane-title{font:700 16px "Microsoft YaHei","Noto Sans SC",sans-serif;fill:#52604d;letter-spacing:.08em}
+      .box-title{font:700 21px "Microsoft YaHei","Noto Sans SC",sans-serif;fill:#292821}
+      .label{font:14px "Microsoft YaHei","Noto Sans SC",sans-serif;fill:#68675f}
+      .small{font:13px "Microsoft YaHei","Noto Sans SC",sans-serif;fill:#77756b}
+      .edge{fill:none;stroke:#77786f;stroke-width:2;marker-end:url(#arrow)}
+      .dash{fill:none;stroke:#b07b3e;stroke-width:2;stroke-dasharray:8 7;marker-end:url(#arrow)}
+      .card{fill:#fffefa;stroke:#d9d6cb;stroke-width:1.5}
+      .green{fill:#e7ede3;stroke:#aebba9;stroke-width:1.5}
+      .amber{fill:#f5ecdf;stroke:#d1a66f;stroke-width:1.5}
+      .workspace{fill:#fbf4e9;stroke:#c79557;stroke-width:1.5;stroke-dasharray:10 8}
+      .rule{stroke:#dedbd1;stroke-width:1}
+    </style>
+  </defs>
+  <rect width="1700" height="1050" fill="#f8f6ef"/>
+  <text class="title" x="62" y="62">回页 · 数据关系</text>
+  <text class="subtitle" x="62" y="91">产品数据记录真实思考与线内观察；评测工作台从真实数据构造案例，不复制私人原文。</text>
+
+  <rect x="55" y="125" width="1110" height="860" rx="22" fill="#fffdfa" stroke="#ddd9cf"/>
+  <text class="lane-title" x="82" y="164">01 · 已持久化的产品数据</text>
+
+  <rect class="card" x="90" y="205" width="315" height="300" rx="18"/>
+  <text class="box-title" x="120" y="247">Entry · 日记</text>
+  <text class="label" x="120" y="282">id · content · timestamp</text>
+  <text class="label" x="120" y="312">tags · thoughtLineIds[]</text>
+  <text class="label" x="120" y="342">aiLink · continuesFrom?</text>
+  <line class="rule" x1="120" y1="370" x2="375" y2="370"/>
+  <text class="small" x="120" y="402">用户确认保存后才成为事实</text>
+  <text class="small" x="120" y="430">可不归线，也可属于多条线</text>
+  <text class="small" x="120" y="458">aiLink=false 时 AI 必须跳过</text>
+
+  <rect class="green" x="485" y="205" width="315" height="245" rx="18"/>
+  <text class="box-title" x="515" y="247">ThoughtLine · 思考线</text>
+  <text class="label" x="515" y="282">id · name · status</text>
+  <text class="label" x="515" y="312">allowEcho · mergedIntoId?</text>
+  <line class="rule" x1="515" y1="337" x2="770" y2="337"/>
+  <text class="small" x="515" y="369">用户主动建立的主题边界</text>
+  <text class="small" x="515" y="397">一篇日记可成为多线交汇处</text>
+  <text class="small" x="515" y="425">allowEcho=false 时整线保持安静</text>
+
+  <rect class="green" x="485" y="575" width="315" height="320" rx="18"/>
+  <text class="box-title" x="515" y="617">EchoRecord · 回响记录</text>
+  <text class="label" x="515" y="652">id · thoughtLineId</text>
+  <text class="label" x="515" y="682">sourceEntryIds[] · evidence</text>
+  <text class="label" x="515" y="712">relationType · lifecycle</text>
+  <text class="label" x="515" y="742">events[] · prompt/rule version</text>
+  <line class="rule" x1="515" y1="768" x2="770" y2="768"/>
+  <text class="small" x="515" y="800">至少引用同线两篇可观察日记</text>
+  <text class="small" x="515" y="828">AI 初判可被用户否定</text>
+  <text class="small" x="515" y="856">查看、反馈与回应都记录为事件</text>
+
+  <rect class="amber" x="875" y="650" width="240" height="190" rx="18"/>
+  <text class="box-title" x="905" y="692">CaseRecord</text>
+  <text class="label" x="905" y="727">echoRecordId · verdict</text>
+  <text class="label" x="905" y="757">feedback · reasonCodes</text>
+  <line class="rule" x1="905" y1="779" x2="1085" y2="779"/>
+  <text class="small" x="905" y="808">只引用，不复制原文</text>
+
+  <path class="edge" d="M405 290H474"/>
+  <path class="edge" d="M485 345H416"/>
+  <text class="small" x="420" y="275">0..N</text>
+  <text class="small" x="438" y="366">0..N</text>
+  <path class="edge" d="M642 450V564"/>
+  <text class="small" x="658" y="520">1 条线产生 0..N 条回响</text>
+  <path class="edge" d="M405 445C450 505 420 675 474 690"/>
+  <text class="small" x="120" y="548">EchoRecord 引用至少 2 篇来源 Entry</text>
+  <path class="dash" d="M485 835C390 930 190 880 190 516"/>
+  <text class="small" x="115" y="927">回应事件可指向新的 Entry，并继承来源思考线</text>
+  <path class="edge" d="M800 735H864"/>
+  <text class="small" x="820" y="718">0..1</text>
+
+  <rect class="workspace" x="1205" y="125" width="440" height="860" rx="22"/>
+  <text class="lane-title" x="1235" y="164" fill="#8a6538">02 · 评测工作台 · 逐步建立</text>
+
+  <rect class="card" x="1240" y="205" width="370" height="155" rx="16"/>
+  <text class="box-title" x="1270" y="246">EvaluationSet · 评测集</text>
+  <text class="small" x="1270" y="282">真实 Entry + ThoughtLine + 候选输入</text>
+  <text class="small" x="1270" y="310">不另存一份私人原文副本</text>
+  <text class="small" x="1270" y="338">覆盖不同时间跨度与关系类型</text>
+
+  <rect class="green" x="1240" y="405" width="370" height="145" rx="16"/>
+  <text class="box-title" x="1270" y="446">ModelOutputSet · 模型输出集</text>
+  <text class="small" x="1270" y="482">同一评测集上的 EchoRecord 候选</text>
+  <text class="small" x="1270" y="510">保留模型、Prompt 与规则版本</text>
+
+  <rect class="amber" x="1240" y="595" width="370" height="145" rx="16"/>
+  <text class="box-title" x="1270" y="636">EvaluationCriteria · 评测标准</text>
+  <text class="small" x="1270" y="672">先看显化价值，再看相关性与证据</text>
+  <text class="small" x="1270" y="700">结合 good / bad 与三类用户反馈归因</text>
+
+  <rect class="card" x="1240" y="785" width="370" height="145" rx="16" stroke-dasharray="8 6"/>
+  <text class="box-title" x="1270" y="826">ReferenceAnswer · 参考答案</text>
+  <text class="small" x="1270" y="862">当前尚未建立</text>
+  <text class="small" x="1270" y="890">从稳定 good case 中逐步推演</text>
+
+  <path class="edge" d="M1425 360V394"/>
+  <path class="edge" d="M1425 550V584"/>
+  <path class="dash" d="M1425 740V774"/>
+  <path class="dash" d="M1115 745C1175 745 1170 670 1229 670"/>
+  <text class="small" x="1072" y="625">人工反馈进入标准校准</text>
+  <path class="dash" d="M800 610C1030 500 1090 280 1229 280"/>
+  <text class="small" x="906" y="438">从真实产品记录构造输入</text>
+
+  <rect x="55" y="1005" width="1590" height="1" fill="#ddd9cf"/>
+  <text class="small" x="62" y="1033">实线：当前数据关系　·　虚线：回应派生或评测构造　·　评测对象尚未全部成为独立持久化文件</text>
 </svg>

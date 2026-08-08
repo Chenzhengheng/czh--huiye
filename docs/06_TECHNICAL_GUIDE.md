@@ -23,4 +23,4 @@ Vinext/React 客户端由 `app/page.tsx` 组合写下、日记池、思考线、
 
 领域规则在 `thought-line-model.test.mjs`；存储兼容在 `local-data-store.test.mjs`；界面边界在 `rendered-html.test.mjs`；回响事件由 store 测试覆盖。
 
-`app/page.tsx` 仍承担较多视图编排，MVP 验证后再拆组件。当前无生产模型调用；CaseRecord 暂随主 generation 保存；`docs/assets/` 旧图不再是规范来源。
+`app/page.tsx` 仍承担较多视图编排，MVP 验证后再拆组件。当前无生产模型调用；CaseRecord 暂随主 generation 保存；`docs/assets/` 中三张正式图以 SVG 为唯一可编辑源，PNG、BPMN 与 HTML 为同步产物。

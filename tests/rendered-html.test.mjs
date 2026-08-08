@@ -192,6 +192,32 @@ test("aligns primary desktop page tops while preserving mobile header spacing", 
   );
 });
 
+test("keeps README diagrams backed by canonical SVG sources", async () => {
+  const readme = await readFile(new URL("../README.md", import.meta.url), "utf8");
+  const docsIndex = await readFile(
+    new URL("../docs/01_DOCUMENTATION_INDEX.md", import.meta.url),
+    "utf8",
+  );
+  const diagramNames = [
+    "huiye-user-path-bpmn.svg",
+    "huiye-product-structure.svg",
+    "huiye-data-relationship.svg",
+  ];
+
+  for (const name of diagramNames) {
+    assert.match(readme, new RegExp(`docs/assets/${name}`));
+    const svg = await readFile(
+      new URL(`../docs/assets/${name}`, import.meta.url),
+      "utf8",
+    );
+    assert.match(svg, /<svg[\s>]/);
+    assert.match(svg, /<title id="title">回页/);
+  }
+
+  assert.doesNotMatch(readme, /```mermaid/);
+  assert.match(docsIndex, /SVG 是唯一可编辑源/);
+});
+
 test("does not retain the retired AI organization client", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const worker = await readFile(new URL("../worker/index.ts", import.meta.url), "utf8");

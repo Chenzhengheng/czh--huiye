@@ -1,31 +1,82 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_Huiye_Reencounter" targetNamespace="https://huiye.local/bpmn">
-  <bpmn:process id="Process_Huiye_Reencounter" name="回页 · 陪伴式跨时重逢" isExecutable="false">
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Huiye_ThoughtLine" targetNamespace="https://huiye.local/bpmn">
+  <bpmn:process id="Process_Huiye_ThoughtLine" name="回页 · 思考线与回响用户流程" isExecutable="false">
     <bpmn:laneSet id="LaneSet_Huiye">
-      <bpmn:lane id="Lane_UserLeaves" name="01 · 用户留下"><bpmn:flowNodeRef>Start_Write</bpmn:flowNodeRef><bpmn:flowNodeRef>Task_SaveEntry</bpmn:flowNodeRef><bpmn:flowNodeRef>Gateway_AllowEcho</bpmn:flowNodeRef><bpmn:flowNodeRef>End_SavedOnly</bpmn:flowNodeRef></bpmn:lane>
-      <bpmn:lane id="Lane_System" name="02 · 系统在幕后"><bpmn:flowNodeRef>Task_DiscoverCandidate</bpmn:flowNodeRef><bpmn:flowNodeRef>Task_QualityCheck</bpmn:flowNodeRef><bpmn:flowNodeRef>Gateway_Qualified</bpmn:flowNodeRef><bpmn:flowNodeRef>Task_TimingCheck</bpmn:flowNodeRef><bpmn:flowNodeRef>Task_SelectOne</bpmn:flowNodeRef><bpmn:flowNodeRef>End_StayQuiet</bpmn:flowNodeRef></bpmn:lane>
-      <bpmn:lane id="Lane_Reencounter" name="03 · 用户再次相遇"><bpmn:flowNodeRef>Task_GentleCue</bpmn:flowNodeRef><bpmn:flowNodeRef>Task_OpenEcho</bpmn:flowNodeRef><bpmn:flowNodeRef>Task_ShowOriginalFirst</bpmn:flowNodeRef><bpmn:flowNodeRef>Gateway_Outcome</bpmn:flowNodeRef><bpmn:flowNodeRef>Task_RecordFeedback</bpmn:flowNodeRef><bpmn:flowNodeRef>Task_SaveResponse</bpmn:flowNodeRef><bpmn:flowNodeRef>Task_LinkBothWays</bpmn:flowNodeRef><bpmn:flowNodeRef>End_LeaveSpace</bpmn:flowNodeRef></bpmn:lane>
+      <bpmn:lane id="Lane_Write" name="01 · 用户写下">
+        <bpmn:flowNodeRef>Start_Write</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SaveEntry</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AssignLine</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AssignLines</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_KeepInPool</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_ThoughtLine" name="02 · 用户查看思考线">
+        <bpmn:flowNodeRef>Task_OpenLine</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReadTimeline</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_AI" name="03 · AI 在线内观察">
+        <bpmn:flowNodeRef>Task_CheckCandidate</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ObserveChange</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_WorthEchoing</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateEcho</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_StayQuiet</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Echo" name="04 · 正式回响">
+        <bpmn:flowNodeRef>Task_GentleCue</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_OpenEcho</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_UserChoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RecordFeedback</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SaveResponse</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_LeaveSpace</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Evaluation" name="05 · 当前回响评测">
+        <bpmn:flowNodeRef>Task_CreateCase</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_JudgeCase</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RefineRules</bpmn:flowNodeRef>
+      </bpmn:lane>
     </bpmn:laneSet>
-    <bpmn:startEvent id="Start_Write" name="想留下一小片自己"><bpmn:outgoing>Flow_01</bpmn:outgoing></bpmn:startEvent>
-    <bpmn:userTask id="Task_SaveEntry" name="明确保存 Entry"><bpmn:incoming>Flow_01</bpmn:incoming><bpmn:outgoing>Flow_02</bpmn:outgoing></bpmn:userTask>
-    <bpmn:exclusiveGateway id="Gateway_AllowEcho" name="允许未来回响？"><bpmn:incoming>Flow_02</bpmn:incoming><bpmn:outgoing>Flow_03</bpmn:outgoing><bpmn:outgoing>Flow_04</bpmn:outgoing></bpmn:exclusiveGateway>
-    <bpmn:endEvent id="End_SavedOnly" name="只保存，不参与回响"><bpmn:incoming>Flow_03</bpmn:incoming></bpmn:endEvent>
-    <bpmn:serviceTask id="Task_DiscoverCandidate" name="发现联系候选或单页回看"><bpmn:incoming>Flow_04</bpmn:incoming><bpmn:outgoing>Flow_05</bpmn:outgoing></bpmn:serviceTask>
-    <bpmn:businessRuleTask id="Task_QualityCheck" name="检查证据、重逢价值与当前认知"><bpmn:incoming>Flow_05</bpmn:incoming><bpmn:outgoing>Flow_06</bpmn:outgoing></bpmn:businessRuleTask>
-    <bpmn:exclusiveGateway id="Gateway_Qualified" name="值得现在带回？"><bpmn:incoming>Flow_06</bpmn:incoming><bpmn:outgoing>Flow_07</bpmn:outgoing><bpmn:outgoing>Flow_08</bpmn:outgoing></bpmn:exclusiveGateway>
-    <bpmn:endEvent id="End_StayQuiet" name="保持安静"><bpmn:incoming>Flow_07</bpmn:incoming></bpmn:endEvent>
-    <bpmn:businessRuleTask id="Task_TimingCheck" name="检查时间、近期重复与冷却"><bpmn:incoming>Flow_08</bpmn:incoming><bpmn:outgoing>Flow_09</bpmn:outgoing></bpmn:businessRuleTask>
-    <bpmn:serviceTask id="Task_SelectOne" name="只准备一个当前候选"><bpmn:incoming>Flow_09</bpmn:incoming><bpmn:outgoing>Flow_10</bpmn:outgoing></bpmn:serviceTask>
-    <bpmn:userTask id="Task_GentleCue" name="回响入口轻轻提示"><bpmn:incoming>Flow_10</bpmn:incoming><bpmn:outgoing>Flow_11</bpmn:outgoing></bpmn:userTask>
-    <bpmn:userTask id="Task_OpenEcho" name="用户自愿打开"><bpmn:incoming>Flow_11</bpmn:incoming><bpmn:outgoing>Flow_12</bpmn:outgoing></bpmn:userTask>
-    <bpmn:userTask id="Task_ShowOriginalFirst" name="先看原句、节选、全文，再看 AI 初判"><bpmn:incoming>Flow_12</bpmn:incoming><bpmn:outgoing>Flow_13</bpmn:outgoing></bpmn:userTask>
-    <bpmn:exclusiveGateway id="Gateway_Outcome" name="用户自由选择"><bpmn:incoming>Flow_13</bpmn:incoming><bpmn:outgoing>Flow_14</bpmn:outgoing><bpmn:outgoing>Flow_15</bpmn:outgoing><bpmn:outgoing>Flow_16</bpmn:outgoing></bpmn:exclusiveGateway>
-    <bpmn:serviceTask id="Task_RecordFeedback" name="记录可选三类反馈"><bpmn:incoming>Flow_15</bpmn:incoming><bpmn:outgoing>Flow_17</bpmn:outgoing></bpmn:serviceTask>
-    <bpmn:userTask id="Task_SaveResponse" name="保存一句或一篇回应 Entry"><bpmn:incoming>Flow_16</bpmn:incoming><bpmn:outgoing>Flow_18</bpmn:outgoing></bpmn:userTask>
-    <bpmn:serviceTask id="Task_LinkBothWays" name="建立来源与回应的双向连接"><bpmn:incoming>Flow_18</bpmn:incoming><bpmn:outgoing>Flow_19</bpmn:outgoing></bpmn:serviceTask>
-    <bpmn:endEvent id="End_LeaveSpace" name="本次结束，留下空白"><bpmn:incoming>Flow_14</bpmn:incoming><bpmn:incoming>Flow_17</bpmn:incoming><bpmn:incoming>Flow_19</bpmn:incoming></bpmn:endEvent>
-    <bpmn:sequenceFlow id="Flow_01" sourceRef="Start_Write" targetRef="Task_SaveEntry"/><bpmn:sequenceFlow id="Flow_02" sourceRef="Task_SaveEntry" targetRef="Gateway_AllowEcho"/><bpmn:sequenceFlow id="Flow_03" name="不允许" sourceRef="Gateway_AllowEcho" targetRef="End_SavedOnly"/><bpmn:sequenceFlow id="Flow_04" name="允许" sourceRef="Gateway_AllowEcho" targetRef="Task_DiscoverCandidate"/><bpmn:sequenceFlow id="Flow_05" sourceRef="Task_DiscoverCandidate" targetRef="Task_QualityCheck"/><bpmn:sequenceFlow id="Flow_06" sourceRef="Task_QualityCheck" targetRef="Gateway_Qualified"/><bpmn:sequenceFlow id="Flow_07" name="不合适" sourceRef="Gateway_Qualified" targetRef="End_StayQuiet"/><bpmn:sequenceFlow id="Flow_08" name="合适" sourceRef="Gateway_Qualified" targetRef="Task_TimingCheck"/><bpmn:sequenceFlow id="Flow_09" sourceRef="Task_TimingCheck" targetRef="Task_SelectOne"/><bpmn:sequenceFlow id="Flow_10" sourceRef="Task_SelectOne" targetRef="Task_GentleCue"/><bpmn:sequenceFlow id="Flow_11" sourceRef="Task_GentleCue" targetRef="Task_OpenEcho"/><bpmn:sequenceFlow id="Flow_12" sourceRef="Task_OpenEcho" targetRef="Task_ShowOriginalFirst"/><bpmn:sequenceFlow id="Flow_13" sourceRef="Task_ShowOriginalFirst" targetRef="Gateway_Outcome"/><bpmn:sequenceFlow id="Flow_14" name="沉默离开" sourceRef="Gateway_Outcome" targetRef="End_LeaveSpace"/><bpmn:sequenceFlow id="Flow_15" name="可选反馈" sourceRef="Gateway_Outcome" targetRef="Task_RecordFeedback"/><bpmn:sequenceFlow id="Flow_16" name="可选回应" sourceRef="Gateway_Outcome" targetRef="Task_SaveResponse"/><bpmn:sequenceFlow id="Flow_17" sourceRef="Task_RecordFeedback" targetRef="End_LeaveSpace"/><bpmn:sequenceFlow id="Flow_18" sourceRef="Task_SaveResponse" targetRef="Task_LinkBothWays"/><bpmn:sequenceFlow id="Flow_19" sourceRef="Task_LinkBothWays" targetRef="End_LeaveSpace"/>
-    <bpmn:textAnnotation id="Note_NoQueue"><bpmn:text>用户侧不显示候选数量，不形成待清空队列，也不连续提供下一条。</bpmn:text></bpmn:textAnnotation>
-    <bpmn:association id="Association_NoQueue" sourceRef="Task_SelectOne" targetRef="Note_NoQueue"/>
+    <bpmn:startEvent id="Start_Write" name="此刻想留下一点什么"/>
+    <bpmn:userTask id="Task_SaveEntry" name="保存 Entry"/>
+    <bpmn:exclusiveGateway id="Gateway_AssignLine" name="是否加入思考线"/>
+    <bpmn:userTask id="Task_AssignLines" name="选择一条或多条思考线"/>
+    <bpmn:userTask id="Task_KeepInPool" name="留在日记池"/>
+    <bpmn:userTask id="Task_OpenLine" name="打开思考线"/>
+    <bpmn:userTask id="Task_ReadTimeline" name="查看预览、原文与回响点"/>
+    <bpmn:businessRuleTask id="Task_CheckCandidate" name="检查同线、数量与双重权限"/>
+    <bpmn:serviceTask id="Task_ObserveChange" name="观察延续、修正、分支、冲突或未解决问题"/>
+    <bpmn:exclusiveGateway id="Gateway_WorthEchoing" name="值得现在带回吗"/>
+    <bpmn:serviceTask id="Task_CreateEcho" name="形成 EchoRecord"/>
+    <bpmn:endEvent id="End_StayQuiet" name="保持安静"/>
+    <bpmn:userTask id="Task_GentleCue" name="回响入口出现小棕点"/>
+    <bpmn:userTask id="Task_OpenEcho" name="原句到全文，再看 AI 初判"/>
+    <bpmn:exclusiveGateway id="Gateway_UserChoice" name="用户自由选择"/>
+    <bpmn:serviceTask id="Task_RecordFeedback" name="记录可选反馈"/>
+    <bpmn:userTask id="Task_SaveResponse" name="保存回应 Entry"/>
+    <bpmn:endEvent id="End_LeaveSpace" name="本次结束，留下空白"/>
+    <bpmn:manualTask id="Task_CreateCase" name="生成真实线内评测 case"/>
+    <bpmn:manualTask id="Task_JudgeCase" name="判断 good / bad 并归因"/>
+    <bpmn:manualTask id="Task_RefineRules" name="积累标准并迭代 Prompt 与规则"/>
+
+    <bpmn:sequenceFlow id="Flow_01" sourceRef="Start_Write" targetRef="Task_SaveEntry"/>
+    <bpmn:sequenceFlow id="Flow_02" sourceRef="Task_SaveEntry" targetRef="Gateway_AssignLine"/>
+    <bpmn:sequenceFlow id="Flow_03" name="是" sourceRef="Gateway_AssignLine" targetRef="Task_AssignLines"/>
+    <bpmn:sequenceFlow id="Flow_04" name="否" sourceRef="Gateway_AssignLine" targetRef="Task_KeepInPool"/>
+    <bpmn:sequenceFlow id="Flow_05" sourceRef="Task_AssignLines" targetRef="Task_OpenLine"/>
+    <bpmn:sequenceFlow id="Flow_06" sourceRef="Task_OpenLine" targetRef="Task_ReadTimeline"/>
+    <bpmn:sequenceFlow id="Flow_07" sourceRef="Task_AssignLines" targetRef="Task_CheckCandidate"/>
+    <bpmn:sequenceFlow id="Flow_08" sourceRef="Task_CheckCandidate" targetRef="Task_ObserveChange"/>
+    <bpmn:sequenceFlow id="Flow_09" sourceRef="Task_ObserveChange" targetRef="Gateway_WorthEchoing"/>
+    <bpmn:sequenceFlow id="Flow_10" name="否" sourceRef="Gateway_WorthEchoing" targetRef="End_StayQuiet"/>
+    <bpmn:sequenceFlow id="Flow_11" name="是" sourceRef="Gateway_WorthEchoing" targetRef="Task_CreateEcho"/>
+    <bpmn:sequenceFlow id="Flow_12" sourceRef="Task_CreateEcho" targetRef="Task_GentleCue"/>
+    <bpmn:sequenceFlow id="Flow_13" sourceRef="Task_GentleCue" targetRef="Task_OpenEcho"/>
+    <bpmn:sequenceFlow id="Flow_14" sourceRef="Task_OpenEcho" targetRef="Gateway_UserChoice"/>
+    <bpmn:sequenceFlow id="Flow_15" name="沉默或回味" sourceRef="Gateway_UserChoice" targetRef="End_LeaveSpace"/>
+    <bpmn:sequenceFlow id="Flow_16" name="反馈" sourceRef="Gateway_UserChoice" targetRef="Task_RecordFeedback"/>
+    <bpmn:sequenceFlow id="Flow_17" name="回应" sourceRef="Gateway_UserChoice" targetRef="Task_SaveResponse"/>
+    <bpmn:sequenceFlow id="Flow_18" sourceRef="Task_RecordFeedback" targetRef="End_LeaveSpace"/>
+    <bpmn:sequenceFlow id="Flow_19" sourceRef="Task_SaveResponse" targetRef="End_LeaveSpace"/>
+    <bpmn:sequenceFlow id="Flow_20" sourceRef="Task_CreateEcho" targetRef="Task_CreateCase"/>
+    <bpmn:sequenceFlow id="Flow_21" sourceRef="Task_CreateCase" targetRef="Task_JudgeCase"/>
+    <bpmn:sequenceFlow id="Flow_22" sourceRef="Task_JudgeCase" targetRef="Task_RefineRules"/>
   </bpmn:process>
 </bpmn:definitions>

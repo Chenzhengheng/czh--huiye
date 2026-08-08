@@ -1,19 +1,54 @@
 <!doctype html>
 <html lang="zh-CN">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>回页 · 产品图示</title>
-  <style>
-    :root{color-scheme:light;--ink:#292821;--muted:#77756b;--paper:#f8f6ef;--line:#dfddd3;--sage:#66755f;--gold:#b48952}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:"Microsoft YaHei",sans-serif}.shell{max-width:1500px;margin:auto;padding:34px 28px 70px}header{display:flex;justify-content:space-between;align-items:end;gap:20px;margin-bottom:22px}h1{margin:0;font-size:25px;font-weight:600}header p{margin:8px 0 0;color:var(--muted);font-size:13px}.tabs{display:flex;gap:8px;flex-wrap:wrap}.tabs a{padding:8px 11px;border:1px solid var(--line);border-radius:8px;color:var(--sage);text-decoration:none;font-size:12px;background:#fffefa}section{margin-top:20px;padding:18px;border:1px solid var(--line);border-radius:14px;background:#fffefa}h2{margin:0 0 14px;font-size:16px;font-weight:600}img{display:block;width:100%;height:auto;border-radius:8px;background:var(--paper)}small{display:block;margin-top:10px;color:var(--muted)}@media(max-width:700px){.shell{padding:22px 12px 50px}header{align-items:flex-start;flex-direction:column}section{padding:8px}}
-  </style>
-</head>
-<body>
-  <main class="shell">
-    <header><div><h1>回页 · 产品图示</h1><p>2026-08-05 跨时重逢方向对齐版</p></div><nav class="tabs"><a href="#flow">用户流程</a><a href="#data">数据关系</a><a href="#product">产品结构</a></nav></header>
-    <section id="flow"><h2>用户流程</h2><img src="huiye-user-path-bpmn.svg" alt="回页陪伴式跨时重逢用户流程" /><small>一次只呈现一个候选，回应与反馈都可选，结束后不立即补下一条。</small></section>
-    <section id="data"><h2>数据关系</h2><img src="huiye-data-relationship.svg" alt="Entry、EchoRecord、呈现、反馈、回应与 CaseRecord 的数据关系" /><small>三类业务记录保持唯一；呈现、连接和拓扑由记录推导。</small></section>
-    <section id="product"><h2>产品结构</h2><img src="huiye-product-structure.svg" alt="用户留下、AI 在幕后、陪伴式体验与用户主权四层产品结构" /><small>AI 是幕后能力，用户原话、选择权与重逢感构成产品中心。</small></section>
-  </main>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>回页 · 产品图示</title>
+    <style>
+      :root{color-scheme:light;--ink:#292821;--muted:#77756b;--paper:#f8f6ef;--line:#dfddd3;--sage:#66755f}
+      *{box-sizing:border-box}
+      body{margin:0;background:var(--paper);color:var(--ink);font-family:"Microsoft YaHei",sans-serif}
+      .shell{max-width:1800px;margin:auto;padding:34px 28px 70px}
+      header{display:flex;justify-content:space-between;align-items:end;gap:20px;margin-bottom:22px}
+      h1{margin:0;font-size:25px;font-weight:600}
+      header p{margin:8px 0 0;color:var(--muted);font-size:13px}
+      .tabs{display:flex;gap:8px;flex-wrap:wrap}
+      .tabs a{padding:8px 11px;border:1px solid var(--line);border-radius:8px;color:var(--sage);text-decoration:none;font-size:12px;background:#fffefa}
+      section{margin-top:20px;padding:18px;border:1px solid var(--line);border-radius:14px;background:#fffefa}
+      h2{margin:0 0 14px;font-size:16px;font-weight:600}
+      img{display:block;width:100%;height:auto;border-radius:8px;background:var(--paper)}
+      small{display:block;margin-top:10px;color:var(--muted)}
+      @media(max-width:700px){.shell{padding:22px 12px 50px}header{align-items:flex-start;flex-direction:column}section{padding:8px}}
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header>
+        <div>
+          <h1>回页 · 产品图示</h1>
+          <p>2026-08-08 · 思考线约束与回响评测版</p>
+        </div>
+        <nav class="tabs">
+          <a href="#flow">用户流程</a>
+          <a href="#product">产品结构</a>
+          <a href="#data">数据关系</a>
+        </nav>
+      </header>
+      <section id="flow">
+        <h2>用户流程</h2>
+        <img src="huiye-user-path-bpmn.svg" alt="回页用户流程图" />
+        <small>正式体验保持低打扰；虚线评测区服务于当前高频积累 good case 与 bad case。</small>
+      </section>
+      <section id="product">
+        <h2>产品结构</h2>
+        <img src="huiye-product-structure.svg" alt="回页产品结构图" />
+        <small>用户划定边界，AI 在线内观察，评测帮助回响逐步变得更懂用户。</small>
+      </section>
+      <section id="data">
+        <h2>数据关系</h2>
+        <img src="huiye-data-relationship.svg" alt="回页数据关系图" />
+        <small>产品数据与评测工作台分区；参考答案只从稳定 good case 中逐步推演。</small>
+      </section>
+    </main>
+  </body>
 </html>

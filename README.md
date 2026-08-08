@@ -10,19 +10,7 @@ AI 不替用户建立人生图谱，也不替用户下结论。它只说：“�
 
 ## 核心体验
 
-```mermaid
-flowchart LR
-  A["写下思考、感受或一句话"] --> B{"是否值得归入某个主题？"}
-  B -->|"是，由用户选择"| C["加入一条或多条思考线"]
-  B -->|"否"| D["留在日记池"]
-  C --> E["AI 只在线内观察原文变化"]
-  E --> F["轻轻出现一条回响"]
-  F --> G{"用户如何面对？"}
-  G --> H["回味或沉默"]
-  G --> I["回应并形成新日记"]
-  G --> J["反馈：看清 / 已知 / 不太对"]
-  D -. "未来由用户授权的低频复盘" .-> E
-```
+![回页用户流程：从写下、选择性归线到正式回响与当前评测](docs/assets/huiye-user-path-bpmn.svg)
 
 ### 1. 写下
 
@@ -38,56 +26,13 @@ AI 优先在同一条思考线中寻找至少两篇、发生于不同时间的�
 
 ## 产品结构
 
-```mermaid
-flowchart TB
-  S["写下"] --> E["日记 Entry"]
-  P["日记池"] --> E
-  E -->|"用户选择性添加特殊标签"| L["思考线 ThoughtLine"]
-  L --> LD["时间线详情：原文、交汇与回响点"]
-  L -->|"线允许 + 单篇允许"| O["AI 线内观察"]
-  O --> R["回响 EchoRecord"]
-  R --> X["回响入口：小棕点，低打扰"]
-  R --> Q["回响评测 CaseRecord"]
-  X -->|"保存回应"| E2["新的 Entry，默认继承该线"]
-  E2 --> L
-  U["未归线 Entry"] -. "未来：周/月低频授权复盘" .-> O
-```
+![回页产品结构：用户主动、AI 观察、正式回响、评测校准与数据主权](docs/assets/huiye-product-structure.svg)
 
 ## 数据关系
 
-```mermaid
-erDiagram
-  ENTRY }o--o{ THOUGHT_LINE : "用户归线"
-  THOUGHT_LINE ||--o{ ECHO_RECORD : "约束 AI 观察"
-  ECHO_RECORD }o--|{ ENTRY : "引用至少两篇原文"
-  ECHO_RECORD ||--o{ CASE_RECORD : "评测"
+![回页数据关系：产品记录与逐步建立的评测工作台](docs/assets/huiye-data-relationship.svg)
 
-  ENTRY {
-    number id
-    string content
-    string[] thoughtLineIds
-    boolean aiLink
-  }
-  THOUGHT_LINE {
-    string id
-    string name
-    string status
-    boolean allowEcho
-  }
-  ECHO_RECORD {
-    string id
-    string thoughtLineId
-    string[] sourceEntryIds
-    string relationType
-    string lifecycle
-  }
-  CASE_RECORD {
-    string id
-    string echoRecordId
-    string verdict
-    string feedback
-  }
-```
+三张图均以 [docs/assets](docs/assets/) 中的 SVG 为唯一可编辑源；PNG、BPMN 与 HTML 是便于查看、交流或导入其他工具的同步产物。
 
 权限采用双重边界：整条思考线关闭后不再产生正式回响；单篇日记关闭后，AI 即使在线内也必须跳过这一篇。合并思考线时采用更保守的一侧权限。
 
