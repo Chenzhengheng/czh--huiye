@@ -125,13 +125,13 @@ test("uses the real date and keeps demo data isolated from private evaluation", 
   assert.match(page, /evaluationMode === "demo"/);
 });
 
-test("exposes the three ThoughtLine assignment entries and formal echo boundary", async () => {
+test("keeps two ThoughtLine assignment entries and formal echo boundary", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
 
   assert.match(page, /label: "思考线"/);
   assert.match(page, /writeThoughtLineSelections/);
   assert.match(page, /edit\.thoughtLineSelections/);
-  assert.match(page, /从日记池加入/);
+  assert.doesNotMatch(page, /从日记池加入|搜索要加入的笔记|加入选中的/);
   assert.match(page, /record\.thoughtLineId/);
   assert.match(page, /record\.lifecycle !== "legacy_evaluation"/);
   assert.match(page, /line\.allowEcho/);

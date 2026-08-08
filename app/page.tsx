@@ -10,7 +10,6 @@ import {
 } from "./echo-card";
 import {
   activeThoughtLines,
-  assignEntriesToThoughtLine,
   draftThoughtLineSelection,
   materializeThoughtLineSelections,
   mergeThoughtLines,
@@ -659,8 +658,6 @@ export default function Home() {
   const [link, setLink] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
-  const [lineSearch, setLineSearch] = useState("");
-  const [lineBatchIds, setLineBatchIds] = useState<number[]>([]);
   const [expandedLineEntryIds, setExpandedLineEntryIds] = useState<number[]>(
     [],
   );
@@ -898,15 +895,6 @@ export default function Home() {
           record.lifecycle !== "invalidated",
       )
     : [];
-  const lineSearchResults = selectedLine
-    ? entries.filter(
-        (entry) =>
-          !entry.thoughtLineIds?.includes(selectedLine.id) &&
-          `${entry.title}${entry.content}`
-            .toLowerCase()
-            .includes(lineSearch.toLowerCase()),
-      )
-    : [];
   const selectedConnections = useMemo(() => {
     if (!selected) return [];
     const connectedIds = new Set<number>();
@@ -958,15 +946,6 @@ export default function Home() {
       ...current.filter((item) => item.echoRecordId !== record.id),
     ]);
     notify("已记入回响评测集，不会进入正式回响");
-  }
-
-  function addSelectedEntriesToLine() {
-    if (!selectedLine || !lineBatchIds.length) return;
-    setEntries((current) =>
-      assignEntriesToThoughtLine(current, lineBatchIds, selectedLine.id),
-    );
-    setLineBatchIds([]);
-    notify(`已将 ${lineBatchIds.length} 篇加入「${selectedLine.name}」`);
   }
 
   function updateLineName() {
@@ -2081,45 +2060,6 @@ export default function Home() {
                   {!lineEntries.length && (
                     <p className="line-empty">这条线暂时没有可见笔记。</p>
                   )}
-                </section>
-                <section className="line-add">
-                  <h2>从日记池加入</h2>
-                  <div className="search">
-                    <span>⌕</span>
-                    <input
-                      value={lineSearch}
-                      onChange={(event) => setLineSearch(event.target.value)}
-                      placeholder="搜索要加入的笔记"
-                    />
-                  </div>
-                  <div className="line-add-list">
-                    {lineSearchResults.map((entry) => (
-                      <label key={entry.id}>
-                        <input
-                          type="checkbox"
-                          checked={lineBatchIds.includes(entry.id)}
-                          onChange={() =>
-                            setLineBatchIds((ids) =>
-                              ids.includes(entry.id)
-                                ? ids.filter((id) => id !== entry.id)
-                                : [...ids, entry.id],
-                            )
-                          }
-                        />
-                        <span>
-                          <strong>{entry.title}</strong>
-                          <small>{formatTimestamp(entry, now)}</small>
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                  <button
-                    className="primary"
-                    disabled={!lineBatchIds.length}
-                    onClick={addSelectedEntriesToLine}
-                  >
-                    加入选中的 {lineBatchIds.length} 篇
-                  </button>
                 </section>
               </>
             )}
