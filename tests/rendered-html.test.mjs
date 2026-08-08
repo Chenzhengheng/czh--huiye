@@ -165,6 +165,18 @@ test("keeps ThoughtLine assignment as a marked tag and fits the first writing sc
   assert.match(css, /\.edit-tags-row > div\s*\{[^}]*width:\s*100%/s);
 });
 
+test("shows newest ThoughtLine entries first with five-line inline expansion", async () => {
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.match(page, /entryTimestamp\(right\) - entryTimestamp\(left\)/);
+  assert.match(page, /篇笔记，最新在前/);
+  assert.match(page, /aria-expanded=\{expanded\}/);
+  assert.match(page, /expanded \? "收起原文" : "展开原文"/);
+  assert.match(page, /className="line-entry-full"/);
+  assert.match(css, /\.line-entry-preview\s*\{[^}]*-webkit-line-clamp:\s*5/s);
+});
+
 test("does not retain the retired AI organization client", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const worker = await readFile(new URL("../worker/index.ts", import.meta.url), "utf8");

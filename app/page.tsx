@@ -152,6 +152,11 @@ function formatTimestamp(entry: Entry, now: number) {
   return `${created.getFullYear()}年${created.getMonth() + 1}月${created.getDate()}日`;
 }
 
+function entryTimestamp(entry: Entry) {
+  const parsed = Date.parse(entry.createdAt || entry.date || "");
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
 async function saveEchoEvent(
   echoRecordId: string,
   event: {
@@ -656,6 +661,9 @@ export default function Home() {
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
   const [lineSearch, setLineSearch] = useState("");
   const [lineBatchIds, setLineBatchIds] = useState<number[]>([]);
+  const [expandedLineEntryIds, setExpandedLineEntryIds] = useState<number[]>(
+    [],
+  );
   const [evaluationMode, setEvaluationMode] = useState<"private" | "demo">(
     "private",
   );
@@ -881,11 +889,7 @@ export default function Home() {
   const lineEntries = selectedLine
     ? entries
         .filter((entry) => entry.thoughtLineIds?.includes(selectedLine.id))
-        .sort(
-          (left, right) =>
-            Date.parse(left.createdAt || left.date || "") -
-            Date.parse(right.createdAt || right.date || ""),
-        )
+        .sort((left, right) => entryTimestamp(right) - entryTimestamp(left))
     : [];
   const lineEchoes = selectedLine
     ? echoRecords.filter(
@@ -1897,7 +1901,10 @@ export default function Home() {
                           <button
                             key={line.id}
                             className={`thought-line-card ${line.status}`}
-                            onClick={() => setSelectedLineId(line.id)}
+                            onClick={() => {
+                              setSelectedLineId(line.id);
+                              setExpandedLineEntryIds([]);
+                            }}
                           >
                             <span>✦</span>
                             <div>
@@ -1931,6 +1938,7 @@ export default function Home() {
                   onClick={() => {
                     setSelectedLineId(null);
                     setLineBatchIds([]);
+                    setExpandedLineEntryIds([]);
                   }}
                 >
                   ← 全部思考线
@@ -1939,7 +1947,7 @@ export default function Home() {
                   <div>
                     <div className="eyebrow">✦ 思考线</div>
                     <h1>{selectedLine.name}</h1>
-                    <p>{lineEntries.length} 篇笔记，按发生时间排列</p>
+                    <p>{lineEntries.length} 篇笔记，最新在前</p>
                   </div>
                   <div className="line-actions">
                     <button onClick={updateLineName}>重命名</button>
@@ -1976,6 +1984,7 @@ export default function Home() {
                 <section className="line-timeline">
                   <h2>这条线上的思考</h2>
                   {lineEntries.map((entry, index) => {
+                    const expanded = expandedLineEntryIds.includes(entry.id);
                     const precedingEchoes = lineEchoes.filter(
                       (record) =>
                         record.sourceEntryIds[
@@ -2023,13 +2032,34 @@ export default function Home() {
                           })}
                         <article>
                           <time>{formatTimestamp(entry, now)}</time>
-                          <button
-                            className="line-entry-open"
-                            onClick={() => openEntry(entry)}
-                          >
-                            <strong>{entry.title}</strong>
-                            <span>{markdownPreviewText(entry.content)}</span>
-                          </button>
+                          <div className="line-entry-reading">
+                            <button
+                              className="line-entry-open"
+                              aria-expanded={expanded}
+                              onClick={() =>
+                                setExpandedLineEntryIds((ids) =>
+                                  ids.includes(entry.id)
+                                    ? ids.filter((id) => id !== entry.id)
+                                    : [...ids, entry.id],
+                                )
+                              }
+                            >
+                              <strong>{entry.title}</strong>
+                              {!expanded && (
+                                <p className="line-entry-preview">
+                                  {markdownPreviewText(entry.content)}
+                                </p>
+                              )}
+                              <small>
+                                {expanded ? "收起原文" : "展开原文"}
+                              </small>
+                            </button>
+                            {expanded && (
+                              <div className="line-entry-full">
+                                <Markdown content={entry.content} />
+                              </div>
+                            )}
+                          </div>
                           <button
                             className="line-remove"
                             onClick={() =>
