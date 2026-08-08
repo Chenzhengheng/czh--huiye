@@ -1,17 +1,17 @@
 # 回页：本地数据结构
 
-> 状态：已确认的目标数据契约。Entry 迁移尚未开始，EchoRecord 校准链路已局部实现
-> 最后更新：2026-08-03
+> 状态：已对齐的目标数据契约；Entry v2 迁移、重复呈现与 CaseRecord 尚未实现
+> 最后更新：2026-08-05
 
-## 1. 数据源与基本规则
+## 1. 数据源与记录边界
 
 `local-data` 是私人数据的唯一主数据源。最终只保存三类业务记录：
 
-1. `Entry`：用户确认保存的日记；
-2. `EchoRecord`：Entry 之间有证据的持久关系及使用历史；
+1. `Entry`：用户确认保存的自我表达；
+2. `EchoRecord`：有证据的召回候选、呈现、反馈与回应连接；
 3. `CaseRecord`：对已有 Entry 和 EchoRecord 的产品评测引用。
 
-思考线和拓扑是派生视图，不单独保存。浏览器状态、GitHub、Sites/R2 和公开作品集都不是私人日记的主数据源。
+思考线、拓扑、当前候选和双向连接都是派生视图，不单独保存。浏览器状态、GitHub、Sites/R2 和公开作品集都不是私人数据源。
 
 ## 2. 目标目录
 
@@ -28,11 +28,9 @@ local-data/
 └─ manifest.json               # schema 版本、更新时间、数量与完整性摘要
 ```
 
-每个业务对象只有一份当前权威文件。旧的 `current.json + generations/` 结构只作为迁移来源，不是最终日常存储方式。
-
 ## 3. Entry
 
-每篇 Entry 是一个 Markdown 文件：frontmatter 保存结构化字段，frontmatter 之后的 Markdown 正文保存用户确认的原文。
+每篇 Entry 是一个 Markdown 文件。正文保存用户确认的原话，frontmatter 保存结构化字段。
 
 ```md
 ---
@@ -41,32 +39,36 @@ id: 1750000000000
 createdAt: 2026-08-02T10:00:00.000Z
 updatedAt: 2026-08-02T10:00:00.000Z
 title: 可选标题
-tags:
-  - 工作
+tags: []
 allowEcho: true
 attachmentIds: []
 ---
 
-这是用户确认保存的正文。
+这是用户确认保存的自我表达。
 ```
 
 | 字段 | 类型 | 必填 | 含义 |
 |---|---|---:|---|
 | `schemaVersion` | number | 是 | 目标格式固定为 `2` |
-| `id` | number | 是 | Entry 唯一 ID；迁移时保留现有 ID |
-| `createdAt` | ISO 时间 | 是 | 首次保存时间 |
-| `updatedAt` | ISO 时间 | 是 | 最近一次用户确认保存时间 |
-| `title` | string | 否 | 用户标题；允许为空，不由 AI 强制生成 |
+| `id` | number | 是 | Entry 唯一 ID |
+| `createdAt` | ISO 时间 | 是 | 首次确认保存时间 |
+| `updatedAt` | ISO 时间 | 是 | 最近一次确认修改时间 |
+| `title` | string | 否 | 用户标题；允许为空 |
 | `tags` | `string[]` | 是 | 用户标签；允许空数组 |
-| `allowEcho` | boolean | 是 | 是否允许未来关系发现、模型处理和主动展示 |
-| `attachmentIds` | `string[]` | 是 | 附件引用；允许空数组 |
+| `allowEcho` | boolean | 是 | 是否允许未来模型处理和主动召回 |
+| `attachmentIds` | `string[]` | 是 | 附件引用 |
 | Markdown 正文 | string | 是 | 用户确认的唯一当前正文 |
 
-不进入最终 Entry 的旧字段：`date`、`status`、`source`、`aiLink`、`continuesFrom`、正文内嵌 Base64 附件。`aiLink` 迁移为 `allowEcho`；日记关系迁移为 EchoRecord。
+### 3.1 原意与修订
+
+- 不改变含义的纠错可以更新当前 Entry，但必须在 `history/` 留下可恢复修订；
+- 实质改写不能静默覆盖过去原意，应保存为明确版本或新的回应 Entry；
+- 具体“纠错/实质改写”交互尚待实现前冻结；
+- 用户删除权不受原意保护限制。
+
+Entry 不保存 `continuesFrom`。回应连接统一由 EchoRecord 的 `response_saved` 事件表达。
 
 ## 4. Attachment
-
-附件文件与 Entry 分开保存，引用信息记录在清单或对应 Entry 的附件索引中。
 
 | 字段 | 类型 | 含义 |
 |---|---|---|
@@ -80,18 +82,47 @@ attachmentIds: []
 
 ## 5. EchoRecord
 
-EchoRecord 只在候选关系通过质量门槛、值得未来呈现时创建。回响卡片是它的一次展示，不是另一个数据对象。
+EchoRecord 记录一个通过质量门槛、值得未来呈现的召回候选及其历史。回响卡片不是独立业务对象。
 
 ```ts
 type EchoMode = "relational" | "reflective_revisit";
 
-type EchoEventType =
-  | "presented"
-  | "opened"
-  | "relation_rejected"
-  | "not_now"
-  | "continuation_started"
-  | "continuation_saved";
+type EchoFeedback =
+  | "resonated"
+  | "accurate_no_resonance"
+  | "not_quite";
+
+type RejectionScope =
+  | "interpretation"
+  | "relationship"
+  | "evidence"
+  | "other";
+
+type EchoPresentation = {
+  id: string;
+  createdAt: string;
+  sourceSummaries: Array<{ entryId: number; text: string }>;
+  hypothesis: string;
+  question?: string;
+  ruleVersion: string;
+  model?: string;
+};
+
+type EchoEvent = {
+  id: string;
+  type:
+    | "presented"
+    | "opened"
+    | "feedback_submitted"
+    | "response_started"
+    | "response_saved";
+  createdAt: string;
+  presentationId?: string;
+  feedback?: EchoFeedback;
+  rejectionScope?: RejectionScope;
+  reasonCodes?: string[];
+  resultEntryId?: number;
+};
 
 type EchoRecord = {
   schemaVersion: 2;
@@ -100,44 +131,96 @@ type EchoRecord = {
   sourceEntryIds: number[];
   triggerEntryId?: number;
   evidence: Array<{ entryId: number; quote: string }>;
-  sourceSummaries: Array<{ entryId: number; text: string }>;
-  reason: string;
-  question?: string;
   discoveredAt: string;
   eligibleAfter: string;
-  ruleVersion: string;
-  model?: string;
-  events: Array<{
-    type: EchoEventType;
-    createdAt: string;
-    resultEntryId?: number;
-  }>;
+  cooldownUntil?: string;
+  presentations: EchoPresentation[];
+  events: EchoEvent[];
 };
 ```
 
-规则：
+### 5.1 关系与证据
 
-- `relational` 表示多篇 Entry 的联系促成新思考，长期展示目标约 80%；
-- `reflective_revisit` 表示受约束地随机带回一篇旧 Entry，长期展示目标约 20%；
-- `evidence.quote` 必须能在对应 Entry 正文中精确核验；
-- `sourceSummaries` 为每个来源 Entry 保存当次卡片使用的一句话 AI 浓缩，必须明确标记为非原文；它用于复现和评测输出，但不复制 Entry 全文；
-- 发现时间和最早展示时间必须分开，保存新日记后不能立即展示；
-- 只有 `continuation_saved` 事件可以带 `resultEntryId`，并使关系进入已验证拓扑；
-- `opened` 或 `continuation_started` 不能算延伸成功；
-- 一条关系可以有多次展示或反馈事件，不为每次卡片展示复制 EchoRecord。
+- `relational` 至少引用两篇 Entry；
+- `reflective_revisit` 只引用一篇 Entry；
+- 两类模式不设固定展示比例；
+- `evidence.quote` 必须能在对应 Entry 当前原文或可追溯历史版本中精确核验；
+- 纯理论内容不能独立成为主动召回核心证据；
+- 发现时间、最早展示时间和实际呈现必须分开。
 
-## 6. CaseRecord
+### 5.2 呈现快照
 
-CaseRecord 是评测引用，不复制 Entry 正文或 EchoRecord 内容。
+每次重新评估并准备展示时，创建新的 `EchoPresentation`：
+
+- 保存当次 AI 浓缩、解释性初判、可选问题、规则版本和模型；
+- 事件通过 `presentationId` 指向当次呈现；
+- “正确而无感”后不能只换措辞立即重发；
+- 新呈现必须有明显时间错位、新 Entry 或新的观看角度；
+- 当前两个手工 EchoRecord 的顶层 `sourceSummaries/reason/question/ruleVersion/model` 在迁移时映射为首个 presentation，不丢失历史。
+
+### 5.3 反馈事件
+
+- `resonated`：用户明确表示产生重逢感；
+- `accurate_no_resonance`：关系或变化成立，但本次时机与呈现无感；
+- `not_quite`：本次解释、关系或证据不准确；
+- 没有反馈时不写 `feedback_submitted`；
+- `not_quite` 默认 `rejectionScope: interpretation`；
+- 原因补充可选，不能强制用户填写。
+
+### 5.4 回应事件与双向连接
+
+- 用户进入回应写作时记录 `response_started`；
+- 只有明确保存新 Entry 才记录 `response_saved + resultEntryId`；
+- 同一 EchoRecord 可以保存多个 `response_saved`；
+- 来源到回应：读取该 EchoRecord 全部 `resultEntryId`；
+- 回应到来源：由包含该 `resultEntryId` 的 EchoRecord 读取 `sourceEntryIds`；
+- 双向连接是派生视图，不在 Entry 中重复存储。
+
+### 5.5 当前旧事件兼容
+
+目标实现完成前，读取端需要兼容：
+
+- `continuation_started` → `response_started`；
+- `continuation_saved` → `response_saved`；
+- `relation_rejected` → `feedback_submitted(not_quite)`；
+- `not_now` 只保留历史，不自动推断为任何新反馈。
+
+## 6. 当前候选派生
+
+用户侧当前候选不是保存对象，而是从 EchoRecord 推导：
+
+1. 已到 `eligibleAfter`；
+2. 不在 `cooldownUntil`；
+3. 来源 Entry 仍存在并允许回响；
+4. 没有被明确永久否定对应范围；
+5. 近期未重复；
+6. 按质量与新情境选择一个。
+
+用户侧只暴露“是否有一个当前候选”，不暴露候选总数。
+
+## 7. CaseRecord
 
 ```ts
+type CaseVerdict = "good" | "bad";
+
+type CaseReasonCode =
+  | "reencountered"
+  | "accurate_no_resonance"
+  | "already_active_understanding"
+  | "timing_wrong"
+  | "interpretation_wrong"
+  | "relation_wrong"
+  | "quote_out_of_context"
+  | "prompt_pressure";
+
 type CaseRecord = {
   schemaVersion: 2;
   id: string;
   entryIds: number[];
   echoRecordId?: string;
-  verdict: "good" | "bad";
-  reasonCodes: string[];
+  presentationId?: string;
+  verdict: CaseVerdict;
+  reasonCodes: CaseReasonCode[];
   expectedBehavior: string;
   actualBehavior: string;
   ruleVersion: string;
@@ -146,56 +229,44 @@ type CaseRecord = {
 };
 ```
 
-`analysisEntryId` 指向用户明确保存的案例分析 Entry。该 Entry 仍属于思考拓扑；CaseRecord 只将它与案例材料关联起来用于产品迭代。
+CaseRecord 只引用现有内容，不复制私人正文。用户明确保存的案例分析仍是普通 Entry。
 
-## 7. 派生视图
+## 8. 派生关系
 
 ```mermaid
 flowchart LR
-  E1["Entry"] --> R["EchoRecord"]
-  E2["Entry"] --> R
-  R -->|"所有通过质量门槛的关系"| C["候选拓扑"]
-  R -->|"存在 continuation_saved"| V["已验证拓扑"]
-  R --> K["CaseRecord"]
-  E1 --> K
-  K -. "analysisEntryId" .-> EA["案例分析 Entry"]
+  S1["来源 Entry A"] --> ER["EchoRecord"]
+  S2["来源 Entry B（可选）"] --> ER
+  ER --> P["一次 EchoPresentation"]
+  P --> F["可选反馈"]
+  P -->|"用户明确保存"| R1["回应 Entry"]
+  P -->|"未来再次回应"| R2["另一篇回应 Entry"]
+  R1 -. "双向可读" .-> S1
+  R2 -. "允许分叉或矛盾" .-> S1
+  ER --> C["CaseRecord"]
 ```
 
-拓扑节点始终来自 Entry，边始终来自 EchoRecord。CaseRecord 不创建第三种关系边。
+## 9. 写入、历史与删除
 
-## 8. 写入、历史与删除
+- 写入先进入 `journal/`，校验后原子替换；
+- `history/` 只保存有上限的逐记录修订，具体上限仍待冻结；
+- `backups/` 保存用户主动创建的完整备份；
+- 移入 `trash/` 后不参与读取、模型处理或召回；
+- 永久删除必须清理 Entry、附件、EchoRecord/CaseRecord 引用和本地历史副本；
+- 应用无法删除用户复制到外部的备份。
 
-- 写入先进入 `journal/`，完成临时写入、哈希校验和原子替换后才确认成功；
-- 异常启动时根据事务日志完成或回滚未完成写入；
-- `history/` 只保存有上限的逐记录修订，具体保留数量或天数在实施前确定；
-- `backups/` 保存用户主动创建的完整备份，不由常规历史策略自动删除；
-- 移入 `trash/` 后记录不参与正常读取、模型处理或回响；
-- 永久删除必须清理 Entry、附件、相关 EchoRecord、CaseRecord 引用、拓扑边和本地历史副本；
-- 用户自行复制到应用外部的备份无法由应用远程删除。
-
-## 9. 当前 v1 到目标 v2 的映射
+## 10. v1 到目标 v2 映射
 
 | 当前结构 | 目标结构 | 处理方式 |
 |---|---|---|
-| `HuiyeBackup v1.entries[]` | `entries/<id>.md` | 保留 ID、正文、时间和标签；字段规范化 |
-| `Entry.aiLink` | `Entry.allowEcho` | 布尔值直接迁移 |
-| `Entry.attachments[].data` | `attachments/` | 解码为独立文件并计算哈希 |
-| `Entry.date/status/source` | 无 | 验证无业务依赖后移除 |
-| `Entry.continuesFrom` | EchoRecord | 转为有证据的关系；不能无证据猜测 |
-| `Echo` | 不迁移 | 旧回响已整体废弃；从原始 Entry 按新规则重新发现关系 |
-| `echoCheckedIds` | 不迁移 | 旧检查标记随旧 Echo 一起废弃 |
-| `current.json + generations/` | 当前文件 + journal/history/backups | 新位置写入并校验后再切换，旧目录保持只读回退 |
+| `HuiyeBackup v1.entries[]` | `entries/<id>.md` | 保留 ID、正文、时间、标签与回响许可 |
+| `Entry.aiLink` | `Entry.allowEcho` | 布尔值迁移 |
+| 内嵌附件 | `attachments/` | 拆出并计算哈希 |
+| `Entry.continuesFrom` | EchoRecord 历史兼容 | 只在证据可核验时迁移 |
+| 旧 `Echo` / `echoCheckedIds` | 不迁移 | 已废弃 |
+| 当前手工 EchoRecord | 新 EchoRecord | 顶层呈现字段映射为首个 presentation；旧事件按兼容表映射 |
+| `current.json + generations/` | 当前文件 + journal/history/backups | 新位置写入并校验后切换 |
 
-## 10. 迁移验收
+## 11. 迁移验收
 
-迁移前后必须对比：
-
-- Entry 总数与唯一 ID 集合；
-- 每篇正文的规范化 SHA-256；
-- 创建时间、标签、回响许可；
-- 附件数量、字节数和 SHA-256；
-- 可核验 Echo 关系和事件；
-- CaseRecord 引用是否全部可解析；
-- `local-data` 是否仍被 Git 和作品集构建排除。
-
-当前有效数据基线是 15 篇 Entry、15 个唯一 ID、0 条 Echo、0 个检查标记、0 个附件。2 条旧 Echo 和 5 个旧检查标记已于 2026-08-02 从当前有效数据清空，并保留一份迁移前安全副本；它们不进入 v2。实施迁移时仍必须重新读取磁盘并生成新的基线报告，不能只依赖本文数字。
+迁移前后必须比较 Entry 数量、ID、正文哈希、时间、标签、权限、附件以及所有可核验关系。2026-08-05 最近一次核对为 23 篇 Entry、23 个唯一 ID；实施迁移时仍必须重新读取磁盘并生成报告。

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { EchoCard, type EchoEventType, type EchoMode, type EchoRecordV2 } from "./echo-card";
+import { EchoCard, echoResponseEntryIds, type EchoEventType, type EchoFeedback, type EchoRecordV2 } from "./echo-card";
 
 type View = "write" | "pool" | "echo" | "chat" | "settings";
 type Attachment = { name: string; type: string; data: string };
@@ -17,6 +17,7 @@ type Entry = {
   status?: "open" | "echoed";
   attachments?: Attachment[];
   continuesFrom?: number;
+  originalContent?: string;
 };
 type Draft = { title: string; content: string; tags: string[]; aiLink: boolean };
  type SavedDraft = { text: string; attachments: Attachment[]; tags?: string[]; link: boolean; updatedAt: string };
@@ -79,15 +80,23 @@ function formatTimestamp(entry: Entry, now: number) {
   return `${created.getFullYear()}年${created.getMonth() + 1}月${created.getDate()}日`;
 }
 
-async function saveEchoEvent(echoRecordId: string, type: EchoEventType, resultEntryId?: number): Promise<EchoRecordV2> {
+async function saveEchoEvent(echoRecordId: string, event: { type: EchoEventType; resultEntryId?: number; feedback?: EchoFeedback; rejectionScope?: "interpretation" | "relationship" | "evidence" | "other"; reasonCodes?: string[] }): Promise<EchoRecordV2> {
   const response = await fetch("/api/echo-events", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ echoRecordId, type, ...(resultEntryId === undefined ? {} : { resultEntryId }) }),
+    body: JSON.stringify({ echoRecordId, ...event }),
   });
   const result = await response.json() as { record?: EchoRecordV2; error?: string };
   if (!response.ok || !result.record) throw new Error(result.error || "回响记录失败");
   return result.record;
+}
+
+function selectCurrentEcho(records: EchoRecordV2[], now: number) {
+  return records
+    .filter(record => Date.parse(record.eligibleAfter) <= now)
+    .filter(record => !record.cooldownUntil || Date.parse(record.cooldownUntil) <= now)
+    .filter(record => !record.events.some(event => event.type === "feedback_submitted" || event.type === "response_saved" || event.type === "continuation_saved"))
+    .sort((left, right) => left.events.length - right.events.length || left.discoveredAt.localeCompare(right.discoveredAt))[0] ?? null;
 }
 
 function formatWritingDate(now: number) {
@@ -250,7 +259,9 @@ export default function Home() {
   const [echoes, setEchoes] = useState<Echo[]>([]);
   const [echoCheckedIds, setEchoCheckedIds] = useState<number[]>([]);
   const [echoRecords, setEchoRecords] = useState<EchoRecordV2[]>([]);
-  const [echoMode, setEchoMode] = useState<EchoMode>("relational");
+  const [currentEchoId, setCurrentEchoId] = useState<string | null>(null);
+  const [echoSeenThisSession, setEchoSeenThisSession] = useState(false);
+  const [echoSessionDone, setEchoSessionDone] = useState(false);
   const [echoLoadError, setEchoLoadError] = useState(false);
   const [storageReady, setStorageReady] = useState(false);
   const [storageStatus, setStorageStatus] = useState<StorageStatus>("loading");
@@ -325,6 +336,7 @@ export default function Home() {
           if (!echoResponse.ok || !Array.isArray(echoResult.records)) throw new Error(echoResult.error || "无法读取回响记录");
           if (!cancelled) {
             setEchoRecords(echoResult.records);
+            setCurrentEchoId(selectCurrentEcho(echoResult.records, Date.now())?.id ?? null);
             setEchoLoadError(false);
           }
         } catch {
@@ -375,8 +387,17 @@ export default function Home() {
   const filtered = useMemo(() => entries.filter(entry => `${entry.title}${entry.content}${entry.tags.join("")}`.toLowerCase().includes(search.toLowerCase())), [entries, search]);
   const selected = entries.find(entry => entry.id === selectedId) ?? null;
   const continuingEntry = continuingFrom ? entries.find(entry => entry.id === continuingFrom) ?? null : null;
-  const eligibleEchoRecords = echoRecords.filter(record => Date.parse(record.eligibleAfter) <= now);
-  const activeEchoRecords = eligibleEchoRecords.filter(record => record.mode === echoMode);
+  const currentEchoRecord = echoRecords.find(record => record.id === currentEchoId) ?? null;
+  const selectedConnections = useMemo(() => {
+    if (!selected) return [];
+    const connectedIds = new Set<number>();
+    for (const record of echoRecords) {
+      const responseIds = echoResponseEntryIds(record);
+      if (record.sourceEntryIds.includes(selected.id)) responseIds.forEach(id => connectedIds.add(id));
+      if (responseIds.includes(selected.id)) record.sourceEntryIds.forEach(id => connectedIds.add(id));
+    }
+    return entries.filter(entry => connectedIds.has(entry.id));
+  }, [selected, echoRecords, entries]);
   const writeRows = Math.min(WRITE_MAX_LINES, Math.max(WRITE_MIN_LINES, writeLines + 3));
   const editLines = visualLineCount(edit?.content || "", 55);
   const editRows = Math.min(15, Math.max(6, editLines + 3));
@@ -464,19 +485,36 @@ export default function Home() {
     resetWritingEditor(pendingDraft.text); setAttachments(pendingDraft.attachments || []); setWriteTags(pendingDraft.tags || []); setLink(pendingDraft.link); setPendingDraft(null); notify("已恢复刚才的记录");
   }
   function discardDraft() { localStorage.removeItem(DRAFT_KEY); setPendingDraft(null); notify("已丢弃未保存的记录"); }
-  async function recordEchoEvent(echoRecordId: string, type: EchoEventType, resultEntryId?: number) {
-    const updated = await saveEchoEvent(echoRecordId, type, resultEntryId);
+  async function recordEchoEvent(echoRecordId: string, event: { type: EchoEventType; resultEntryId?: number; feedback?: EchoFeedback; rejectionScope?: "interpretation" | "relationship" | "evidence" | "other"; reasonCodes?: string[] }) {
+    const updated = await saveEchoEvent(echoRecordId, event);
     setEchoRecords(current => current.map(record => record.id === updated.id ? updated : record));
     return updated;
   }
-  function continueFromEcho(record: EchoRecordV2) {
+  function openEchoView() {
+    setView("echo");
+    setEchoSeenThisSession(true);
+    if (currentEchoRecord && !currentEchoRecord.events.some(event => event.type === "opened")) {
+      void recordEchoEvent(currentEchoRecord.id, { type: "opened" }).catch(() => undefined);
+    }
+  }
+  function respondFromEcho(record: EchoRecordV2) {
     setContinuingEchoId(record.id);
     setContinuingFrom(record.sourceEntryIds[record.sourceEntryIds.length - 1] ?? null);
     setView("write");
-    void recordEchoEvent(record.id, "continuation_started").catch(() => notify("可以继续写；回响操作暂未记入本地"));
+    void recordEchoEvent(record.id, { type: "response_started" }).catch(() => notify("可以写下回应；这次打开暂未记入本地"));
   }
-  function postponeEcho(record: EchoRecordV2) {
-    void recordEchoEvent(record.id, "not_now").then(() => notify("已记下：这次没有感觉")).catch(() => notify("暂时无法记录这次反馈"));
+  function submitEchoFeedback(record: EchoRecordV2, feedback: EchoFeedback) {
+    const reasonCodes = feedback === "resonated" ? ["reencountered"] : feedback === "accurate_no_resonance" ? ["accurate_no_resonance"] : ["interpretation_wrong"];
+    setEchoSessionDone(true);
+    void recordEchoEvent(record.id, {
+      type: "feedback_submitted",
+      feedback,
+      reasonCodes,
+      ...(feedback === "not_quite" ? { rejectionScope: "interpretation" as const } : {}),
+    }).then(() => notify(feedback === "resonated" ? "记下了这次重逢" : feedback === "accurate_no_resonance" ? "记下了：说得对，但这次没感觉" : "记下了：这次理解得不太对")).catch(() => {
+      setEchoSessionDone(false);
+      notify("暂时无法记录这次反馈");
+    });
   }
   async function saveEntry(rawText?: string) {
     const content = (rawText ?? text).trim();
@@ -507,7 +545,7 @@ export default function Home() {
       setStorageStatus("saved");
       let echoEventFailed = false;
       if (continuingEchoId) {
-        try { await recordEchoEvent(continuingEchoId, "continuation_saved", entry.id); }
+        try { await recordEchoEvent(continuingEchoId, { type: "response_saved", resultEntryId: entry.id }); setEchoSessionDone(true); }
         catch { echoEventFailed = true; }
       }
       resetWritingEditor(""); setAttachments([]); setWriteTags([]); setContinuingFrom(null); setContinuingEchoId(null);
@@ -572,30 +610,31 @@ export default function Home() {
     }
   }
   return <main className="app-shell">
-    <aside className="sidebar"><div className="brand"><span className="brand-mark">回</span><span>回页<small>让思考继续生长</small></span></div><nav>{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><i>{item.icon}</i>{item.label}{item.id === "echo" && echoes.filter(echo => echo.status === "pending").length > 0 && <b>{echoes.filter(echo => echo.status === "pending").length}</b>}</button>)}</nav><div className="side-bottom"><button onClick={() => setView("settings")}><i>⚙</i>设置</button><button onClick={() => { setExportIds([]); setExportOpen(true); }}><i>↓</i>导出 / 导入</button><div className="privacy"><span>◉</span><div><strong>{storageKind === "local-folder" ? "内容保存在本地文件夹" : "正在确认数据位置"}</strong><small>你始终拥有原文与控制权</small></div></div></div></aside>
+    <aside className="sidebar"><div className="brand"><span className="brand-mark">回</span><span>回页<small>让写下的自己再次回来</small></span></div><nav>{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => item.id === "echo" ? openEchoView() : setView(item.id)}><i>{item.icon}</i>{item.label}{item.id === "echo" && currentEchoRecord && !echoSeenThisSession && !echoSessionDone && <b className="echo-presence-dot" aria-label="有一页在等你" />}</button>)}</nav><div className="side-bottom"><button onClick={() => setView("settings")}><i>⚙</i>设置</button><button onClick={() => { setExportIds([]); setExportOpen(true); }}><i>↓</i>导出 / 导入</button><div className="privacy"><span>◉</span><div><strong>{storageKind === "local-folder" ? "内容保存在本地文件夹" : "正在确认数据位置"}</strong><small>你始终拥有原文与控制权</small></div></div></div></aside>
     <section className="content">
       <header className="mobile-head"><div className="brand"><span className="brand-mark">回</span><span>回页</span></div><button onClick={() => setView("pool")}>日记池</button></header>
       {view === "write" && <div className="page write-page" style={{ maxWidth: 960, paddingTop: 44, transform: `translateY(-${Math.min(190, Math.max(0, writeLines - 5) * 20)}px)`, transition: "transform .28s ease" }}>
         <div className="eyebrow" suppressHydrationWarning>{formatWritingDate(now)}</div><h1>此刻，想留下什么？</h1><p className="lead">不用想标题，也不用急着归类。先写下来就好。</p>{continuingEntry && <div className="continuation-hint">沿着《{continuingEntry.title}》继续写</div>}
         <div ref={paperRef} className="paper rich-paper" style={{ height: writeRows * WRITE_LINE_HEIGHT + (writeLines < WRITE_MAX_LINES ? 58 : 100), overflow: "visible", transition: "height .28s ease" }}>
-          <div key={editorVersion} ref={editorRef} className="rich-editor" style={{ paddingBottom: writeLines >= WRITE_MAX_LINES ? 72 : 0, overflowY: writeLines >= WRITE_MAX_LINES ? "auto" : "hidden" }} contentEditable={true} role="textbox" aria-multiline="true" tabIndex={0} autoFocus suppressContentEditableWarning spellCheck onInput={syncEditor} onMouseUp={showSelectionMenu} onKeyUp={showSelectionMenu} onBlur={() => window.setTimeout(hideSelectionMenu, 120)} data-placeholder="一个疑问、一段推理，或只是此刻不想忘记的感受……" />
+          <div key={editorVersion} ref={editorRef} className="rich-editor" style={{ paddingBottom: writeLines >= WRITE_MAX_LINES ? 72 : 0, overflowY: writeLines >= WRITE_MAX_LINES ? "auto" : "hidden" }} contentEditable={true} role="textbox" aria-multiline="true" tabIndex={0} autoFocus suppressContentEditableWarning spellCheck onInput={syncEditor} onMouseUp={showSelectionMenu} onKeyUp={showSelectionMenu} onBlur={() => window.setTimeout(hideSelectionMenu, 120)} data-placeholder="一个念头、一种感受、一句想说的话，或只是今天发生的一小段……" />
           {selectionMenu.visible && <div className="selection-format-menu" style={{ left: selectionMenu.left, top: selectionMenu.top }} onMouseDown={event => event.preventDefault()}><button type="button" title="标题" onClick={() => applyEditorCommand("formatBlock", "H1")}>T</button><button type="button" title="小标题" onClick={() => applyEditorCommand("formatBlock", "H2")}>T₂</button><i /><button type="button" title="加粗" onClick={() => applyEditorCommand("bold")}>B</button><button type="button" title="斜体" onClick={() => applyEditorCommand("italic")}>I</button><button type="button" title="删除线" onClick={() => applyEditorCommand("strikeThrough")}>S</button><button type="button" title="下划线" onClick={() => applyEditorCommand("underline")}>U</button><i /><button type="button" title="引用" onClick={() => applyEditorCommand("formatBlock", "BLOCKQUOTE")}>❝</button><button type="button" title="列表" onClick={() => applyEditorCommand("insertUnorderedList")}>•</button><button type="button" title="居中" onClick={() => applyEditorCommand("justifyCenter")}>≡</button></div>}
           <div className="paper-tools"><span>{text.length} 字 · {attachments.length} 张图片</span><div><button onClick={pasteText}>粘贴</button><button onClick={() => fileRef.current?.click()}>＋ 手写 / 图片</button><input ref={fileRef} hidden type="file" accept="image/*" multiple onChange={event => { addFiles(event.target.files); event.target.value = ""; }} /></div></div>
         </div>        {attachments.length > 0 && <div className="attachment-row">{attachments.map((attachment, index) => <div key={`${attachment.name}-${index}`}><img src={attachment.data} alt={attachment.name} /><button onClick={() => setAttachments(current => current.filter((_, itemIndex) => itemIndex !== index))}>×</button></div>)}</div>}
         <div className="write-tags"><span>标签</span><TagEditor tags={writeTags} onChange={setWriteTags} /></div>
         <div className="write-link-control"><Toggle checked={link} onChange={() => setLink(!link)} label="参与未来回响" hint="当未来与它产生联系时，回页可能让它再次出现" /></div>
         <div className="save-row"><span>{link ? "它会安静留在这里，等待未来的联系" : "它只会被保存，不参与未来回响"}</span><button className="primary" disabled={storageStatus === "saving" || !storageReady} onClick={() => void saveEntry(text)}>{storageStatus === "saving" ? "正在写入本地…" : "保存这篇记录"} <b>→</b></button></div>
-      </div>}      {view === "pool" && <div className="page pool-page"><div className="page-title"><div><div className="eyebrow">你的思考原野</div><h1>日记池</h1><p className="lead">不用整理。它们会留在这里，等待与未来的某个时刻发生联系。</p></div><button className="primary small" onClick={() => setView("write")}>＋ 写一篇</button></div><div className="search"><span>⌕</span><input placeholder="搜索一个词、一段记忆或一个问题…" value={search} onChange={event => setSearch(event.target.value)} /></div><div className="filter-row"><button className="selected">全部 {entries.length}</button><button>未闭合 {entries.filter(entry => entry.status === "open").length}</button><button>已有回响 {entries.filter(entry => entry.status === "echoed").length}</button></div><div className="entry-grid">{filtered.map(entry => <article className="entry" key={entry.id} onClick={() => openEntry(entry)} onKeyDown={event => { if (event.key === "Enter") openEntry(entry); }} role="button" tabIndex={0}><div className="entry-meta"><span>{formatTimestamp(entry, now)}</span></div><h3>{entry.title}</h3><p className="entry-preview">{markdownPreviewText(entry.content)}</p><div className="entry-foot"><span>{entry.source}{entry.attachments?.length ? ` · ${entry.attachments.length} 张图` : ""}</span><div>{entry.tags.map(tag => <b key={tag}>{tag}</b>)}</div></div></article>)}</div></div>}
+      </div>}      {view === "pool" && <div className="page pool-page"><div className="page-title"><div><div className="eyebrow">你留下的一页页自己</div><h1>日记池</h1><p className="lead">不用整理。它们会安静留在这里，也许在另一个时刻重新回来。</p></div><button className="primary small" onClick={() => setView("write")}>＋ 写一篇</button></div><div className="search"><span>⌕</span><input placeholder="搜索一个词、一段记忆或一句说过的话…" value={search} onChange={event => setSearch(event.target.value)} /></div><div className="filter-row"><button className="selected">全部 {entries.length}</button><button>未闭合 {entries.filter(entry => entry.status === "open").length}</button><button>已有回响 {entries.filter(entry => entry.status === "echoed").length}</button></div><div className="entry-grid">{filtered.map(entry => <article className="entry" key={entry.id} onClick={() => openEntry(entry)} onKeyDown={event => { if (event.key === "Enter") openEntry(entry); }} role="button" tabIndex={0}><div className="entry-meta"><span>{formatTimestamp(entry, now)}</span></div><h3>{entry.title}</h3><p className="entry-preview">{markdownPreviewText(entry.content)}</p><div className="entry-foot"><span>{entry.source}{entry.attachments?.length ? ` · ${entry.attachments.length} 张图` : ""}</span><div>{entry.tags.map(tag => <b key={tag}>{tag}</b>)}</div></div></article>)}</div></div>}
       {view === "settings" && <div className="page settings-page"><div className="eyebrow">你的思考，只属于你</div><h1>数据与迁移</h1><p className="lead">日记、图片和回响直接保存在项目的 local-data 文件夹；应用只读取当前有效的数据代次。</p><section className="prompt-card"><div><h2>本地数据</h2><p>{storageStatus === "loading" ? "正在读取本地文件夹…" : storageStatus === "saving" ? "正在写入并校验新的数据代次…" : storageStatus === "error" ? "本地文件夹暂时无法写入；当前页面内容未被自动删除，请先不要刷新。" : storageKind === "local-folder" ? "已安全保存到本地文件夹。" : "当前不是本地运行模式，请不要在此写入私人日记。"}</p>{storageUpdatedAt && storageStatus === "saved" && <small>最近保存：{new Date(storageUpdatedAt).toLocaleString("zh-CN")}</small>}</div><div className="migration-actions"><button className="primary" type="button" onClick={downloadBackup}>导出一份副本</button><button type="button" onClick={() => importRef.current?.click()}>从 JSON 导入</button><input ref={importRef} hidden type="file" accept="application/json,.json" onChange={event => void importBackup(event.target.files?.[0])} /></div><small>本地文件夹是唯一主数据源。每次写入先创建并校验新代次，旧代次不会自动删除；JSON 导入同样只会新增代次。</small></section><section className="prompt-example"><details><summary>导出 Markdown：用于阅读与归档</summary><p className="example-note">Markdown 会导出你选中的「我的思考」、时间、来源和标签。它适合自己保存、阅读或交给其他工具，但不能恢复回响关系。</p><button className="export-link-button" type="button" onClick={() => { setExportIds(entries.map(entry => entry.id)); setExportOpen(true); }}>选择要导出的思考</button></details></section></div>}      {view === "echo" && <div className="page echo-page">
-        <div className="eyebrow">过去与现在，在这里相遇</div>
+        <div className="eyebrow">有一页，从另一个时刻回来</div>
         <h1>回响</h1>
-        <p className="lead">只展示能够回到原文核验的候选联系。约 80% 来自两篇思考的联系，约 20% 是一篇旧记录的受约束回看；质量始终优先于比例。</p>
-        <div className="echo-mode-switch" aria-label="切换回响类型"><button type="button" className={echoMode === "relational" ? "selected" : ""} aria-pressed={echoMode === "relational"} onClick={() => setEchoMode("relational")}>联系回响 · 约 80%</button><button type="button" className={echoMode === "reflective_revisit" ? "selected" : ""} aria-pressed={echoMode === "reflective_revisit"} onClick={() => setEchoMode("reflective_revisit")}>回看回响 · 约 20%</button></div>
-        {echoLoadError ? <div className="echo-empty"><span className="orb">✦</span><h2>回响记录暂时无法读取</h2><p>15 篇日记仍然安全，本页不会因此阻止写作或修改原文。</p></div> : activeEchoRecords.length ? <div className="echo-v2-list">{activeEchoRecords.map(record => <EchoCard key={record.id} record={record} entries={entries} renderContent={content => <Markdown content={content} />} onContinue={continueFromEcho} onNotNow={postponeEcho} />)}</div> : <div className="echo-empty"><span className="orb">✦</span><h2>先让思考沉一沉</h2><p>当前没有达到展示时间和质量门槛的这一类回响。</p></div>}
+        <p className="lead">一次只遇见一页。可以停留、回应，也可以什么都不做。</p>
+        {echoLoadError ? <div className="echo-empty"><span className="orb">✦</span><h2>回响暂时无法读取</h2><p>你的日记仍然安全，写作与原文阅读不会受影响。</p></div> : echoSessionDone ? <div className="echo-empty echo-rest"><span className="orb">·</span><h2>这次就到这里</h2><p>回页不会马上补上下一条。让这一页先留一会儿。</p></div> : currentEchoRecord ? <EchoCard record={currentEchoRecord} entries={entries} renderContent={content => <Markdown content={content} />} onRespond={respondFromEcho} onFeedback={submitEchoFeedback} onOpenEntry={entryId => { const entry = entries.find(item => item.id === entryId); if (entry) openEntry(entry); }} /> : <div className="echo-empty"><span className="orb">✦</span><h2>今天没有新的回响</h2><p>没有合适的一页时，回页会保持安静。</p></div>}
       </div>}      {view === "chat" && <div className="page chat-page"><div className="eyebrow">带着过去，聊聊现在</div><h1>和 AI 聊聊</h1><p className="lead">只有在能够引用真实 Entry、展示出处并遵守回响权限后，这里才会开始回答。</p><div className="chat-box"><div className="chat-empty"><span className="orb">✦</span><h2>真实关联还在校准</h2><p>旧的演示回答已经移除。这里不会用虚构日记假装理解你。</p></div></div></div>}
-      <nav className="mobile-nav">{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><i>{item.icon}</i><span>{item.label}</span></button>)}</nav>
+      <nav className="mobile-nav">{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => item.id === "echo" ? openEchoView() : setView(item.id)}><i>{item.icon}</i><span>{item.label}</span>{item.id === "echo" && currentEchoRecord && !echoSeenThisSession && !echoSessionDone && <b className="echo-presence-dot" aria-label="有一页在等你" />}</button>)}</nav>
     </section>
     {pendingDraft && <div className="modal-back"><div className="draft-restore"><span className="orb">✦</span><small>检测到未保存的记录</small><h2>要继续刚才的思考吗？</h2><p>{pendingDraft.text.trim() ? `${pendingDraft.text.slice(0, 66)}${pendingDraft.text.length > 66 ? "…" : ""}` : "你刚才添加了图片附件。"}</p><div><button onClick={discardDraft}>丢弃</button><button className="primary" onClick={restoreDraft}>恢复记录</button></div></div></div>}
-    {selected && edit && <div className="modal-back" onMouseDown={closeEdit}><div className="review edit-modal" onMouseDown={event => event.stopPropagation()}><div className="review-head"><div><span className="spark">□</span><div><small>{formatTimestamp(selected, now)} · {selected.source}</small><h2>查看与编辑思考</h2></div></div><button onClick={closeEdit}>×</button></div><div className="review-body"><label>标题</label><input value={edit.title} onChange={event => setEdit({ ...edit, title: event.target.value })} /><label>正文</label><div className="markdown-mode"><span>{previewMarkdown ? "Markdown 预览" : "Markdown 编辑"}</span><button type="button" onClick={() => setPreviewMarkdown(!previewMarkdown)}>{previewMarkdown ? "继续编辑" : "预览 Markdown"}</button></div>{previewMarkdown ? <div className="markdown-preview"><Markdown content={edit.content} /></div> : <textarea style={{ height: editRows * 29 + (editLines < 15 ? 40 : 70), minHeight: 0, overflowY: editLines >= 15 ? "auto" : "hidden", paddingBottom: editLines >= 15 ? 52 : 11 }} value={edit.content} onChange={event => setEdit({ ...edit, content: event.target.value })} />}<div className="edit-tags-row"><div><label>标签</label><TagEditor tags={edit.tags} onChange={tags => setEdit({ ...edit, tags })} /></div></div><Toggle checked={edit.aiLink} onChange={() => setEdit({ ...edit, aiLink: !edit.aiLink })} label="参与未来回响" hint="关闭后，它只会被保存，不会参与未来回响" /></div><div className="review-note">这里是这篇思考唯一的当前版本；未来回响与导出都会使用它。</div><div className="review-actions edit-actions"><button className="danger" type="button" disabled title="回收站完成后开放">删除（回收站待完成）</button><span><button onClick={() => downloadMarkdown([selected], selected.title)}>导出本篇</button><button className="primary" onClick={saveEdit}>保存修改</button></span></div></div></div>}    {exportOpen && <div className="modal-back" onMouseDown={() => setExportOpen(false)}><div className="review export-modal" onMouseDown={event => event.stopPropagation()}><div className="review-head"><div><span className="spark">↓</span><div><small>导出思考</small><h2>带走你的记录</h2></div></div><button onClick={() => setExportOpen(false)}>×</button></div><div className="export-tools"><button onClick={() => setExportIds(entries.map(entry => entry.id))}>全选</button><button onClick={() => setExportIds([])}>清空</button><span>已选 {exportIds.length} 篇</span></div><div className="export-list">{entries.map(entry => <label key={entry.id}><input type="checkbox" checked={exportIds.includes(entry.id)} onChange={() => setExportIds(ids => ids.includes(entry.id) ? ids.filter(id => id !== entry.id) : [...ids, entry.id])} /><span><strong>{entry.title}</strong><small>{formatTimestamp(entry, now)} · {entry.tags.join("、") || "无标签"}</small></span></label>)}</div><div className="backup-note">完整备份会保存全部思考、附件、关联许可和回响反馈，可在另一台电脑恢复。</div><div className="review-actions"><button onClick={downloadBackup}>导出完整备份 JSON</button><button className="primary" disabled={!exportIds.length} onClick={() => downloadMarkdown(entries.filter(entry => exportIds.includes(entry.id)))}>导出所选 Markdown</button></div></div></div>}    {toast && <div className="toast">✦ {toast}</div>}
+    {selected && edit && <div className="modal-back" onMouseDown={closeEdit}><div className="review edit-modal" onMouseDown={event => event.stopPropagation()}><div className="review-head"><div><span className="spark">□</span><div><small>{formatTimestamp(selected, now)} · {selected.source}</small><h2>查看这页自己</h2></div></div><button onClick={closeEdit}>×</button></div><div className="review-body"><label>标题</label><input value={edit.title} onChange={event => setEdit({ ...edit, title: event.target.value })} /><label>正文</label><div className="markdown-mode"><span>{previewMarkdown ? "Markdown 预览" : "Markdown 编辑"}</span><button type="button" onClick={() => setPreviewMarkdown(!previewMarkdown)}>{previewMarkdown ? "继续编辑" : "预览 Markdown"}</button></div>{previewMarkdown ? <div className="markdown-preview"><Markdown content={edit.content} /></div> : <textarea style={{ height: editRows * 29 + (editLines < 15 ? 40 : 70), minHeight: 0, overflowY: editLines >= 15 ? "auto" : "hidden", paddingBottom: editLines >= 15 ? 52 : 11 }} value={edit.content} onChange={event => setEdit({ ...edit, content: event.target.value })} />}<div className="edit-tags-row"><div><label>标签</label><TagEditor tags={edit.tags} onChange={tags => setEdit({ ...edit, tags })} /></div></div><Toggle checked={edit.aiLink} onChange={() => setEdit({ ...edit, aiLink: !edit.aiLink })} label="参与未来回响" hint="关闭后，它只会被保存，不会参与未来回响" />{selectedConnections.length > 0 && <section className="entry-connections"><strong>与这页建立连接的回应</strong>{selectedConnections.map(entry => <button type="button" key={entry.id} onClick={() => openEntry(entry)}><span>{entry.title}</span><small>{formatTimestamp(entry, now)} →</small></button>)}</section>}</div><div className="review-note">这里只适合修正错字或排版。想改变当时的意思时，请另写一篇回应，让两个时刻都保留下来。</div><div className="review-actions edit-actions"><button className="danger" type="button" disabled title="回收站完成后开放">删除（回收站待完成）</button><span><button onClick={() => downloadMarkdown([selected], selected.title)}>导出本篇</button><button className="primary" onClick={saveEdit}>保存修改</button></span></div></div></div>}
+    {exportOpen && <div className="modal-back" onMouseDown={() => setExportOpen(false)}><div className="review export-modal" onMouseDown={event => event.stopPropagation()}><div className="review-head"><div><span className="spark">↓</span><div><small>导出思考</small><h2>带走你的记录</h2></div></div><button onClick={() => setExportOpen(false)}>×</button></div><div className="export-tools"><button onClick={() => setExportIds(entries.map(entry => entry.id))}>全选</button><button onClick={() => setExportIds([])}>清空</button><span>已选 {exportIds.length} 篇</span></div><div className="export-list">{entries.map(entry => <label key={entry.id}><input type="checkbox" checked={exportIds.includes(entry.id)} onChange={() => setExportIds(ids => ids.includes(entry.id) ? ids.filter(id => id !== entry.id) : [...ids, entry.id])} /><span><strong>{entry.title}</strong><small>{formatTimestamp(entry, now)} · {entry.tags.join("、") || "无标签"}</small></span></label>)}</div><div className="backup-note">完整备份会保存全部思考、附件、关联许可和回响反馈，可在另一台电脑恢复。</div><div className="review-actions"><button onClick={downloadBackup}>导出完整备份 JSON</button><button className="primary" disabled={!exportIds.length} onClick={() => downloadMarkdown(entries.filter(entry => exportIds.includes(entry.id)))}>导出所选 Markdown</button></div></div></div>}
+    {toast && <div className="toast">✦ {toast}</div>}
   </main>;
 }

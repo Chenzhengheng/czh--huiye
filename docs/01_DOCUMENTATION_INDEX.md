@@ -1,6 +1,6 @@
 # 回页：文档索引
 
-> 最后更新：2026-08-03
+> 最后更新：2026-08-05
 
 ## 推荐阅读顺序
 
@@ -12,6 +12,8 @@
 | [05_DATA_SCHEMA.md](05_DATA_SCHEMA.md) | 目标数据契约、目录和旧数据迁移映射 | 活跃 |
 | [06_TECHNICAL_GUIDE.md](06_TECHNICAL_GUIDE.md) | 当前代码实际上如何运行，以及与目标的差距 | 活跃 |
 | [07_ROADMAP.md](07_ROADMAP.md) | 当前优先级、实施顺序与完成标准 | 活跃 |
+| [assets/huiye-diagrams.html](assets/huiye-diagrams.html) | 用户流程、数据关系与产品结构的可缩放总览 | 活跃 |
+| [adr/0001-reencounter-over-continuation.md](adr/0001-reencounter-over-continuation.md) | 记录为何以跨时重逢取代延续写作作为核心 | 已接受 |
 
 ## 文档边界
 

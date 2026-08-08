@@ -34,7 +34,7 @@ test("server-renders the Huiye writing canvas", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>回页 · 让思考继续生长<\/title>/i);
+  assert.match(html, /<title>回页 · 让写下的自己再次回来<\/title>/i);
   assert.match(html, /此刻，想留下什么？/);
   assert.match(html, /class="paper rich-paper"/);
   assert.match(html, /class="rich-editor"/);
@@ -90,19 +90,25 @@ test("does not revive the retired v1 echo flow", async () => {
   assert.match(page, /<EchoCard/);
   assert.match(page, /\/api\/echo-records/);
   assert.match(page, /\/api\/echo-events/);
-  assert.match(page, /联系回响 · 约 80%/);
-  assert.match(page, /回看回响 · 约 20%/);
+  assert.match(page, /一次只遇见一页/);
+  assert.match(page, /echo-presence-dot/);
+  assert.match(page, /response_started/);
+  assert.match(page, /response_saved/);
+  assert.doesNotMatch(page, /约 80%|约 20%/);
   assert.doesNotMatch(worker, /\/api\/recall|prepareRecall|RECALL_SCHEMA|OPENROUTER_API_KEY/);
 });
 
 test("uses the confirmed three-level source disclosure without embedding private diary text in code", async () => {
   const card = await readFile(new URL("../app/echo-card.tsx", import.meta.url), "utf8");
 
-  assert.match(card, /点击查看原文/);
+  assert.match(card, /查看原文/);
   assert.match(card, /原文节选/);
-  assert.match(card, /点击这段，展开整篇思考/);
+  assert.match(card, /展开整篇/);
   assert.match(card, /完整原文/);
-  assert.match(card, /AI 浓缩 · 不是原文/);
+  assert.match(card, /AI 初步看见 · 可以不同意/);
+  assert.match(card, /有那种感觉/);
+  assert.match(card, /说得对，但没感觉/);
+  assert.match(card, /不太对/);
   assert.doesNotMatch(card, /第一份工作强调的是|出类拔萃，一定是热爱|腾讯、Joe/);
 });
 

@@ -6,11 +6,16 @@ const ECHO_MODES = new Set(["relational", "reflective_revisit"]);
 const EVENT_TYPES = new Set([
   "presented",
   "opened",
+  "feedback_submitted",
+  "response_started",
+  "response_saved",
   "relation_rejected",
   "not_now",
   "continuation_started",
   "continuation_saved",
 ]);
+const FEEDBACK_TYPES = new Set(["resonated", "accurate_no_resonance", "not_quite"]);
+const REJECTION_SCOPES = new Set(["interpretation", "relationship", "evidence", "other"]);
 
 function requireIsoDate(value, field) {
   if (typeof value !== "string" || Number.isNaN(Date.parse(value))) throw new Error(`${field} 必须是有效 ISO 时间`);
@@ -43,6 +48,7 @@ export function validateEchoRecord(input) {
   if (input.mode === "relational" && sourceEntryIds.length < 2) throw new Error("联系回响至少需要两个 Entry");
   if (input.mode === "reflective_revisit" && sourceEntryIds.length !== 1) throw new Error("回看回响只能引用一个 Entry");
   if (input.triggerEntryId !== undefined) requireEntryId(input.triggerEntryId, "triggerEntryId");
+  if (input.cooldownUntil !== undefined) requireIsoDate(input.cooldownUntil, "cooldownUntil");
 
   if (!Array.isArray(input.evidence) || !input.evidence.length) throw new Error("evidence 不能为空");
   for (const [index, evidence] of input.evidence.entries()) {
@@ -72,10 +78,20 @@ export function validateEchoRecord(input) {
   if (!Array.isArray(input.events)) throw new Error("events 必须是数组");
   for (const [index, event] of input.events.entries()) {
     if (!EVENT_TYPES.has(event?.type)) throw new Error(`events[${index}].type 无效`);
+    if (event.id !== undefined) safeRecordId(event.id);
     requireIsoDate(event.createdAt, `events[${index}].createdAt`);
+    if (event.presentationId !== undefined) safeRecordId(event.presentationId);
     if (event.resultEntryId !== undefined) requireEntryId(event.resultEntryId, `events[${index}].resultEntryId`);
-    if (event.type === "continuation_saved" && event.resultEntryId === undefined) throw new Error("continuation_saved 必须包含 resultEntryId");
-    if (event.type !== "continuation_saved" && event.resultEntryId !== undefined) throw new Error("只有 continuation_saved 可以包含 resultEntryId");
+    if (["continuation_saved", "response_saved"].includes(event.type) && event.resultEntryId === undefined) throw new Error(`${event.type} 必须包含 resultEntryId`);
+    if (!["continuation_saved", "response_saved"].includes(event.type) && event.resultEntryId !== undefined) throw new Error("只有保存回应事件可以包含 resultEntryId");
+    if (event.type === "feedback_submitted") {
+      if (!FEEDBACK_TYPES.has(event.feedback)) throw new Error("feedback_submitted 必须包含有效 feedback");
+      if (event.rejectionScope !== undefined && !REJECTION_SCOPES.has(event.rejectionScope)) throw new Error("rejectionScope 无效");
+      if (event.feedback !== "not_quite" && event.rejectionScope !== undefined) throw new Error("只有 not_quite 可以包含 rejectionScope");
+      if (event.reasonCodes !== undefined && (!Array.isArray(event.reasonCodes) || event.reasonCodes.some(value => typeof value !== "string" || !value.trim()))) throw new Error("reasonCodes 必须是非空字符串数组");
+    } else if (event.feedback !== undefined || event.rejectionScope !== undefined || event.reasonCodes !== undefined) {
+      throw new Error("只有 feedback_submitted 可以包含反馈字段");
+    }
   }
   return structuredClone(input);
 }
@@ -122,8 +138,13 @@ export async function appendEchoEvent(rootDir, echoRecordId, eventInput) {
   const filePath = recordPath(rootDir, echoRecordId);
   const record = validateEchoRecord(JSON.parse(await readFile(filePath, "utf8")));
   const event = {
+    id: eventInput?.id || `event-${randomUUID()}`,
     type: eventInput?.type,
     createdAt: eventInput?.createdAt || new Date().toISOString(),
+    ...(eventInput?.presentationId === undefined ? {} : { presentationId: eventInput.presentationId }),
+    ...(eventInput?.feedback === undefined ? {} : { feedback: eventInput.feedback }),
+    ...(eventInput?.rejectionScope === undefined ? {} : { rejectionScope: eventInput.rejectionScope }),
+    ...(eventInput?.reasonCodes === undefined ? {} : { reasonCodes: eventInput.reasonCodes }),
     ...(eventInput?.resultEntryId === undefined ? {} : { resultEntryId: eventInput.resultEntryId }),
   };
   const updated = validateEchoRecord({ ...record, events: [...record.events, event] });

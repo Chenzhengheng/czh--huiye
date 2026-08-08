@@ -174,6 +174,43 @@ test("stores reviewed EchoRecords separately and appends verified continuation e
   }
 });
 
+test("stores reencounter feedback and saved response events", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "huiye-echo-store-"));
+  try {
+    await writeEchoRecord(root, echoFixture());
+    const feedback = await appendEchoEvent(root, "echo-test-1", {
+      type: "feedback_submitted",
+      feedback: "accurate_no_resonance",
+      reasonCodes: ["already_active_understanding"],
+      createdAt: "2026-08-05T00:00:00.000Z",
+    });
+    assert.equal(feedback.events[0].feedback, "accurate_no_resonance");
+    assert.match(feedback.events[0].id, /^event-/);
+
+    const saved = await appendEchoEvent(root, "echo-test-1", {
+      type: "response_saved",
+      resultEntryId: 103,
+      createdAt: "2026-08-05T01:00:00.000Z",
+    });
+    assert.equal(saved.events[1].resultEntryId, 103);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("rejects invalid reencounter feedback", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "huiye-echo-store-"));
+  try {
+    await writeEchoRecord(root, echoFixture());
+    await assert.rejects(() => appendEchoEvent(root, "echo-test-1", {
+      type: "feedback_submitted",
+      feedback: "liked_it",
+    }), /feedback/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("rejects incomplete EchoRecords before creating a private relation file", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "huiye-echo-store-"));
   try {
