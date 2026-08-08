@@ -3025,3 +3025,321 @@ h1 {
     flex: 1 1 auto;
   }
 }
+
+/* Evaluation reading hierarchy and compact first-screen writing rhythm. */
+.write-page {
+  padding-bottom: 18px;
+}
+.write-page > .eyebrow {
+  margin-bottom: 10px;
+}
+.write-page > .lead {
+  margin: 8px 0 18px;
+}
+.write-page .write-tags {
+  margin-top: 12px;
+}
+.write-page .thought-line-field {
+  padding-top: 0;
+  border-top: 0;
+}
+.write-page .write-link-control {
+  margin-top: 16px;
+}
+.write-page .save-row {
+  margin-top: 12px;
+}
+.thought-line-picker {
+  min-width: 0;
+}
+.thought-line-tag-editor {
+  margin-top: 0;
+}
+.thought-line-tag-editor > button {
+  background: #4f5d49;
+  color: #fff;
+}
+.thought-line-tag-editor > button span {
+  margin-right: 4px;
+  color: #e1c18b;
+}
+.thought-line-picker > small {
+  display: block;
+  margin-top: 1px;
+  color: #99958b;
+  font-size: 10px;
+}
+.evaluation-page {
+  max-width: 1040px;
+  padding-top: 50px;
+}
+.evaluation-stage {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 10px 16px;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 13px 16px;
+  border-left: 3px solid var(--gold);
+  background: #f1f2ed;
+}
+.evaluation-stage span {
+  color: #886b45;
+  font-size: 10px;
+  letter-spacing: 0.09em;
+}
+.evaluation-stage strong {
+  font-size: 13px;
+}
+.evaluation-stage small {
+  justify-self: end;
+  color: #858178;
+  font-size: 10px;
+}
+.evaluation-list {
+  display: grid;
+  gap: 18px;
+}
+.evaluation-case {
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid #dfdcd1;
+  border-radius: 12px;
+  background: #fffefa;
+  box-shadow: 0 10px 30px rgba(63, 56, 39, 0.05);
+}
+.evaluation-case-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+  padding: 17px 20px;
+  border-bottom: 1px solid #e8e5dc;
+  background: #f7f6f0;
+}
+.evaluation-case-head > div {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.evaluation-case-head span,
+.evaluation-case-head small {
+  color: #77756b;
+  font-size: 10px;
+}
+.evaluation-case-head strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+.evaluation-verdict {
+  border-radius: 14px;
+  padding: 5px 9px;
+  background: #e9e8e1;
+  color: #77746b;
+  font-size: 10px;
+  font-weight: 400;
+}
+.evaluation-verdict.good {
+  background: #e5ebe1;
+  color: #50604a;
+}
+.evaluation-verdict.bad {
+  background: #f1e5e1;
+  color: #8b574d;
+}
+.evaluation-sources {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 18px 20px;
+}
+.evaluation-sources > article {
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  min-width: 0;
+  padding: 15px 16px;
+  border: 1px solid #e4e1d7;
+  border-radius: 9px;
+  background: #faf9f4;
+}
+.evaluation-sources header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: #969187;
+  font-size: 10px;
+}
+.evaluation-sources h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+}
+.evaluation-sources p {
+  margin: 0;
+  color: #5f5d55;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.evaluation-sources button {
+  justify-self: start;
+  border: 0;
+  border-bottom: 1px solid #cbbba0;
+  background: none;
+  padding: 3px 0;
+  color: #70624e;
+  cursor: pointer;
+  font-size: 10px;
+}
+.evaluation-observation {
+  display: grid;
+  gap: 10px;
+  margin: 0 20px 18px;
+  padding: 16px 18px;
+  border-radius: 9px;
+  background: #edf0e9;
+}
+.evaluation-observation span {
+  color: #64715e;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+}
+.evaluation-observation p,
+.evaluation-observation strong {
+  margin: 0;
+  color: #4f534b;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.8;
+}
+.evaluation-observation strong {
+  padding-top: 9px;
+  border-top: 1px solid #d9ded4;
+}
+.evaluation-feedback {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  padding: 15px 20px 18px;
+  border-top: 1px solid #e8e5dc;
+}
+.evaluation-feedback > span {
+  color: #858178;
+  font-size: 10px;
+}
+.evaluation-feedback > div {
+  display: flex;
+  gap: 7px;
+}
+.evaluation-feedback button {
+  border: 1px solid #dad7cc;
+  border-radius: 16px;
+  background: #fffefa;
+  padding: 6px 10px;
+  color: #68665e;
+  cursor: pointer;
+  font-size: 10px;
+}
+.evaluation-feedback button:hover {
+  border-color: #a9b3a2;
+  background: #eef1eb;
+  color: #4e5d48;
+}
+.evaluation-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #dfdcd1;
+  border-radius: 10px;
+  background: #fffefa;
+}
+.evaluation-table {
+  width: 100%;
+  min-width: 920px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.evaluation-table th,
+.evaluation-table td {
+  padding: 12px 13px;
+  border-bottom: 1px solid #ebe8df;
+  text-align: left;
+  vertical-align: top;
+  font-size: 11px;
+  line-height: 1.65;
+}
+.evaluation-table th {
+  background: #f4f3ed;
+  color: #77746b;
+  font-weight: 500;
+}
+.evaluation-table th:first-child,
+.evaluation-table td:first-child {
+  width: 70px;
+}
+.evaluation-table th:nth-child(2),
+.evaluation-table td:nth-child(2) {
+  width: 150px;
+}
+.evaluation-table th:nth-child(4),
+.evaluation-table td:nth-child(4),
+.evaluation-table th:nth-child(5),
+.evaluation-table td:nth-child(5) {
+  width: 130px;
+}
+.evaluation-table tr.selected td {
+  background: #eef1eb;
+}
+.evaluation-table td button {
+  border: 0;
+  background: none;
+  color: #556650;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.evaluation-table-detail {
+  margin-top: 16px;
+}
+.evaluation-table-detail > p {
+  margin: 0;
+  padding: 22px;
+  border: 1px dashed #d8d6cc;
+  border-radius: 10px;
+  color: #89867d;
+  text-align: center;
+  font-size: 11px;
+}
+@media (max-width: 760px) {
+  .write-page {
+    padding-top: 24px !important;
+  }
+  .evaluation-page {
+    padding-top: 34px;
+  }
+  .evaluation-stage {
+    grid-template-columns: 1fr auto;
+  }
+  .evaluation-stage small {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+  .evaluation-case-head,
+  .evaluation-feedback {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .evaluation-case-head > div,
+  .evaluation-feedback > div {
+    flex-wrap: wrap;
+  }
+  .evaluation-sources {
+    grid-template-columns: 1fr;
+    padding: 14px;
+  }
+  .evaluation-observation {
+    margin: 0 14px 14px;
+  }
+  .evaluation-feedback {
+    padding: 14px;
+  }
+}

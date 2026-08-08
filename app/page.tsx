@@ -568,7 +568,7 @@ function ThoughtLinePicker({
   };
   return (
     <div className="thought-line-picker">
-      <div className="thought-line-picked">
+      <div className="tag-editor thought-line-tag-editor">
         {selections.map((selection) => (
           <button
             key={selection}
@@ -581,30 +581,30 @@ function ThoughtLinePicker({
             {thoughtLineSelectionName(selection, lines)} ×
           </button>
         ))}
-      </div>
-      <div className="thought-line-input">
-        <input
-          list="thought-line-options"
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              add();
-            }
-          }}
-          placeholder="加入已有思考线，或输入名称新建"
-        />
-        <button type="button" onClick={add}>
-          ＋
-        </button>
+        <span>
+          <input
+            list="thought-line-options"
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                add();
+              }
+            }}
+            placeholder="添加思考线"
+          />
+          <button type="button" onClick={add}>
+            ＋
+          </button>
+        </span>
       </div>
       <datalist id="thought-line-options">
         {available.map((line) => (
           <option key={line.id} value={line.name} />
         ))}
       </datalist>
-      <small>思考线由你建立；不选择也可以直接保存。</small>
+      <small>思考线将你的思考连接</small>
     </div>
   );
 }
@@ -648,6 +648,9 @@ export default function Home() {
   const [evaluationMode, setEvaluationMode] = useState<"private" | "demo">(
     "private",
   );
+  const [selectedEvaluationId, setSelectedEvaluationId] = useState<
+    string | null
+  >(null);
   const [toast, setToast] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [edit, setEdit] = useState<Draft | null>(null);
@@ -1413,6 +1416,88 @@ export default function Home() {
       if (importRef.current) importRef.current.value = "";
     }
   }
+
+  function renderEvaluationCase(record: EchoRecordV2) {
+    const line = thoughtLines.find((item) => item.id === record.thoughtLineId);
+    const existing = caseRecords.find(
+      (item) => item.echoRecordId === record.id,
+    );
+    const feedbackLabel =
+      existing?.feedback === "clarified"
+        ? "看清了一点"
+        : existing?.feedback === "already_known"
+          ? "我已经知道了"
+          : existing?.feedback === "not_quite"
+            ? "不太对"
+            : "尚未评测";
+    return (
+      <article className="evaluation-case" key={record.id}>
+        <header className="evaluation-case-head">
+          <div>
+            <span>{line ? `✦ ${line.name}` : "历史兼容 case"}</span>
+            <strong>
+              {record.lifecycle === "legacy_evaluation"
+                ? "历史评测候选"
+                : "线内回响候选"}
+            </strong>
+          </div>
+          <div>
+            <small>{record.relationType ?? record.mode}</small>
+            <b
+              className={`evaluation-verdict ${existing?.verdict ?? "pending"}`}
+            >
+              {feedbackLabel}
+            </b>
+          </div>
+        </header>
+        <section className="evaluation-sources" aria-label="评测输入原文">
+          {record.sourceEntryIds.map((id, index) => {
+            const entry = entries.find((item) => item.id === id);
+            const evidence = record.evidence.find(
+              (item) => item.entryId === id,
+            )?.quote;
+            return (
+              <article key={id}>
+                <header>
+                  <span>来源 {String.fromCharCode(65 + index)}</span>
+                  <time>
+                    {entry ? formatTimestamp(entry, now) : "原文缺失"}
+                  </time>
+                </header>
+                <h3>{entry?.title ?? `缺失原文 ${id}`}</h3>
+                <p>“{evidence ?? "暂无可核验证据"}”</p>
+                {entry && (
+                  <button type="button" onClick={() => openEntry(entry)}>
+                    查看完整原文
+                  </button>
+                )}
+              </article>
+            );
+          })}
+        </section>
+        <section className="evaluation-observation">
+          <span>AI 模型输出 · 由你判断</span>
+          <p>{record.reason}</p>
+          {record.question && <strong>{record.question}</strong>}
+        </section>
+        <footer className="evaluation-feedback">
+          <span>这条观察是否带来了显化价值？</span>
+          <div>
+            <button onClick={() => saveCase(record, "clarified")}>
+              看清了一点
+            </button>
+            <button onClick={() => saveCase(record, "already_known")}>
+              我已经知道了
+            </button>
+            <button onClick={() => saveCase(record, "not_quite")}>
+              不太对
+            </button>
+          </div>
+        </footer>
+      </article>
+    );
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -1489,7 +1574,7 @@ export default function Home() {
             className="page write-page"
             style={{
               maxWidth: 960,
-              paddingTop: 44,
+              paddingTop: 20,
               transform: `translateY(-${Math.min(190, Math.max(0, writeLines - 5) * 20)}px)`,
               transition: "transform .28s ease",
             }}
@@ -2035,68 +2120,93 @@ export default function Home() {
                 <strong>展示模式永不读取或展示私人日记。</strong>
               </section>
             ) : (
-              <div className="evaluation-list">
-                {echoRecords.map((record) => {
-                  const line = thoughtLines.find(
-                    (item) => item.id === record.thoughtLineId,
-                  );
-                  const existing = caseRecords.find(
-                    (item) => item.echoRecordId === record.id,
-                  );
-                  return (
-                    <article key={record.id}>
-                      <header>
-                        <strong>
-                          {line ? `✦ ${line.name}` : "历史兼容 case"}
-                        </strong>
-                        <small>
-                          {record.lifecycle === "legacy_evaluation"
-                            ? "仅评测"
-                            : "线内候选"}
-                        </small>
-                      </header>
-                      <p>{record.reason}</p>
-                      <div>
-                        {record.sourceEntryIds.map((id) => (
-                          <button
-                            key={id}
-                            onClick={() => {
-                              const entry = entries.find(
-                                (item) => item.id === id,
-                              );
-                              if (entry) openEntry(entry);
-                            }}
-                          >
-                            {entries.find((item) => item.id === id)?.title ??
-                              `缺失原文 ${id}`}
-                          </button>
-                        ))}
-                      </div>
-                      <footer>
-                        <span>
-                          {existing
-                            ? `已标记：${existing.feedback}`
-                            : "尚未评测"}
-                        </span>
-                        <button onClick={() => saveCase(record, "clarified")}>
-                          看清了一点
-                        </button>
-                        <button
-                          onClick={() => saveCase(record, "already_known")}
-                        >
-                          我已经知道了
-                        </button>
-                        <button onClick={() => saveCase(record, "not_quite")}>
-                          不太对
-                        </button>
-                      </footer>
-                    </article>
-                  );
-                })}
-                {!echoRecords.length && (
+              <div className="evaluation-workbench">
+                <div className="evaluation-stage">
+                  <span>GOOD CASE 探索期</span>
+                  <strong>{echoRecords.length} 个 case</strong>
+                  <small>
+                    当前先积累真实输入、模型输出和人工反馈；参考答案将在 good
+                    case 稳定后建立。
+                  </small>
+                </div>
+                {!echoRecords.length ? (
                   <div className="echo-empty">
                     <p>还没有可评测的回响记录。</p>
                   </div>
+                ) : echoRecords.length <= 15 ? (
+                  <div className="evaluation-list">
+                    {echoRecords.map(renderEvaluationCase)}
+                  </div>
+                ) : (
+                  <>
+                    <div className="evaluation-table-wrap">
+                      <table className="evaluation-table">
+                        <thead>
+                          <tr>
+                            <th>Case</th>
+                            <th>思考线</th>
+                            <th>模型观察</th>
+                            <th>关系</th>
+                            <th>评测结果</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {echoRecords.map((record, index) => {
+                            const line = thoughtLines.find(
+                              (item) => item.id === record.thoughtLineId,
+                            );
+                            const existing = caseRecords.find(
+                              (item) => item.echoRecordId === record.id,
+                            );
+                            const result =
+                              existing?.feedback === "clarified"
+                                ? "看清了一点"
+                                : existing?.feedback === "already_known"
+                                  ? "我已经知道了"
+                                  : existing?.feedback === "not_quite"
+                                    ? "不太对"
+                                    : "尚未评测";
+                            return (
+                              <tr
+                                key={record.id}
+                                className={
+                                  selectedEvaluationId === record.id
+                                    ? "selected"
+                                    : ""
+                                }
+                              >
+                                <td>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setSelectedEvaluationId(record.id)
+                                    }
+                                  >
+                                    #{String(index + 1).padStart(2, "0")}
+                                  </button>
+                                </td>
+                                <td>{line ? `✦ ${line.name}` : "历史兼容"}</td>
+                                <td>{record.reason}</td>
+                                <td>{record.relationType ?? record.mode}</td>
+                                <td>{result}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="evaluation-table-detail">
+                      {selectedEvaluationId ? (
+                        renderEvaluationCase(
+                          echoRecords.find(
+                            (record) => record.id === selectedEvaluationId,
+                          ) ?? echoRecords[0],
+                        )
+                      ) : (
+                        <p>点击一个 case 编号，展开完整原文证据与评测操作。</p>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
             )}

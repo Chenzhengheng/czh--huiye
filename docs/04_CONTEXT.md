@@ -14,6 +14,14 @@
 
 **CaseRecord（案例评测记录）**：对 EchoRecord 的 good/bad、反馈原因和备注，不复制私人原文，不进入正式回响。避免：正式回响、评测内容副本。
 
+**EvaluationSet（评测集）**：在同一场景定义下，供人工反复检查的一组输入案例。当前由真实 Entry、ThoughtLine 和对应候选共同构成。避免：只收集模型输出、把私人原文复制成另一份数据。
+
+**ModelOutputSet（模型输出集）**：模型面对 EvaluationSet 后产生的 EchoRecord 集合，用于与人工反馈对照和归因。避免：参考答案、用户原话。
+
+**ReferenceAnswer（参考答案）**：对某个输入预先认可的理想输出或关键判断。当前 good case 探索期尚未建立，应从真实 good case 中逐步推演，不能提前伪造。避免：把第一批模型输出直接当标准答案。
+
+**EvaluationCriteria（评测标准）**：用于判断模型输出质量的明确维度。当前首先观察 ManifestationValue，并以 clarified、already_known、not_quite 区分新增显化、重复认知和偏差；完整归因标准待 good case 稳定后建立。避免：只看相关性、只看是否继续写。
+
 ## 核心体验
 
 **ManifestationValue（显化价值）**：AI 把用户已经隐约记录、但尚未清楚说出的变化变得更可见。这是回响第一质量。避免：相关即有价值、AI 检出即成功。

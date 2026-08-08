@@ -136,6 +136,31 @@ test("exposes the three ThoughtLine assignment entries and formal echo boundary"
   assert.match(page, /entry\?\.aiLink/);
 });
 
+test("structures evaluation cases and switches to an overview table after fifteen", async () => {
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.match(page, /echoRecords\.length <= 15/);
+  assert.match(page, /className="evaluation-sources"/);
+  assert.match(page, /AI 模型输出 · 由你判断/);
+  assert.match(page, /className="evaluation-table"/);
+  assert.match(page, /点击一个 case 编号，展开完整原文证据与评测操作/);
+  assert.match(page, /参考答案将在\s*good\s*case\s*稳定后建立/);
+  assert.match(css, /\.evaluation-sources\s*\{/);
+  assert.match(css, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+});
+
+test("keeps ThoughtLine assignment as a marked tag and fits the first writing screen", async () => {
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.match(page, /tag-editor thought-line-tag-editor/);
+  assert.match(page, /思考线将你的思考连接/);
+  assert.match(page, /paddingTop: 20/);
+  assert.match(css, /\.write-page \.save-row/);
+  assert.match(css, /\.thought-line-tag-editor > button/);
+});
+
 test("does not retain the retired AI organization client", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const worker = await readFile(new URL("../worker/index.ts", import.meta.url), "utf8");
