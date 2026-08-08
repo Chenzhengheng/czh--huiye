@@ -585,7 +585,18 @@ function ThoughtLinePicker({
           <input
             list="thought-line-options"
             value={value}
-            onChange={(event) => setValue(event.target.value)}
+            onChange={(event) => {
+              const nextValue = event.target.value;
+              const existing = available.find(
+                (line) => line.name === nextValue,
+              );
+              if (existing) {
+                onChange([...selections, existing.id]);
+                setValue("");
+                return;
+              }
+              setValue(nextValue);
+            }}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
                 event.preventDefault();

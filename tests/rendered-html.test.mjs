@@ -156,6 +156,8 @@ test("keeps ThoughtLine assignment as a marked tag and fits the first writing sc
 
   assert.match(page, /tag-editor thought-line-tag-editor/);
   assert.match(page, /思考线将你的思考连接/);
+  assert.match(page, /line\.name === nextValue/);
+  assert.match(page, /onChange\(\[\.\.\.selections, existing\.id\]\)/);
   assert.match(page, /paddingTop: 20/);
   assert.match(css, /\.write-page \.save-row/);
   assert.match(css, /\.thought-line-tag-editor > button/);
