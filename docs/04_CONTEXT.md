@@ -24,6 +24,14 @@
 
 **EvaluationCriteria（评测标准）**：用于判断模型输出质量的明确维度。当前首先观察 ManifestationValue，并以 clarified、already_known、not_quite 区分新增显化、重复认知和偏差；完整归因标准待 good case 稳定后建立。避免：只看相关性、只看是否继续写。
 
+**EvaluationWorkbook（评测工作簿）**：用于浏览、比较和展开 EvaluationSet 的工作台。包含“评测总表”“评测标准”和“Prompt 版本”三个 Sheet；分别承担跨 Case 比较、判定尺度和生成规则追溯。避免：把全部完整卡片连续铺开、把评测标准或 Prompt 历史散落在备注中。
+
+**EvaluationDimension（评测维度）**：EvaluationCriteria 中可独立判断的一条质量轴。首批维度为关系成立度、显化增量和重逢感，每项使用高／中／低尺度；Case 的 good / bad 仍由人最终判断，不由维度机械计算。关系成立度为低时原则上是 bad；关系成立但其余两项都低时通常也是 bad。避免：把用户是否回应当作质量维度、用单一总分遮蔽失败原因。
+
+**PromptVersion（Prompt 版本）**：一次可复现的候选生成规则，包含完整文本、状态、变更摘要、评测依据和继承关系。输入数量、时间跨度和 ThoughtLine 不同不触发升级；规则实质修改才创建新版本，旧 Case 保留原版本。`echo-eval-v0.1` 冻结首批规则，`v0.2` 仅将关系类型中文化并继承其评测，当前 `v0.3` 负责主思考线内搜索与生成决策，且已完成一条新 good case 的首轮验证。避免：覆盖旧规则、把输入变化冒充版本变化、把继承结果说成独立评测。
+
+**SilentDecision（保持沉默）**：Agent 在一次主 ThoughtLine 搜索中没有候选同时通过关系、证据、显化和解释风险门槛时作出的内部决定。正式体验不呈现失败内容，评测阶段可查看放弃阶段与原因。避免：为了每次都有输出而勉强连接、把沉默保存成正式 EchoRecord。
+
 ## 核心体验
 
 **ManifestationValue（显化价值）**：AI 把用户已经隐约记录、但尚未清楚说出的变化变得更可见。这是回响第一质量。避免：相关即有价值、AI 检出即成功。
@@ -33,6 +41,8 @@
 **MisalignedGrowth（错位生长）**：看见与写下不必发生在同一时刻。用户今天看见一处联系，可能未来才回应；新思考也可以从回页之外进入。避免：线性成长漏斗。
 
 **InterpretiveHypothesis（解释性初判）**：AI 基于原文证据提出、允许用户修正的方向性理解。避免：最终解释、人格诊断。
+
+**SourceDisclosure（来源披露）**：EchoCard 对来源 Entry 的三层呈现：逐字证据、原文节选、完整原文。原文节选默认展开且可收起，完整原文默认关闭并由用户主动展开；评测与正式回响保持一致。避免：只给 AI 摘要、默认铺开整篇长文、评测状态与正式体验不一致。
 
 **CompanionPresence（陪伴式在场）**：以低打扰提示让用户知道有回响可看，不制造待办与未读焦虑。
 
@@ -44,7 +54,7 @@
 
 **EntryEchoPermission（单篇回响权限）**：Entry 是否允许参与任何 AI 回响。拒绝优先。
 
-**EchoRelationType（回响关系类型）**：`continuation` 延续、`revision` 修正、`branch` 分支、`conflict` 冲突、`unresolved_question` 未解决问题或 `other`。
+**EchoRelationType（回响关系类型）**：面向用户和 Prompt 统一显示“延续、修正、分支、冲突、未解决问题、其他”；内部数据仍分别保存为 `continuation`、`revision`、`branch`、`conflict`、`unresolved_question`、`other`。历史记录缺少具体关系时，`relational` 显示为“联系回响”，`reflective_revisit` 显示为“回看回响”。避免：把英文存储枚举直接暴露给用户、为了中文展示迁移已有数据。
 
 **LegacyEvaluation（历史评测）**：旧单页回看或无共同用户思考线的关系记录。只供评测和兼容读取，永不成为正式候选。
 

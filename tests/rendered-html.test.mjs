@@ -109,6 +109,8 @@ test("uses the confirmed three-level source disclosure without embedding private
   assert.match(card, /原文节选/);
   assert.match(card, /展开整篇/);
   assert.match(card, /完整原文/);
+  assert.match(card, /<details className="echo-v2-preview" open>/);
+  assert.match(card, /<details className="echo-v2-full">/);
   assert.match(card, /AI 暂时看见 · 由你判断/);
   assert.match(card, /看清了一点/);
   assert.match(card, /我已经知道了/);
@@ -118,6 +120,9 @@ test("uses the confirmed three-level source disclosure without embedding private
   assert.match(card, /留下回应/);
   assert.match(card, /删除回应/);
   assert.match(card, /selectedFeedback/);
+  assert.match(card, /lineNames/);
+  assert.match(card, /来自思考线/);
+  assert.match(card, /echo-v2-origin/);
   assert.doesNotMatch(card, /第一份工作强调的是|出类拔萃，一定是热爱|腾讯、Joe/);
 });
 
@@ -147,20 +152,67 @@ test("keeps two ThoughtLine assignment entries and formal echo boundary", async 
   assert.match(page, /entry\?\.aiLink/);
 });
 
-test("structures evaluation cases and switches to an overview table after fifteen", async () => {
+test("uses an always-visible evaluation workbook with criteria and one selected detail", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 
-  assert.match(page, /echoRecords\.length <= 15/);
+  assert.doesNotMatch(page, /echoRecords\.length <= 15/);
+  assert.match(page, /evaluationSheet/);
+  assert.match(page, /评测总表/);
+  assert.match(page, /评测标准/);
+  assert.match(page, /Prompt 版本记录/);
+  assert.match(page, /关系成立度/);
+  assert.match(page, /显化增量/);
+  assert.match(page, /重逢感/);
+  assert.match(page, /Prompt 版本/);
+  assert.match(page, /selectedEvaluationRecord/);
+  assert.match(page, /thoughtLineNamesForRecord/);
+  assert.match(page, /evaluationCaseName/);
+  assert.match(page, /echoRelationLabel/);
   assert.match(page, /className="evaluation-echo-card"/);
   assert.match(page, /className="evaluation-assessment"/);
   assert.match(page, /评测结论与上方反馈相互独立/);
   assert.match(page, /userFeedbackText/);
   assert.match(page, /className="evaluation-table"/);
-  assert.match(page, /点击一个 case 编号，展开完整原文证据与评测操作/);
+  assert.match(page, /evaluationRecords\.length\s*-\s*index/);
+  assert.doesNotMatch(page, /String\(index\s*\+\s*1\)\.padStart/);
   assert.match(page, /参考答案将在\s*good\s*case\s*稳定后建立/);
   assert.match(css, /\.evaluation-echo-card\s*\{/);
   assert.match(css, /\.evaluation-assessment\s*\{/);
+  assert.match(css, /\.evaluation-sheet-tabs\s*\{/);
+  assert.match(css, /\.evaluation-criteria-sheet\s*\{/);
+  assert.match(css, /\.evaluation-prompt-history\s*\{/);
+  assert.match(css, /min-width:\s*1780px/);
+});
+
+test("keeps evaluation criteria, Chinese relation labels and traceable Prompt versions in one shared module", async () => {
+  const model = await readFile(
+    new URL("../app/evaluation-model.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(model, /echo-eval-v0\.1/);
+  assert.match(model, /echo-eval-v0\.2/);
+  assert.match(model, /echo-eval-v0\.3/);
+  assert.match(model, /status:\s*"evaluated"/);
+  assert.match(
+    model,
+    /version:\s*"echo-eval-v0\.3",\s*status:\s*"evaluated"/s,
+  );
+  assert.match(model, /人工评测为 good/);
+  assert.match(model, /inheritsFrom:\s*"echo-eval-v0\.1"/);
+  assert.match(model, /主思考线就是本次搜索边界/);
+  assert.match(model, /最小充分集/);
+  assert.match(model, /决定：生成／保持沉默/);
+  assert.match(model, /无真实关系／证据不足／无显化增量／解释风险过高/);
+  assert.match(model, /relationValidity/);
+  assert.match(model, /manifestationGain/);
+  assert.match(model, /reencounterFeeling/);
+  assert.match(model, /同主题、关键词相似或情绪相似本身不构成关系/);
+  assert.match(model, /选择延续、修正、分支、冲突、未解决问题或其他/);
+  assert.match(model, /continuation:\s*"延续"/);
+  assert.match(model, /relational:\s*"联系回响"/);
+  assert.match(model, /不要输出 good\/bad/);
 });
 
 test("keeps ThoughtLine assignment as a marked tag and fits the first writing screen", async () => {

@@ -121,6 +121,12 @@ test("persists thought lines, memberships and evaluation records in a recoverabl
       echoRecordId: "echo-test-1",
       verdict: "good",
       feedback: "clarified",
+      dimensions: {
+        relationValidity: "high",
+        manifestationGain: "medium",
+        reencounterFeeling: "low",
+      },
+      promptVersion: "echo-eval-v0.1",
       reasonCodes: ["manifested_change", "recent_understanding_low_increment"],
       userFeedbackText: "变化确实存在，但因为刚刚悟出来，感触增量较低。",
       createdAt: "2026-08-08T00:00:00.000Z",
@@ -138,6 +144,25 @@ test("persists thought lines, memberships and evaluation records in a recoverabl
     assert.deepEqual(restored.entries[0].thoughtLineIds, ["line-product"]);
     assert.deepEqual(restored.caseRecords, data.caseRecords);
     assert.deepEqual(restored.echoReplies, data.echoReplies);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("rejects unknown CaseRecord evaluation levels", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "huiye-local-store-"));
+  try {
+    const data = fixture();
+    data.caseRecords = [{
+      id: "case-invalid-level",
+      echoRecordId: "echo-test-1",
+      dimensions: { relationValidity: "almost" },
+      createdAt: "2026-08-09T00:00:00.000Z",
+    }];
+    await assert.rejects(
+      () => writeLocalData(root, data),
+      /CaseRecord 评测维度无效/,
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }

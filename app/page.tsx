@@ -10,6 +10,18 @@ import {
   type EchoRecordV2,
 } from "./echo-card";
 import {
+  ECHO_EVAL_PROMPT_VERSION,
+  echoRelationLabel,
+  evaluationCaseName,
+  evaluationDimensions,
+  evaluationLevelLabels,
+  promptVersions,
+  promptVersionStatusLabels,
+  type EvaluationDimensionKey,
+  type EvaluationDimensions,
+  type EvaluationLevel,
+} from "./evaluation-model";
+import {
   activeThoughtLines,
   draftThoughtLineSelection,
   materializeThoughtLineSelections,
@@ -61,6 +73,8 @@ type CaseRecord = {
   verdict?: "good" | "bad";
   feedback?: "clarified" | "already_known" | "not_quite";
   reasonCodes?: string[];
+  dimensions?: EvaluationDimensions;
+  promptVersion?: string;
   userFeedbackText?: string;
   notes?: string;
   createdAt: string;
@@ -86,6 +100,7 @@ type Echo = {
   status: "pending" | "opened" | "continued" | "irrelevant";
 };
 type StorageStatus = "loading" | "saving" | "saved" | "error";
+type EvaluationSheet = "cases" | "criteria" | "versions";
 const DRAFT_KEY = "huiye-writing-draft-v1";
 const WRITE_LINE_HEIGHT = 41;
 const WRITE_MIN_LINES = 6;
@@ -665,6 +680,8 @@ export default function Home() {
   const [evaluationMode, setEvaluationMode] = useState<"private" | "demo">(
     "private",
   );
+  const [evaluationSheet, setEvaluationSheet] =
+    useState<EvaluationSheet>("cases");
   const [selectedEvaluationId, setSelectedEvaluationId] = useState<
     string | null
   >(null);
@@ -914,6 +931,19 @@ export default function Home() {
   );
   const editLines = visualLineCount(edit?.content || "", 55);
   const editRows = Math.min(15, Math.max(6, editLines + 3));
+  const evaluationRecords = useMemo(
+    () =>
+      [...echoRecords].sort(
+        (left, right) =>
+          Date.parse(right.discoveredAt) - Date.parse(left.discoveredAt),
+      ),
+    [echoRecords],
+  );
+  const activeEvaluationId =
+    selectedEvaluationId ?? evaluationRecords[0]?.id ?? null;
+  const selectedEvaluationRecord =
+    evaluationRecords.find((record) => record.id === activeEvaluationId) ??
+    evaluationRecords[0];
 
   const notify = (message: string) => {
     setToast(message);
@@ -940,6 +970,7 @@ export default function Home() {
           createdAt: new Date().toISOString(),
         }),
         feedback,
+        promptVersion: record.ruleVersion,
         reasonCodes:
           feedback === "clarified"
             ? ["manifested_change"]
@@ -955,7 +986,10 @@ export default function Home() {
     notify("反馈已记录；good / bad 仍由你单独判断");
   }
 
-  function setCaseVerdict(record: EchoRecordV2, verdict: "good" | "bad") {
+  function setCaseVerdict(
+    record: EchoRecordV2,
+    verdict?: "good" | "bad",
+  ) {
     setCaseRecords((current) => {
       const existing = current.find(
         (item) => item.echoRecordId === record.id,
@@ -968,13 +1002,65 @@ export default function Home() {
           createdAt: new Date().toISOString(),
         }),
         verdict,
+        promptVersion: record.ruleVersion,
       };
       return [
         next,
         ...current.filter((item) => item.echoRecordId !== record.id),
       ];
     });
-    notify(`已标记为 ${verdict}`);
+    notify(verdict ? `已标记为 ${verdict}` : "已清除 Case 类型");
+  }
+
+  function setCaseDimension(
+    record: EchoRecordV2,
+    key: EvaluationDimensionKey,
+    level?: EvaluationLevel,
+  ) {
+    setCaseRecords((current) => {
+      const existing = current.find(
+        (item) => item.echoRecordId === record.id,
+      );
+      const dimensions = { ...(existing?.dimensions ?? {}) };
+      if (level) dimensions[key] = level;
+      else delete dimensions[key];
+      const next: CaseRecord = {
+        ...(existing ?? {
+          id: `case-${Date.now()}`,
+          echoRecordId: record.id,
+          reasonCodes: [],
+          createdAt: new Date().toISOString(),
+        }),
+        dimensions,
+        promptVersion: record.ruleVersion,
+      };
+      return [
+        next,
+        ...current.filter((item) => item.echoRecordId !== record.id),
+      ];
+    });
+  }
+
+  function setCaseNotes(record: EchoRecordV2, notes: string) {
+    setCaseRecords((current) => {
+      const existing = current.find(
+        (item) => item.echoRecordId === record.id,
+      );
+      const next: CaseRecord = {
+        ...(existing ?? {
+          id: `case-${Date.now()}`,
+          echoRecordId: record.id,
+          reasonCodes: [],
+          createdAt: new Date().toISOString(),
+        }),
+        notes,
+        promptVersion: record.ruleVersion,
+      };
+      return [
+        next,
+        ...current.filter((item) => item.echoRecordId !== record.id),
+      ];
+    });
   }
 
   function updateLineName() {
@@ -1437,8 +1523,50 @@ export default function Home() {
     }
   }
 
+  function thoughtLineNamesForRecord(record: EchoRecordV2) {
+    const lineIds = new Set<string>();
+    if (record.thoughtLineId) lineIds.add(record.thoughtLineId);
+    for (const entryId of record.sourceEntryIds) {
+      const entry = entries.find((item) => item.id === entryId);
+      for (const lineId of entry?.thoughtLineIds ?? []) lineIds.add(lineId);
+    }
+    return [...lineIds]
+      .map((lineId) => thoughtLines.find((line) => line.id === lineId)?.name)
+      .filter((name): name is string => Boolean(name));
+  }
+
+  function renderEvaluationLevelSelect(
+    record: EchoRecordV2,
+    key: EvaluationDimensionKey,
+    label: string,
+  ) {
+    const existing = caseRecords.find(
+      (item) => item.echoRecordId === record.id,
+    );
+    return (
+      <select
+        aria-label={`${label}：${evaluationCaseName(record, entries)}`}
+        value={existing?.dimensions?.[key] ?? ""}
+        onClick={(event) => event.stopPropagation()}
+        onChange={(event) => {
+          event.stopPropagation();
+          setCaseDimension(
+            record,
+            key,
+            (event.target.value || undefined) as EvaluationLevel | undefined,
+          );
+        }}
+      >
+        <option value="">待评测</option>
+        <option value="high">高</option>
+        <option value="medium">中</option>
+        <option value="low">低</option>
+      </select>
+    );
+  }
+
   function renderEvaluationCase(record: EchoRecordV2) {
-    const line = thoughtLines.find((item) => item.id === record.thoughtLineId);
+    const lineNames = thoughtLineNamesForRecord(record);
     const existing = caseRecords.find(
       (item) => item.echoRecordId === record.id,
     );
@@ -1454,7 +1582,11 @@ export default function Home() {
       <article className="evaluation-case" key={record.id}>
         <header className="evaluation-case-head">
           <div>
-            <span>{line ? `✦ ${line.name}` : "历史兼容 case"}</span>
+            <span>
+              {lineNames.length
+                ? `✦ ${lineNames.join(" · ")}`
+                : "历史兼容 case"}
+            </span>
             <strong>
               {record.lifecycle === "legacy_evaluation"
                 ? "历史评测候选"
@@ -1464,7 +1596,7 @@ export default function Home() {
             </strong>
           </div>
           <div>
-            <small>{record.relationType ?? record.mode}</small>
+            <small>{echoRelationLabel(record)}</small>
             <b
               className={`evaluation-verdict ${existing?.verdict ?? "pending"}`}
             >
@@ -1476,7 +1608,7 @@ export default function Home() {
           <EchoCard
             record={record}
             entries={entries}
-            lineName={line?.name}
+            lineNames={lineNames}
             renderContent={(content) => <Markdown content={content} />}
             reply={echoReplies.find(
               (reply) => reply.echoRecordId === record.id,
@@ -1499,6 +1631,18 @@ export default function Home() {
           />
         </div>
         <footer className="evaluation-assessment">
+          <div className="evaluation-dimension-controls">
+            {evaluationDimensions.map((dimension) => (
+              <label key={dimension.key}>
+                <span>{dimension.name}</span>
+                {renderEvaluationLevelSelect(
+                  record,
+                  dimension.key,
+                  dimension.name,
+                )}
+              </label>
+            ))}
+          </div>
           <div className="evaluation-verdict-controls">
             <span>评测结论与上方反馈相互独立</span>
             <button
@@ -1523,7 +1667,15 @@ export default function Home() {
           {!!existing?.reasonCodes?.length && (
             <small>归因：{existing.reasonCodes.join(" · ")}</small>
           )}
-          {existing?.notes && <small>备注：{existing.notes}</small>}
+          <label className="evaluation-notes-field">
+            <span>备注</span>
+            <textarea
+              value={existing?.notes ?? ""}
+              onChange={(event) => setCaseNotes(record, event.target.value)}
+              placeholder="记录判断依据、情境或需要继续观察的地方"
+              rows={2}
+            />
+          </label>
         </footer>
       </article>
     );
@@ -2152,13 +2304,97 @@ export default function Home() {
                     case 稳定后建立。
                   </small>
                 </div>
-                {!echoRecords.length ? (
+                <div className="evaluation-sheet-tabs" role="tablist">
+                  <button
+                    role="tab"
+                    aria-selected={evaluationSheet === "cases"}
+                    className={evaluationSheet === "cases" ? "selected" : ""}
+                    onClick={() => setEvaluationSheet("cases")}
+                  >
+                    评测总表
+                  </button>
+                  <button
+                    role="tab"
+                    aria-selected={evaluationSheet === "criteria"}
+                    className={
+                      evaluationSheet === "criteria" ? "selected" : ""
+                    }
+                    onClick={() => setEvaluationSheet("criteria")}
+                  >
+                    评测标准
+                  </button>
+                  <button
+                    role="tab"
+                    aria-selected={evaluationSheet === "versions"}
+                    className={evaluationSheet === "versions" ? "selected" : ""}
+                    onClick={() => setEvaluationSheet("versions")}
+                  >
+                    Prompt 版本
+                  </button>
+                </div>
+                {evaluationSheet === "versions" ? (
+                  <section className="evaluation-prompt-history">
+                    <header>
+                      <span>Prompt 版本记录</span>
+                      <strong>保留每一次规则变化，也保留它依据了什么</strong>
+                      <p>
+                        当前工作版本为 {ECHO_EVAL_PROMPT_VERSION}。输入数量、时间跨度和思考线变化不升级版本；规则实质变化才新增版本。
+                      </p>
+                    </header>
+                    <div className="evaluation-prompt-list">
+                      {[...promptVersions].reverse().map((version) => (
+                        <article className="evaluation-prompt-sheet" key={version.version}>
+                          <header>
+                            <div>
+                              <span>Prompt 版本</span>
+                              <strong>{version.version}</strong>
+                              <b>{promptVersionStatusLabels[version.status]}</b>
+                            </div>
+                            <small>
+                              {version.inheritsFrom
+                                ? `继承 ${version.inheritsFrom}`
+                                : "首个冻结版本"}
+                            </small>
+                          </header>
+                          <div className="evaluation-prompt-meta">
+                            <p><b>变更</b>{version.changeSummary}</p>
+                            <p><b>依据</b>{version.evaluationBasis}</p>
+                          </div>
+                          <pre>{version.prompt}</pre>
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                ) : evaluationSheet === "criteria" ? (
+                  <section className="evaluation-criteria-sheet">
+                    <header>
+                      <span>评测标准 · 当前工作版本</span>
+                      <strong>主观判断需要尺度，不需要伪装成客观分数</strong>
+                      <p>
+                        三个维度分别判断，不求和；good / bad 最终仍由人决定。
+                        关系成立度为低时原则上是 bad；关系成立但另外两项都低时通常也是 bad。
+                      </p>
+                    </header>
+                    <div className="evaluation-criteria-grid">
+                      {evaluationDimensions.map((dimension) => (
+                        <article key={dimension.key}>
+                          <h2>{dimension.name}</h2>
+                          <p>{dimension.question}</p>
+                          {(Object.keys(evaluationLevelLabels) as EvaluationLevel[]).map(
+                            (level) => (
+                              <div key={level}>
+                                <b>{evaluationLevelLabels[level]}</b>
+                                <span>{dimension.levels[level]}</span>
+                              </div>
+                            ),
+                          )}
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                ) : !evaluationRecords.length ? (
                   <div className="echo-empty">
                     <p>还没有可评测的回响记录。</p>
-                  </div>
-                ) : echoRecords.length <= 15 ? (
-                  <div className="evaluation-list">
-                    {echoRecords.map(renderEvaluationCase)}
                   </div>
                 ) : (
                   <>
@@ -2167,51 +2403,111 @@ export default function Home() {
                         <thead>
                           <tr>
                             <th>Case</th>
-                            <th>思考线</th>
-                            <th>模型观察</th>
+                            <th>回响名</th>
+                            <th>来源思考线</th>
                             <th>关系</th>
-                            <th>评测结果</th>
+                            <th>关系成立度</th>
+                            <th>显化增量</th>
+                            <th>重逢感</th>
+                            <th>Case 类型</th>
+                            <th>Prompt 版本</th>
+                            <th>备注</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {echoRecords.map((record, index) => {
-                            const line = thoughtLines.find(
-                              (item) => item.id === record.thoughtLineId,
-                            );
+                          {evaluationRecords.map((record, index) => {
                             const existing = caseRecords.find(
                               (item) => item.echoRecordId === record.id,
                             );
-                            const result =
-                              existing?.feedback === "clarified"
-                                ? "看清了一点"
-                                : existing?.feedback === "already_known"
-                                  ? "我已经知道了"
-                                  : existing?.feedback === "not_quite"
-                                    ? "不太对"
-                                    : "尚未评测";
+                            const lineNames = thoughtLineNamesForRecord(record);
                             return (
                               <tr
                                 key={record.id}
                                 className={
-                                  selectedEvaluationId === record.id
+                                  activeEvaluationId === record.id
                                     ? "selected"
                                     : ""
                                 }
+                                onClick={() =>
+                                  setSelectedEvaluationId(record.id)
+                                }
                               >
                                 <td>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setSelectedEvaluationId(record.id)
-                                    }
-                                  >
-                                    #{String(index + 1).padStart(2, "0")}
+                                  <button type="button">
+                                    #{String(evaluationRecords.length - index).padStart(2, "0")}
                                   </button>
                                 </td>
-                                <td>{line ? `✦ ${line.name}` : "历史兼容"}</td>
-                                <td>{record.reason}</td>
-                                <td>{record.relationType ?? record.mode}</td>
-                                <td>{result}</td>
+                                <td>
+                                  <button type="button" className="case-name">
+                                    {evaluationCaseName(record, entries)}
+                                  </button>
+                                </td>
+                                <td>
+                                  {lineNames.length
+                                    ? lineNames.join(" · ")
+                                    : "历史兼容"}
+                                </td>
+                                <td>{echoRelationLabel(record)}</td>
+                                <td>
+                                  {renderEvaluationLevelSelect(
+                                    record,
+                                    "relationValidity",
+                                    "关系成立度",
+                                  )}
+                                </td>
+                                <td>
+                                  {renderEvaluationLevelSelect(
+                                    record,
+                                    "manifestationGain",
+                                    "显化增量",
+                                  )}
+                                </td>
+                                <td>
+                                  {renderEvaluationLevelSelect(
+                                    record,
+                                    "reencounterFeeling",
+                                    "重逢感",
+                                  )}
+                                </td>
+                                <td>
+                                  <select
+                                    aria-label={`Case 类型：${evaluationCaseName(record, entries)}`}
+                                    value={existing?.verdict ?? ""}
+                                    onClick={(event) => event.stopPropagation()}
+                                    onChange={(event) => {
+                                      event.stopPropagation();
+                                      setCaseVerdict(
+                                        record,
+                                        (event.target.value || undefined) as
+                                          | "good"
+                                          | "bad"
+                                          | undefined,
+                                      );
+                                    }}
+                                  >
+                                    <option value="">未判断</option>
+                                    <option value="good">good</option>
+                                    <option value="bad">bad</option>
+                                  </select>
+                                </td>
+                                <td>
+                                  <code>
+                                    {existing?.promptVersion ??
+                                      record.ruleVersion}
+                                  </code>
+                                </td>
+                                <td>
+                                  <input
+                                    aria-label={`备注：${evaluationCaseName(record, entries)}`}
+                                    value={existing?.notes ?? ""}
+                                    placeholder="写一点判断依据"
+                                    onClick={(event) => event.stopPropagation()}
+                                    onChange={(event) => {
+                                      event.stopPropagation();
+                                      setCaseNotes(record, event.target.value);
+                                    }}
+                                  />
+                                </td>
                               </tr>
                             );
                           })}
@@ -2219,15 +2515,8 @@ export default function Home() {
                       </table>
                     </div>
                     <div className="evaluation-table-detail">
-                      {selectedEvaluationId ? (
-                        renderEvaluationCase(
-                          echoRecords.find(
-                            (record) => record.id === selectedEvaluationId,
-                          ) ?? echoRecords[0],
-                        )
-                      ) : (
-                        <p>点击一个 case 编号，展开完整原文证据与评测操作。</p>
-                      )}
+                      {selectedEvaluationRecord &&
+                        renderEvaluationCase(selectedEvaluationRecord)}
                     </div>
                   </>
                 )}
@@ -2331,11 +2620,7 @@ export default function Home() {
               <EchoCard
                 record={currentEchoRecord}
                 entries={entries}
-                lineName={
-                  thoughtLines.find(
-                    (line) => line.id === currentEchoRecord.thoughtLineId,
-                  )?.name
-                }
+                lineNames={thoughtLineNamesForRecord(currentEchoRecord)}
                 renderContent={(content) => <Markdown content={content} />}
                 reply={echoReplies.find(
                   (reply) => reply.echoRecordId === currentEchoRecord.id,

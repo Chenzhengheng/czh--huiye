@@ -154,7 +154,7 @@ function EchoSource({
           <time dateTime={entry.createdAt}>{displayDate(entry)}</time>
         </div>
         <p className="echo-v2-quote">“{quote}”</p>
-        <details className="echo-v2-preview">
+        <details className="echo-v2-preview" open>
           <summary>
             <span className="echo-v2-book" aria-hidden="true">
               □
@@ -191,7 +191,7 @@ const feedbackLabels: Array<{ value: EchoFeedback; label: string }> = [
 export function EchoCard({
   record,
   entries,
-  lineName,
+  lineNames = [],
   renderContent,
   reply,
   selectedFeedback,
@@ -202,7 +202,7 @@ export function EchoCard({
 }: {
   record: EchoRecordV2;
   entries: EchoEntry[];
-  lineName?: string;
+  lineNames?: string[];
   renderContent: (content: string) => ReactNode;
   reply?: EchoReply;
   selectedFeedback?: EchoFeedback;
@@ -230,19 +230,27 @@ export function EchoCard({
     <article className="echo-v2-card">
       <header className="echo-v2-head">
         <strong>
-          {lineName
-            ? `✦ ${lineName}`
+          {lineNames.length
+            ? `✦ ${lineNames[0]}`
             : isRelational
               ? relationalGap(sources)
               : "一页过去，回到现在"}
         </strong>
-        <span>
-          {lineName
-            ? "AI 在线内看见"
-            : isRelational
-              ? "历史联系 case"
-              : "历史回看 case"}
-        </span>
+        <div className="echo-v2-origin">
+          <span>
+            {lineNames.length
+              ? "AI 在线内看见"
+              : isRelational
+                ? "历史联系 case"
+                : "历史回看 case"}
+          </span>
+          {!!lineNames.length && (
+            <small>
+              来自思考线
+              <b>{lineNames.join(" · ")}</b>
+            </small>
+          )}
+        </div>
       </header>
       <div className="echo-v2-sources">
         {sources.map((entry, index) => (

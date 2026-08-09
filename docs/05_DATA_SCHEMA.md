@@ -1,6 +1,6 @@
 # 回页数据契约
 
-> 当前实现契约，2026-08-08。私人数据以不可变 generation 保存；缺少新文件的旧 generation 仍可读取。
+> 当前实现契约，2026-08-09。私人数据以不可变 generation 保存；缺少新文件的旧 generation 仍可读取。
 
 ## Entry
 
@@ -26,9 +26,11 @@ ID 稳定唯一，非 merged 线名称唯一。新线只随 Entry 保存物化�
 
 正式扩展字段为 `thoughtLineId`、`relationType` 和 `lifecycle: candidate | evaluation_only | legacy_evaluation | invalidated`。正式候选要求：思考线 active 且允许 AI；至少两篇来源 Entry 同属该线且 `aiLink=true`；lifecycle 必须是 candidate 或缺省。`evaluation_only` 只进入评测工作台，`legacy_evaluation` 只兼容旧机制，invalidated 不再有效。原有 evidence、sourceSummaries、reason、question、时间、规则版本和事件继续保留。
 
+`relationType` 继续使用英文枚举 `continuation | revision | branch | conflict | unresolved_question | other`。Prompt 输出和界面展示使用对应中文“延续、修正、分支、冲突、未解决问题、其他”，这只是展示映射，不改变存储契约。
+
 ## CaseRecord
 
-`CaseRecord` 引用 `echoRecordId`，分别保存可选 `verdict: good | bad`、可选 `feedback: clarified | already_known | not_quite`、reasonCodes、可选 `userFeedbackText`、可选 notes 和 createdAt。feedback 不自动决定 verdict；userFeedbackText 逐字保存用户对反馈的说明。它不复制来源 Entry 原文，也不改变正式候选状态。
+`CaseRecord` 引用 `echoRecordId`，分别保存可选 `verdict: good | bad`、可选 `feedback: clarified | already_known | not_quite`、reasonCodes、可选 `userFeedbackText`、可选 notes、可选 `promptVersion`、可选 dimensions 和 createdAt。dimensions 的三个固定键为 `relationValidity`、`manifestationGain`、`reencounterFeeling`，每项只允许 `high | medium | low`。旧记录缺少这些字段时按“待评测”和 EchoRecord 自身 ruleVersion 兼容显示。feedback、dimensions 和 verdict 互不自动推断；userFeedbackText 逐字保存用户对反馈的说明。它不复制来源 Entry 原文，也不改变正式候选状态。
 
 ## EchoReply
 

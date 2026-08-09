@@ -68,7 +68,30 @@ function assertBackup(data) {
       for (const lineId of entry.thoughtLineIds ?? []) if (!lineIds.has(lineId)) throw new Error(`日记 ${entry.id} 引用了不存在的思考线：${lineId}`);
     }
   }
-  if (data.caseRecords !== undefined && !Array.isArray(data.caseRecords)) throw new Error("caseRecords 必须是数组");
+  if (data.caseRecords !== undefined) {
+    if (!Array.isArray(data.caseRecords)) throw new Error("caseRecords 必须是数组");
+    const caseIds = new Set();
+    const caseEchoIds = new Set();
+    const levels = new Set(["high", "medium", "low"]);
+    const dimensionKeys = new Set(["relationValidity", "manifestationGain", "reencounterFeeling"]);
+    for (const record of data.caseRecords) {
+      if (!record || typeof record.id !== "string" || !record.id.trim()) throw new Error("存在无效 CaseRecord");
+      if (caseIds.has(record.id)) throw new Error(`CaseRecord ID 重复：${record.id}`);
+      caseIds.add(record.id);
+      if (typeof record.echoRecordId !== "string" || !record.echoRecordId.trim()) throw new Error(`CaseRecord 缺少 EchoRecord：${record.id}`);
+      if (caseEchoIds.has(record.echoRecordId)) throw new Error(`一条 EchoRecord 只能有一条 CaseRecord：${record.echoRecordId}`);
+      caseEchoIds.add(record.echoRecordId);
+      if (record.verdict !== undefined && !new Set(["good", "bad"]).has(record.verdict)) throw new Error(`CaseRecord verdict 无效：${record.id}`);
+      if (record.feedback !== undefined && !new Set(["clarified", "already_known", "not_quite"]).has(record.feedback)) throw new Error(`CaseRecord feedback 无效：${record.id}`);
+      if (record.promptVersion !== undefined && (typeof record.promptVersion !== "string" || !record.promptVersion.trim())) throw new Error(`CaseRecord PromptVersion 无效：${record.id}`);
+      if (record.dimensions !== undefined) {
+        if (!record.dimensions || typeof record.dimensions !== "object" || Array.isArray(record.dimensions)) throw new Error(`CaseRecord dimensions 无效：${record.id}`);
+        for (const [key, value] of Object.entries(record.dimensions)) {
+          if (!dimensionKeys.has(key) || !levels.has(value)) throw new Error(`CaseRecord 评测维度无效：${record.id}`);
+        }
+      }
+    }
+  }
   if (data.echoReplies !== undefined) {
     if (!Array.isArray(data.echoReplies)) throw new Error("echoReplies 必须是数组");
     const replyIds = new Set();
