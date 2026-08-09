@@ -3,8 +3,8 @@ Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName PresentationCore
 
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$url = "http://localhost:4317"
-$apiUrl = "$url/api/data"
+$url = "http://localhost:4317/app"
+$apiUrl = "http://localhost:4317/api/data"
 $node = Join-Path $env:USERPROFILE ".cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe"
 if (!(Test-Path -LiteralPath $node)) {
   $nodeCommand = Get-Command node -ErrorAction SilentlyContinue

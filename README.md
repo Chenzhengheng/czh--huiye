@@ -8,6 +8,8 @@
 
 AI 不替用户建立人生图谱，也不替用户下结论。它只说：“我暂时看见了这里，是否值得你再看一眼？”用户可以回味、回应、继续写，也可以沉默离开。
 
+[打开回页作品集](https://huiye-ai-diary.zhenghengchen13.chatgpt.site) · [体验脱敏演示](https://huiye-ai-diary.zhenghengchen13.chatgpt.site/portfolio/demo) · [查看完整评测](https://huiye-ai-diary.zhenghengchen13.chatgpt.site/portfolio/demo/evaluation)
+
 ## 核心体验
 
 ![回页用户流程：从写下、选择性归线到正式回响与当前评测](docs/assets/huiye-user-path-bpmn.svg)
@@ -54,6 +56,7 @@ AI 优先在同一条思考线中寻找至少两篇、发生于不同时间的�
 - 回响必须隶属一条用户建立的思考线，历史机制只保留在评测中；
 - 已查看的回响以点的形式留在线上，并随反馈呈现不同状态；
 - 私人评测与脱敏展示模式分离，展示模式不读取私人日记。
+- 公开根网址展示作品集；本地私人回页使用 `/app`，脱敏演示与私人数据入口相互隔离。
 
 ## 文档地图
 
@@ -75,7 +78,7 @@ pnpm install
 pnpm local
 ```
 
-默认打开 `http://127.0.0.1:4317`。完整命令和数据安全说明见[开发入口](docs/02_README.md)。
+默认打开 `http://127.0.0.1:4317/app`。完整命令和数据安全说明见[开发入口](docs/02_README.md)。
 
 ---
 

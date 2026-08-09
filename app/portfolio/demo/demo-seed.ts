@@ -1,4 +1,4 @@
-import type { PortfolioSeed } from "../../page";
+import type { PortfolioSeed } from "../../huiye-app";
 import { portfolioEntries, portfolioThoughtLines } from "./demo-entries";
 import {
   portfolioCaseRecords,

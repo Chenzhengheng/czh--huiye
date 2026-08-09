@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import HuiyeApp from "../../page";
+import HuiyeApp from "../../huiye-app";
 import { portfolioSeed } from "./demo-seed";
 
 export const metadata: Metadata = {

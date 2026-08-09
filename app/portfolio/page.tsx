@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import styles from "./portfolio.module.css";
+import heroStyles from "./portfolio-hero.module.css";
 
 const githubUrl = "https://github.com/Chenzhengheng/czh--huiye";
 const userFlowUrl =
@@ -36,54 +37,39 @@ export default function PortfolioPage() {
         </div>
       </nav>
 
-      <section className={styles.hero} id="top">
-        <div className={styles.heroCopy}>
-          <p className={styles.eyebrow}>AI PRODUCT · 0 → 1 CASE STUDY</p>
-          <h1>
-            让思考
-            <br />
-            继续生长
-          </h1>
-          <p className={styles.lead}>
-            用户用思考线划定边界，AI 将已经隐约记录、但尚未说清的变化显化出来。
-          </p>
-          <div className={styles.actions}>
+      <section className={`${styles.hero} ${heroStyles.hero}`} id="top">
+        <div className={heroStyles.poster}>
+          <img
+            src="/og.png"
+            width={1731}
+            height={908}
+            alt="回页，让思考继续生长。两篇笔记通过一条思考线重新连接。"
+          />
+        </div>
+
+        <div className={heroStyles.intro}>
+          <div>
+            <p className={styles.eyebrow}>AI PRODUCT · 0 → 1 CASE STUDY</p>
+            <p className={`${styles.lead} ${heroStyles.lead}`}>
+              我从 0 到 1 独立负责回页的产品定位、交互设计、Agent Prompt
+              与评测体系，并借助 AI 编程工具 Codex 完成工程交付。
+            </p>
+          </div>
+          <div className={`${styles.actions} ${heroStyles.actions}`}>
             <a className={styles.primaryAction} href="/portfolio/demo">
               体验回页 <span>→</span>
             </a>
-            <a className={styles.textAction} href="#story">
-              查看项目过程
+            <a className={styles.textAction} href="/portfolio/demo/evaluation">
+              查看完整评测
             </a>
           </div>
         </div>
 
-        <div className={styles.heroProof} aria-label="项目摘要">
-          <div className={styles.proofTop}>
-            <span>项目角色</span>
-            <strong>独立负责人</strong>
-          </div>
-          <p>
-            我从 0 到 1 独立负责回页的产品定位、交互设计、Agent Prompt
-            与评测体系，并借助 AI 编程工具 Codex 完成工程交付。
-          </p>
-          <dl>
-            <div>
-              <dt>10</dt>
-              <dd>真实评测 Case</dd>
-            </div>
-            <div>
-              <dt>3</dt>
-              <dd>Prompt 版本</dd>
-            </div>
-            <div>
-              <dt>33+</dt>
-              <dd>自动化测试</dd>
-            </div>
-          </dl>
-          <a href={githubUrl} target="_blank" rel="noreferrer">
-            查看公开仓库与完整文档 <span>↗</span>
-          </a>
-        </div>
+        <dl className={heroStyles.stats} aria-label="项目摘要">
+          <div><dt>10</dt><dd>真实评测 Case</dd></div>
+          <div><dt>3</dt><dd>Prompt 版本</dd></div>
+          <div><dt>33+</dt><dd>自动化测试</dd></div>
+        </dl>
       </section>
 
       <section className={styles.thesis} id="story">

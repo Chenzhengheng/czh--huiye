@@ -28,8 +28,8 @@ async function render(pathname = "/") {
   );
 }
 
-test("renders the portfolio as a direct AI product case study", async () => {
-  const response = await render("/portfolio");
+test("renders the portfolio at the public root instead of the private writing canvas", async () => {
+  const response = await render("/");
   assert.equal(response.status, 200);
   const html = await response.text();
 
@@ -40,13 +40,17 @@ test("renders the portfolio as a direct AI product case study", async () => {
   assert.match(html, /查看完整评测/);
   assert.match(html, /回页完整用户流程图/);
   assert.match(html, /github\.com\/Chenzhengheng\/czh--huiye/);
+  assert.doesNotMatch(html, /此刻，想留下什么？/);
 });
 
 test("keeps PortfolioMode explicit and isolated from private storage", async () => {
   const response = await render("/portfolio/demo");
   assert.equal(response.status, 200);
   const html = await response.text();
-  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const page = await readFile(
+    new URL("../app/huiye-app.tsx", import.meta.url),
+    "utf8",
+  );
   const seed = await readFile(
     new URL("../app/portfolio/demo/demo-seed.ts", import.meta.url),
     "utf8",
@@ -76,8 +80,8 @@ test("keeps PortfolioMode explicit and isolated from private storage", async () 
   );
 });
 
-test("server-renders the Huiye writing canvas", async () => {
-  const response = await render();
+test("server-renders the private Huiye writing canvas at its dedicated entry", async () => {
+  const response = await render("/app");
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
@@ -93,8 +97,22 @@ test("server-renders the Huiye writing canvas", async () => {
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|Codex is working/i);
 });
 
+test("keeps the desktop launcher pointed at the private Huiye entry", async () => {
+  const launcher = await readFile(
+    new URL("../scripts/start-huiye-ui.ps1", import.meta.url),
+    "utf8",
+  );
+  const consoleLauncher = await readFile(
+    new URL("../scripts/start-huiye-local.ps1", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(launcher, /\$url = "http:\/\/localhost:4317\/app"/);
+  assert.match(consoleLauncher, /\$url = "http:\/\/localhost:4317\/app"/);
+});
+
 test("keeps the writing canvas responsive to rendered lines", async () => {
-  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const page = await readFile(new URL("../app/huiye-app.tsx", import.meta.url), "utf8");
 
   assert.match(page, /WRITE_LINE_HEIGHT = 41/);
   assert.match(page, /WRITE_MIN_LINES = 6/);
@@ -108,7 +126,7 @@ test("keeps the writing canvas responsive to rendered lines", async () => {
 });
 
 test("never seeds or clears diary data automatically", async () => {
-  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const page = await readFile(new URL("../app/huiye-app.tsx", import.meta.url), "utf8");
 
   assert.doesNotMatch(page, /const seedEntries|createData\(seedEntries|clearLegacyData/);
   assert.doesNotMatch(page, /删除后无法恢复|setEntries\(current => current\.filter\(entry => entry\.id !== selected\.id\)/);
@@ -119,7 +137,7 @@ test("never seeds or clears diary data automatically", async () => {
 });
 
 test("saves user tags from the writing page into the new Entry", async () => {
-  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const page = await readFile(new URL("../app/huiye-app.tsx", import.meta.url), "utf8");
 
   assert.match(page, /const \[writeTags, setWriteTags\] = useState<string\[\]>\(\[\]\)/);
   assert.match(page, /<TagEditor tags=\{writeTags\} onChange=\{setWriteTags\}/);
@@ -130,7 +148,7 @@ test("saves user tags from the writing page into the new Entry", async () => {
 });
 
 test("does not revive the retired v1 echo flow", async () => {
-  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const page = await readFile(new URL("../app/huiye-app.tsx", import.meta.url), "utf8");
   const worker = await readFile(new URL("../worker/index.ts", import.meta.url), "utf8");
 
   assert.doesNotMatch(page, /fetch\("\/api\/recall"/);
@@ -175,7 +193,7 @@ test("uses the confirmed three-level source disclosure without embedding private
 });
 
 test("uses the real date and keeps demo data isolated from private evaluation", async () => {
-  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const page = await readFile(new URL("../app/huiye-app.tsx", import.meta.url), "utf8");
 
   assert.match(page, /function formatWritingDate/);
   assert.match(page, /formatWritingDate\(now\)/);
@@ -186,7 +204,7 @@ test("uses the real date and keeps demo data isolated from private evaluation", 
 });
 
 test("keeps two ThoughtLine assignment entries and formal echo boundary", async () => {
-  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const page = await readFile(new URL("../app/huiye-app.tsx", import.meta.url), "utf8");
 
   assert.match(page, /label: "思考线"/);
   assert.match(page, /writeThoughtLineSelections/);
@@ -201,7 +219,10 @@ test("keeps two ThoughtLine assignment entries and formal echo boundary", async 
 });
 
 test("uses an always-visible evaluation workbook with criteria and one selected detail", async () => {
-  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const page = await readFile(
+    new URL("../app/huiye-app.tsx", import.meta.url),
+    "utf8",
+  );
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 
   assert.doesNotMatch(page, /echoRecords\.length <= 15/);
@@ -264,7 +285,7 @@ test("keeps evaluation criteria, Chinese relation labels and traceable Prompt ve
 });
 
 test("keeps ThoughtLine assignment as a marked tag and fits the first writing screen", async () => {
-  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const page = await readFile(new URL("../app/huiye-app.tsx", import.meta.url), "utf8");
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 
   assert.match(page, /tag-editor thought-line-tag-editor/);
@@ -279,7 +300,7 @@ test("keeps ThoughtLine assignment as a marked tag and fits the first writing sc
 });
 
 test("shows newest ThoughtLine entries first with five-line inline expansion", async () => {
-  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const page = await readFile(new URL("../app/huiye-app.tsx", import.meta.url), "utf8");
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 
   assert.match(page, /entryTimestamp\(right\) - entryTimestamp\(left\)/);
@@ -334,7 +355,7 @@ test("keeps README diagrams backed by canonical SVG sources", async () => {
 });
 
 test("does not retain the retired AI organization client", async () => {
-  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const page = await readFile(new URL("../app/huiye-app.tsx", import.meta.url), "utf8");
   const worker = await readFile(new URL("../worker/index.ts", import.meta.url), "utf8");
 
   assert.doesNotMatch(page, /fetch\("\/api\/organize"/);

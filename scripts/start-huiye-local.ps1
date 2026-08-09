@@ -4,8 +4,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$url = "http://localhost:4317"
-$apiUrl = "$url/api/data"
+$url = "http://localhost:4317/app"
+$apiUrl = "http://localhost:4317/api/data"
 $runtimeDir = Join-Path $projectRoot "local-data\runtime"
 $pidFile = Join-Path $runtimeDir "server.pid"
 
@@ -74,7 +74,7 @@ try {
     throw "Entry count mismatch: disk has $($verification.entries), API has $entryCount."
   }
 
-  Write-Host "[Huiye] Ready: http://localhost:4317 ($entryCount entries)" -ForegroundColor Green
+  Write-Host "[Huiye] Ready: $url ($entryCount entries)" -ForegroundColor Green
   if (!$NoBrowser) { Start-Process $url }
   exit 0
 } catch {
