@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   EchoCard,
   echoResponseEntryIds,
@@ -37,7 +44,7 @@ import {
 
 type View = "write" | "pool" | "lines" | "echo" | "evaluation" | "settings";
 type Attachment = { name: string; type: string; data: string };
-type Entry = {
+export type Entry = {
   id: number;
   title: string;
   content: string;
@@ -67,7 +74,7 @@ type SavedDraft = {
   link: boolean;
   updatedAt: string;
 };
-type CaseRecord = {
+export type CaseRecord = {
   id: string;
   echoRecordId: string;
   verdict?: "good" | "bad";
@@ -79,7 +86,7 @@ type CaseRecord = {
   notes?: string;
   createdAt: string;
 };
-type HuiyeBackup = {
+export type HuiyeBackup = {
   format: "huiye-backup";
   version: 1;
   exportedAt: string;
@@ -101,6 +108,16 @@ type Echo = {
 };
 type StorageStatus = "loading" | "saving" | "saved" | "error";
 type EvaluationSheet = "cases" | "criteria" | "versions";
+export type HuiyeRuntimeMode = "private" | "portfolio";
+export type PortfolioSeed = {
+  data: HuiyeBackup;
+  echoRecords: EchoRecordV2[];
+};
+type HuiyeAppProps = {
+  mode?: HuiyeRuntimeMode;
+  seed?: PortfolioSeed;
+  initialView?: View;
+};
 const DRAFT_KEY = "huiye-writing-draft-v1";
 const WRITE_LINE_HEIGHT = 41;
 const WRITE_MIN_LINES = 6;
@@ -645,18 +662,37 @@ function ThoughtLinePicker({
   );
 }
 
-export default function Home() {
-  const [view, setView] = useState<View>("write");
-  const [entries, setEntries] = useState<Entry[]>([]);
+export default function Home({
+  mode = "private",
+  seed,
+  initialView = "write",
+}: HuiyeAppProps = {}) {
+  const portfolioMode = mode === "portfolio";
+  const seededData = seed?.data;
+  const [view, setView] = useState<View>(initialView);
+  const [entries, setEntries] = useState<Entry[]>(() =>
+    seededData?.entries.map((entry) => ({
+      ...entry,
+      thoughtLineIds: entry.thoughtLineIds ?? [],
+    })) ?? [],
+  );
   const [text, setText] = useState("");
   const [pendingDraft, setPendingDraft] = useState<SavedDraft | null>(null);
-  const [draftReady, setDraftReady] = useState(false);
+  const [draftReady, setDraftReady] = useState(portfolioMode);
   const [echoes, setEchoes] = useState<Echo[]>([]);
   const [echoCheckedIds, setEchoCheckedIds] = useState<number[]>([]);
-  const [thoughtLines, setThoughtLines] = useState<ThoughtLine[]>([]);
-  const [caseRecords, setCaseRecords] = useState<CaseRecord[]>([]);
-  const [echoReplies, setEchoReplies] = useState<EchoReply[]>([]);
-  const [echoRecords, setEchoRecords] = useState<EchoRecordV2[]>([]);
+  const [thoughtLines, setThoughtLines] = useState<ThoughtLine[]>(
+    () => seededData?.thoughtLines ?? [],
+  );
+  const [caseRecords, setCaseRecords] = useState<CaseRecord[]>(
+    () => seededData?.caseRecords ?? [],
+  );
+  const [echoReplies, setEchoReplies] = useState<EchoReply[]>(
+    () => seededData?.echoReplies ?? [],
+  );
+  const [echoRecords, setEchoRecords] = useState<EchoRecordV2[]>(
+    () => seed?.echoRecords ?? [],
+  );
   const [currentEchoId, setCurrentEchoId] = useState<string | null>(null);
   const [echoSeenThisSession, setEchoSeenThisSession] = useState(false);
   const [echoLoadError, setEchoLoadError] = useState(false);
@@ -664,8 +700,8 @@ export default function Home() {
   const [storageStatus, setStorageStatus] = useState<StorageStatus>("loading");
   const [storageUpdatedAt, setStorageUpdatedAt] = useState<string | null>(null);
   const [storageKind, setStorageKind] = useState<
-    "unknown" | "local-folder" | "cloud"
-  >("unknown");
+    "unknown" | "local-folder" | "cloud" | "portfolio"
+  >(portfolioMode ? "portfolio" : "unknown");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [writeTags, setWriteTags] = useState<string[]>([]);
   const [writeThoughtLineSelections, setWriteThoughtLineSelections] = useState<
@@ -707,12 +743,44 @@ export default function Home() {
     top: 14,
   });
 
-  function queuePrivateSave(data: HuiyeBackup): Promise<string> {
-    const next = saveQueueRef.current
-      .catch(() => "")
-      .then(() => savePrivateData(data));
-    saveQueueRef.current = next;
-    return next;
+  const queuePrivateSave = useCallback(
+    (data: HuiyeBackup): Promise<string> => {
+      if (portfolioMode)
+        return Promise.reject(
+          new Error("PortfolioMode 不允许写入私人数据接口"),
+        );
+      const next = saveQueueRef.current
+        .catch(() => "")
+        .then(() => savePrivateData(data));
+      saveQueueRef.current = next;
+      return next;
+    },
+    [portfolioMode],
+  );
+
+  function resetPortfolioDemo() {
+    if (!portfolioMode || !seed) return;
+    setEntries(
+      seed.data.entries.map((entry) => ({
+        ...entry,
+        thoughtLineIds: entry.thoughtLineIds ?? [],
+      })),
+    );
+    setThoughtLines(seed.data.thoughtLines ?? []);
+    setCaseRecords(seed.data.caseRecords ?? []);
+    setEchoReplies(seed.data.echoReplies ?? []);
+    setEchoRecords(seed.echoRecords);
+    setCurrentEchoId(seed.echoRecords[0]?.id ?? null);
+    setSelectedLineId(null);
+    setSelectedId(null);
+    setEdit(null);
+    setSelectedEvaluationId(null);
+    resetWritingEditor("");
+    setAttachments([]);
+    setWriteTags([]);
+    setWriteThoughtLineSelections([]);
+    setStorageStatus("saved");
+    notify("已恢复脱敏演示数据");
   }
 
   useEffect(() => {
@@ -732,6 +800,21 @@ export default function Home() {
   useEffect(() => {
     let cancelled = false;
     async function loadPrivateData() {
+      if (portfolioMode) {
+        setStorageKind("portfolio");
+        setStorageStatus("saved");
+        setStorageReady(true);
+        setEchoLoadError(false);
+        setCurrentEchoId(
+          selectCurrentEcho(
+            seed?.echoRecords ?? [],
+            seededData?.entries ?? [],
+            seededData?.thoughtLines ?? [],
+            Date.now(),
+          )?.id ?? seed?.echoRecords[0]?.id ?? null,
+        );
+        return;
+      }
       try {
         const response = await fetch("/api/data", { cache: "no-store" });
         const result = (await response.json()) as {
@@ -799,8 +882,9 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [portfolioMode, seed, seededData]);
   useEffect(() => {
+    if (portfolioMode) return;
     const timer = window.setTimeout(() => {
       try {
         const saved = localStorage.getItem(DRAFT_KEY);
@@ -815,8 +899,9 @@ export default function Home() {
       setDraftReady(true);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [portfolioMode]);
   useEffect(() => {
+    if (portfolioMode) return;
     if (!draftReady || pendingDraft) return;
     try {
       if (
@@ -848,8 +933,10 @@ export default function Home() {
     link,
     draftReady,
     pendingDraft,
+    portfolioMode,
   ]);
   useEffect(() => {
+    if (portfolioMode) return;
     if (!storageReady) return;
     if (skipInitialSaveRef.current) {
       skipInitialSaveRef.current = false;
@@ -881,6 +968,8 @@ export default function Home() {
     caseRecords,
     echoReplies,
     storageReady,
+    portfolioMode,
+    queuePrivateSave,
   ]);
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 30_000);
@@ -1246,6 +1335,29 @@ export default function Home() {
       reasonCodes?: string[];
     },
   ) {
+    if (portfolioMode) {
+      const createdAt = new Date().toISOString();
+      let updated: EchoRecordV2 | undefined;
+      setEchoRecords((current) =>
+        current.map((record) => {
+          if (record.id !== echoRecordId) return record;
+          updated = {
+            ...record,
+            events: [
+              ...record.events,
+              {
+                id: `demo-event-${Date.now()}`,
+                createdAt,
+                ...event,
+              },
+            ],
+          };
+          return updated;
+        }),
+      );
+      return updated ??
+        echoRecords.find((record) => record.id === echoRecordId)!;
+    }
     const updated = await saveEchoEvent(echoRecordId, event);
     setEchoRecords((current) =>
       current.map((record) => (record.id === updated.id ? updated : record)),
@@ -1361,6 +1473,17 @@ export default function Home() {
       caseRecords,
       echoReplies,
     );
+    if (portfolioMode) {
+      setEntries(nextEntries);
+      setThoughtLines(materialized.lines);
+      setStorageStatus("saved");
+      resetWritingEditor("");
+      setAttachments([]);
+      setWriteTags([]);
+      setWriteThoughtLineSelections([]);
+      notify("已加入当前演示；刷新或恢复后会回到初始数据");
+      return;
+    }
     setStorageStatus("saving");
     notify("正在安全写入本地文件夹…");
     try {
@@ -1682,7 +1805,10 @@ export default function Home() {
   }
 
   return (
-    <main className="app-shell">
+    <main
+      className={`app-shell${portfolioMode ? " portfolio-runtime" : ""}`}
+      data-runtime-mode={mode}
+    >
       <aside className="sidebar">
         <div className="brand">
           <span className="brand-mark">回</span>
@@ -1722,28 +1848,53 @@ export default function Home() {
           <button onClick={() => setView("settings")}>
             <i>⚙</i>设置
           </button>
-          <button
-            onClick={() => {
-              setExportIds([]);
-              setExportOpen(true);
-            }}
-          >
-            <i>↓</i>导出 / 导入
-          </button>
+          {portfolioMode ? (
+            <button onClick={resetPortfolioDemo}>
+              <i>↺</i>恢复演示数据
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                setExportIds([]);
+                setExportOpen(true);
+              }}
+            >
+              <i>↓</i>导出 / 导入
+            </button>
+          )}
           <div className="privacy">
             <span>◉</span>
             <div>
               <strong>
-                {storageKind === "local-folder"
-                  ? "内容保存在本地文件夹"
-                  : "正在确认数据位置"}
+                {storageKind === "portfolio"
+                  ? "当前为脱敏演示数据"
+                  : storageKind === "local-folder"
+                    ? "内容保存在本地文件夹"
+                    : "正在确认数据位置"}
               </strong>
-              <small>你始终拥有原文与控制权</small>
+              <small>
+                {portfolioMode
+                  ? "操作只在当前会话生效，不会保存"
+                  : "你始终拥有原文与控制权"}
+              </small>
             </div>
           </div>
         </div>
       </aside>
       <section className="content">
+        {portfolioMode && (
+          <div className="portfolio-mode-bar" role="status">
+            <span>
+              <b>脱敏演示</b> · 固定公开数据，不读取私人日记
+            </span>
+            <div>
+              <a href="/portfolio">返回项目介绍</a>
+              <button type="button" onClick={resetPortfolioDemo}>
+                恢复初始数据
+              </button>
+            </div>
+          </div>
+        )}
         <header className="mobile-head">
           <div className="brand">
             <span className="brand-mark">回</span>
@@ -1945,7 +2096,11 @@ export default function Home() {
                 disabled={storageStatus === "saving" || !storageReady}
                 onClick={() => void saveEntry(text)}
               >
-                {storageStatus === "saving" ? "正在写入本地…" : "保存这篇记录"}{" "}
+                {storageStatus === "saving"
+                  ? "正在写入本地…"
+                  : portfolioMode
+                    ? "加入当前演示"
+                    : "保存这篇记录"}{" "}
                 <b>→</b>
               </button>
             </div>

@@ -9,11 +9,11 @@ async function loadWorker() {
   return worker;
 }
 
-async function render() {
+async function render(pathname = "/") {
   const worker = await loadWorker();
 
   return worker.fetch(
-    new Request("http://localhost/", {
+    new Request(`http://localhost${pathname}`, {
       headers: { accept: "text/html" },
     }),
     {
@@ -27,6 +27,54 @@ async function render() {
     },
   );
 }
+
+test("renders the portfolio as a direct AI product case study", async () => {
+  const response = await render("/portfolio");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+
+  assert.match(html, /让思考/);
+  assert.match(html, /继续生长/);
+  assert.match(html, /从 0 到 1 独立负责回页的产品定位/);
+  assert.match(html, /体验回页/);
+  assert.match(html, /查看完整评测/);
+  assert.match(html, /回页完整用户流程图/);
+  assert.match(html, /github\.com\/Chenzhengheng\/czh--huiye/);
+});
+
+test("keeps PortfolioMode explicit and isolated from private storage", async () => {
+  const response = await render("/portfolio/demo");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const seed = await readFile(
+    new URL("../app/portfolio/demo/demo-seed.ts", import.meta.url),
+    "utf8",
+  );
+  const entries = await readFile(
+    new URL("../app/portfolio/demo/demo-entries.ts", import.meta.url),
+    "utf8",
+  );
+  const evaluation = await readFile(
+    new URL("../app/portfolio/demo/demo-evaluation.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(html, /data-runtime-mode="portfolio"/);
+  assert.match(html, /脱敏演示/);
+  assert.match(html, /固定公开数据，不读取私人日记/);
+  assert.match(page, /if \(portfolioMode\) \{/);
+  assert.match(page, /PortfolioMode 不允许写入私人数据接口/);
+  assert.match(page, /操作只在当前会话生效，不会保存/);
+  assert.match(seed, /user-approved MinimumRedaction data/);
+  assert.match(entries, /export const portfolioEntries/);
+  assert.equal((entries.match(/\n  entry\(/g) ?? []).length, 13);
+  assert.equal((evaluation.match(/id: "case-\d{2}"/g) ?? []).length, 10);
+  assert.doesNotMatch(
+    `${seed}\n${entries}\n${evaluation}`,
+    /local-data|api\/data|api\/echo-records|腾讯|字节|coze|Joe|尚文|明俊|程昊|王者|剑灵|三角洲|飞书/,
+  );
+});
 
 test("server-renders the Huiye writing canvas", async () => {
   const response = await render();

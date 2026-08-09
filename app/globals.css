@@ -9,6 +9,54 @@
   --gold: #b48952;
 }
 
+.portfolio-mode-bar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  min-height: 46px;
+  padding: 9px 28px;
+  border-bottom: 1px solid #d8d8cf;
+  background: rgba(241, 239, 231, 0.96);
+  color: #5e6559;
+  font-size: 11px;
+  backdrop-filter: blur(14px);
+}
+.portfolio-mode-bar b {
+  color: #3f543b;
+}
+.portfolio-mode-bar > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.portfolio-mode-bar a,
+.portfolio-mode-bar button {
+  border: 1px solid #d4d4ca;
+  border-radius: 999px;
+  background: #faf9f4;
+  color: #4d5849;
+  padding: 6px 10px;
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+@media (max-width: 720px) {
+  .portfolio-mode-bar {
+    padding: 8px 14px;
+  }
+  .portfolio-mode-bar > span {
+    max-width: 150px;
+    line-height: 1.35;
+  }
+  .portfolio-mode-bar a {
+    display: none;
+  }
+}
+
 /* ThoughtLine MVP: user-bounded thinking, with AI observation kept secondary. */
 .side-bottom > button.active {
   color: #344331;
