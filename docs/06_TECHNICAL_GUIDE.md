@@ -6,7 +6,7 @@
 
 公开根路由由 `app/page.tsx` 提供作品集；私人入口 `/app` 与 PortfolioMode 入口 `/portfolio/demo` 复用 `app/huiye-app.tsx`，后者组合写下、日记池、思考线、回响、评测和设置。`app/thought-line-model.ts` 集中处理思考线选择物化、归线、移出、重命名、归档、权限和合并；`app/echo-card.tsx` 负责证据优先的回响呈现；`app/evaluation-model.ts` 是评测维度、尺度、回响名、关系类型中文展示映射和 PromptVersion 历史的单一来源。
 
-作品集页面实现位于 `app/portfolio/page.tsx` 与对应 CSS Module。公开页面只引用已经审核的固定脱敏片段和 `app/portfolio/demo/` 中的评测事实，不在运行时访问私人存储；章节顺序固定为产品核心、用户流程图、评测、工程交付，完整交互与完整评测通过独立深链进入 PortfolioMode。
+作品集页面实现位于 `app/portfolio/page.tsx` 与对应 CSS Module。公开页面只引用已经审核的固定脱敏片段和 `app/portfolio/demo/` 中的评测事实，不在运行时访问私人存储；产品核心区用三段逐字原文呈现一条真实 ThoughtLine，并标出 AI 选择的最小充分来源，完整原文仍由 PortfolioMode 提供。章节顺序固定为产品核心、用户流程图、评测、工程交付，完整交互与完整评测通过独立深链进入 PortfolioMode。
 
 本地私人模式通过 `/api/data` 读写 `local-data/` 不可变 generation：创建 staging、校验内容与引用、生成 manifest、再更新 current pointer，旧代次不自动删除。EchoRecord 和事件经独立端点读取、追加。
 

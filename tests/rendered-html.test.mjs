@@ -66,6 +66,10 @@ test("presents the portfolio as a Chinese evidence-led project archive", async (
   assert.match(html, /日记 B/);
   assert.match(html, /均来自真实脱敏笔记/);
   assert.match(html, /思考中隐藏的变化显化/);
+  assert.match(html, /一条真实产品思考线/);
+  assert.match(html, /我真正缺少的是：让一段思考拥有后续生命的机制/);
+  assert.match(html, /AI 选择后两篇作为最小充分证据/);
+  assert.ok((html.match(/✦ 回页/g) ?? []).length >= 6);
   assert.match(html, /CASE 01 · BAD/);
   assert.match(html, /CASE 10 · GOOD/);
   assert.match(html, /AI 的最后问题/);

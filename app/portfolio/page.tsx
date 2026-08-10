@@ -17,6 +17,26 @@ const productPrinciples = [
   ["03", "暂时看见", "观察可以被修正，也可以不回应；是否有价值始终由用户判断。"],
 ];
 
+const productThoughtLine = [
+  {
+    date: "7 月 16 日",
+    excerpt: "我真正缺少的是：让一段思考拥有后续生命的机制。",
+    selected: false,
+  },
+  {
+    date: "7 月 20 日",
+    excerpt:
+      "AI 帮忙整理，只是给原本内容一个可辨认的入口，让我知道当时我想的是什么，思考的主导权还是在人身上。",
+    selected: true,
+  },
+  {
+    date: "8 月 8 日",
+    excerpt:
+      "解决方案是一个叫思考线的功能……当 AI 寻找联系时，优先从每一条人工建立联系的思考线出发。",
+    selected: true,
+  },
+];
+
 export default function PortfolioPage() {
   return (
     <main className={styles.page}>
@@ -52,7 +72,7 @@ export default function PortfolioPage() {
 
         <div className={styles.heroContent}>
           <p className={styles.eyebrow}>回页 · 0 → 1</p>
-          <h1>让思考<br />继续生长。</h1>
+          <h1>让思考继续生长。</h1>
           <p className={styles.lead}>
             我从 0 到 1 独立负责回页的产品定位、交互设计、Agent Prompt、评测体系与工程交付（Codex）。
           </p>
@@ -93,6 +113,39 @@ export default function PortfolioPage() {
           ))}
         </ol>
 
+        <section className={styles.thoughtLineStory} aria-label="回页真实产品思考线">
+          <header>
+            <div>
+              <span>✦ 回页</span>
+              <strong>一条真实产品思考线</strong>
+            </div>
+            <p>用户先把同一件事归在一起，AI 再从中选择足以说明变化的原文。</p>
+          </header>
+          <ol>
+            {productThoughtLine.map((entry, index) => (
+              <li key={entry.date} className={entry.selected ? styles.selectedThought : undefined}>
+                <span className={styles.thoughtDot} aria-hidden="true" />
+                <article>
+                  <div>
+                    <time>{entry.date}</time>
+                    {entry.selected ? <b>本次观察来源</b> : null}
+                  </div>
+                  <blockquote>“{entry.excerpt}”</blockquote>
+                  <footer>
+                    <span>✦ 回页</span>
+                    <small>日记 {String(index + 1).padStart(2, "0")}</small>
+                  </footer>
+                </article>
+              </li>
+            ))}
+          </ol>
+          <div className={styles.thoughtLineHandoff}>
+            <span>AI 选择后两篇作为最小充分证据</span>
+            <i aria-hidden="true">↓</i>
+            <a href="/portfolio/demo">在回页演示中展开完整原文 →</a>
+          </div>
+        </section>
+
         <article className={styles.realCase}>
           <header className={styles.caseHeader}>
             <div>
@@ -108,6 +161,7 @@ export default function PortfolioPage() {
               <blockquote>
                 “AI 帮忙整理，只是给原本内容一个可辨认的入口，让我知道当时我想的是什么，思考的主导权还是在人身上。”
               </blockquote>
+              <span className={styles.sourceLineTag}>✦ 回页</span>
             </section>
             <div className={styles.caseBridge} aria-hidden="true"><i /><span>职责收窄</span><i /></div>
             <section className={styles.sourceCard}>
@@ -115,6 +169,7 @@ export default function PortfolioPage() {
               <blockquote>
                 “我希望能记录下自己的思考，AI 做的是将思考中隐藏的变化显化，让我对自己更清晰。我要拿回思考的主导权。”
               </blockquote>
+              <span className={styles.sourceLineTag}>✦ 回页</span>
             </section>
           </div>
           <p className={styles.privacyNote}>均来自真实脱敏笔记</p>
