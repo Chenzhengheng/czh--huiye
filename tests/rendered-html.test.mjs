@@ -43,6 +43,37 @@ test("renders the portfolio at the public root instead of the private writing ca
   assert.doesNotMatch(html, /此刻，想留下什么？/);
 });
 
+test("presents the portfolio as a Chinese evidence-led project archive", async () => {
+  const response = await render("/");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+
+  assert.match(html, /产品核心/);
+  assert.match(html, /用户流程图/);
+  assert.match(html, /评测/);
+  assert.match(html, /工程交付/);
+  assert.doesNotMatch(html, /AI PRODUCT|CASE STUDY|USER FLOW|EVALUATION|PRODUCT/);
+
+  const productIndex = html.indexOf('id="product"');
+  const flowIndex = html.indexOf('id="flow"');
+  const evaluationIndex = html.indexOf('id="evaluation"');
+  const deliveryIndex = html.indexOf('id="delivery"');
+  assert.ok(productIndex > -1 && productIndex < flowIndex);
+  assert.ok(flowIndex < evaluationIndex);
+  assert.ok(evaluationIndex < deliveryIndex);
+
+  assert.match(html, /日记 A/);
+  assert.match(html, /日记 B/);
+  assert.match(html, /均来自真实脱敏笔记/);
+  assert.match(html, /思考中隐藏的变化显化/);
+  assert.match(html, /CASE 01 · BAD/);
+  assert.match(html, /CASE 10 · GOOD/);
+  assert.match(html, /AI 的判断令我一点惊喜都没有/);
+  assert.match(html, /比较惊喜。我惊觉对我产品定位和AI思考都有突破的来源都是《复利效应》/);
+  assert.match(html, /Prompt v0\.3/);
+  assert.doesNotMatch(html, /进入回页演示/);
+});
+
 test("keeps PortfolioMode explicit and isolated from private storage", async () => {
   const response = await render("/portfolio/demo");
   assert.equal(response.status, 200);
