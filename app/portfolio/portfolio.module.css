@@ -48,11 +48,23 @@
 .navLinks a { font: 12px Arial, sans-serif; text-decoration: none; }
 
 .hero {
+  position: relative;
   min-height: calc(100vh - 64px);
   display: grid;
   grid-template-columns: minmax(360px, 3fr) minmax(620px, 7fr);
   align-items: stretch;
   border-bottom: 1px solid var(--line);
+}
+
+.ownerCredit {
+  position: absolute;
+  z-index: 4;
+  top: 24px;
+  left: clamp(24px, 7vw, 118px);
+  margin: 0;
+  font: 13px/1.5 Arial, sans-serif;
+  letter-spacing: 0.08em;
+  color: #737765;
 }
 
 .heroVisual {
@@ -279,6 +291,7 @@
   .nav { min-height: 58px; }
   .navLinks a:not(:last-child) { display: none; }
   .hero { min-height: auto; display: flex; flex-direction: column; }
+  .ownerCredit { position: static; order: 0; padding: 24px 24px 0; }
   .heroContent { order: 1; padding: 48px 24px 44px; }
   .heroContent { width: 100%; max-width: 100%; }
   .heroContent > * { max-width: 100%; }

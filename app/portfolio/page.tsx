@@ -56,6 +56,7 @@ export default function PortfolioPage() {
       </nav>
 
       <section className={styles.hero} id="top">
+        <p className={styles.ownerCredit}>负责人：陈政亨</p>
         <div className={styles.heroVisual} aria-label="两篇笔记被一条思考线重新连接">
           <article className={styles.visualNote}>
             <small>过去的一页</small>

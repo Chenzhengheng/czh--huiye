@@ -38,6 +38,7 @@ test("renders the portfolio at the public root instead of the private writing ca
   assert.match(html, /从 0 到 1 独立负责回页的产品定位/);
   assert.match(html, /体验回页/);
   assert.match(html, /查看完整评测/);
+  assert.match(html, /负责人：陈政亨/);
   assert.match(html, /回页是一款能随时随地、无负担地记录思考，并让思考彼此连接的 AI 原生记录产品/);
   assert.match(html, /回页<\/b><em>让思考继续生长<\/em>/);
   assert.match(html, /回页完整用户流程图/);
