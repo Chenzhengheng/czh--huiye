@@ -25,6 +25,7 @@
 9. “Prompt 版本” Sheet 从 `promptVersions` 读取 v0.1–v0.3 的全文、状态、变更依据和继承关系；当前工作常量指向 v0.3，历史 Case 不随之改写；
 10. Prompt 与评测界面用中文关系类型；EchoRecord 仍保存英文枚举，通过 `echoRelationLabel` 在展示层映射，避免迁移旧数据；
 11. EchoSource 外层 `details` 默认 open，直接显示原文节选；嵌套的完整原文 `details` 保持关闭。评测工作台和正式回响复用同一 EchoCard，因此初始状态一致。
+12. 日记池在搜索过滤后统一按 Entry 时间倒序排列，日期和具体时间越晚越靠前；PortfolioMode 的固定数据必须先通过 MinimumRedaction 审核，并由测试阻止已删除的敏感片段再次进入公开构建。
 
 ## 测试与技术债
 

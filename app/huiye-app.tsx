@@ -978,11 +978,13 @@ export default function Home({
 
   const filtered = useMemo(
     () =>
-      entries.filter((entry) =>
-        `${entry.title}${entry.content}${entry.tags.join("")}`
-          .toLowerCase()
-          .includes(search.toLowerCase()),
-      ),
+      entries
+        .filter((entry) =>
+          `${entry.title}${entry.content}${entry.tags.join("")}`
+            .toLowerCase()
+            .includes(search.toLowerCase()),
+        )
+        .sort((left, right) => entryTimestamp(right) - entryTimestamp(left)),
     [entries, search],
   );
   const selected = entries.find((entry) => entry.id === selectedId) ?? null;

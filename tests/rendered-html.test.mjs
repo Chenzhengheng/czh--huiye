@@ -124,6 +124,20 @@ test("keeps PortfolioMode explicit and isolated from private storage", async () 
   );
 });
 
+test("keeps portfolio diary data redacted and orders the diary pool newest first", async () => {
+  const demoEntries = await readFile("app/portfolio/demo/demo-entries.ts", "utf8");
+  const appPage = await readFile("app/huiye-app.tsx", "utf8");
+
+  assert.doesNotMatch(demoEntries, /大公司在8\.15左右开始投递/);
+  assert.doesNotMatch(demoEntries, /学习婉拒、接受、谈薪等话术/);
+  assert.doesNotMatch(demoEntries, /未来开发都会被取代的，他们没机会了/);
+  assert.doesNotMatch(demoEntries, /从UGC知识库到VLM再到游戏娱乐陪伴/);
+  assert.match(
+    appPage,
+    /\.sort\(\(left, right\) => entryTimestamp\(right\) - entryTimestamp\(left\)\)/,
+  );
+});
+
 test("server-renders the private Huiye writing canvas at its dedicated entry", async () => {
   const response = await render("/app");
   assert.equal(response.status, 200);
