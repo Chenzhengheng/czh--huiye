@@ -48,7 +48,7 @@ export default function PortfolioPage() {
         <div className={styles.navLinks}>
           <a href="#product">产品核心</a>
           <a href="#flow">用户流程图</a>
-          <a href="#evaluation">评测</a>
+          <a href="#evaluation">回响评测</a>
           <a href="#delivery">工程交付</a>
           <a href={githubUrl} target="_blank" rel="noreferrer">GitHub ↗</a>
         </div>
@@ -99,7 +99,7 @@ export default function PortfolioPage() {
             <h2>人先归线，AI 再观察。</h2>
           </div>
           <p>
-            ThoughtLine 是用户亲手给出的意图边界；Echo 是 AI 在边界内基于原文证据形成的暂时看见。
+            思考线（ThoughtLine）是用户亲手给出的意图边界；回响（Echo）是 AI 在边界内基于原文证据形成的暂时看见。
           </p>
         </header>
 
@@ -201,7 +201,7 @@ export default function PortfolioPage() {
       <section className={styles.evaluation} id="evaluation">
         <header className={styles.sectionHeader}>
           <div>
-            <p className={styles.sectionIndex}>03 · 评测</p>
+            <p className={styles.sectionIndex}>03 · 回响评测</p>
             <h2>不是“有没有联系”，<br />而是“有没有看清一点”。</h2>
           </div>
           <p>

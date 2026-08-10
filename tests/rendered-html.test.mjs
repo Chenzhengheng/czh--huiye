@@ -50,7 +50,9 @@ test("presents the portfolio as a Chinese evidence-led project archive", async (
 
   assert.match(html, /产品核心/);
   assert.match(html, /用户流程图/);
-  assert.match(html, /评测/);
+  assert.match(html, /回响评测/);
+  assert.match(html, /思考线（ThoughtLine）/);
+  assert.match(html, /回响（Echo）/);
   assert.match(html, /工程交付/);
   assert.doesNotMatch(html, /AI PRODUCT|CASE STUDY|USER FLOW|EVALUATION|PRODUCT/);
 
