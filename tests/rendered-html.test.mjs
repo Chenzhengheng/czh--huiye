@@ -111,6 +111,18 @@ test("keeps the desktop launcher pointed at the private Huiye entry", async () =
   assert.match(consoleLauncher, /\$url = "http:\/\/localhost:4317\/app"/);
 });
 
+test("uses a cache-busting high-contrast desktop icon", async () => {
+  const installer = await readFile(
+    new URL("../scripts/install-huiye-shortcut.ps1", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(installer, /huiye-desktop-icon-v2\.png/);
+  assert.match(installer, /huiye-desktop-icon-v2\.ico/);
+  assert.match(installer, /ie4uinit\.exe/);
+  assert.match(installer, /-ArgumentList "-show"/);
+});
+
 test("keeps the writing canvas responsive to rendered lines", async () => {
   const page = await readFile(new URL("../app/huiye-app.tsx", import.meta.url), "utf8");
 

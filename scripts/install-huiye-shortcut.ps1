@@ -1,8 +1,8 @@
 $ErrorActionPreference = "Stop"
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $assetsDir = Join-Path $projectRoot "assets"
-$iconPath = Join-Path $assetsDir "huiye-connected.ico"
-$iconSourcePath = Join-Path $assetsDir "huiye-connected.png"
+$iconPath = Join-Path $assetsDir "huiye-desktop-icon-v2.ico"
+$iconSourcePath = Join-Path $assetsDir "huiye-desktop-icon-v2.png"
 $launcherPath = Join-Path $projectRoot "scripts\start-huiye-ui.ps1"
 $desktop = [Environment]::GetFolderPath("Desktop")
 $shortcutName = (-join ([char[]](0x56DE, 0x9875))) + " " + [char]0x00B7 + " AI Diary.lnk"
@@ -48,5 +48,13 @@ $shortcut.WorkingDirectory = $projectRoot
 $shortcut.IconLocation = "$iconPath,0"
 $shortcut.Description = "Huiye local-first AI Diary"
 $shortcut.Save()
+
+# Explorer caches shortcut icons by path. Refreshing the image at the same path
+# can therefore leave the desktop showing an older icon, so this installer uses
+# a versioned icon path and asks Windows to refresh icons after saving the link.
+$iconRefresh = Join-Path $env:SystemRoot "System32\ie4uinit.exe"
+if (Test-Path -LiteralPath $iconRefresh) {
+  Start-Process -FilePath $iconRefresh -ArgumentList "-show" -WindowStyle Hidden -Wait
+}
 
 Write-Output $shortcutPath
