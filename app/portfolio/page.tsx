@@ -44,6 +44,7 @@ export default function PortfolioPage() {
         <a className={styles.brand} href="#top" aria-label="回到页首">
           <span>回</span>
           <b>回页</b>
+          <em>让思考继续生长</em>
         </a>
         <div className={styles.navLinks}>
           <a href="#product">产品核心</a>
@@ -72,7 +73,7 @@ export default function PortfolioPage() {
 
         <div className={styles.heroContent}>
           <p className={styles.eyebrow}>回页 · 0 → 1</p>
-          <h1>让思考继续生长。</h1>
+          <h1>回页是一款能随时随地、无负担地记录思考，并让思考彼此连接的 AI 原生记录产品。</h1>
           <p className={styles.lead}>
             我从 0 到 1 独立负责回页的产品定位、交互设计、Agent Prompt、评测体系与工程交付（Codex）。
           </p>
