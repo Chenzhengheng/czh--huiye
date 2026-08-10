@@ -68,7 +68,12 @@ test("presents the portfolio as a Chinese evidence-led project archive", async (
   assert.match(html, /思考中隐藏的变化显化/);
   assert.match(html, /CASE 01 · BAD/);
   assert.match(html, /CASE 10 · GOOD/);
+  assert.match(html, /AI 的最后问题/);
+  assert.match(html, /缺少上下文的环境/);
   assert.match(html, /AI 的判断令我一点惊喜都没有/);
+  assert.match(html, /我得到了反馈后对自己结论的修正/);
+  assert.match(html, /在我阅读了《复利效应》的一部分后/);
+  assert.match(html, /阅读《复利效应》后会发现/);
   assert.match(html, /比较惊喜。我惊觉对我产品定位和AI思考都有突破的来源都是《复利效应》/);
   assert.match(html, /Prompt v0\.3/);
   assert.doesNotMatch(html, /进入回页演示/);

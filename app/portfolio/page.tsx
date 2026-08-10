@@ -165,9 +165,13 @@ export default function PortfolioPage() {
             <blockquote>
               AI 看见：你从“进入工作后理解真相”，走向“进入之前问清关键条件”。
             </blockquote>
+            <div className={styles.aiQuestion}>
+              <span>AI 的最后问题</span>
+              <p>“这更像是你变得更清楚自己需要什么，还是你开始担心再次进入一个缺少上下文的环境？”</p>
+            </div>
             <div className={styles.userFeedback}>
               <span>用户真实反馈</span>
-              <p>“AI 的判断令我一点惊喜都没有。这里的核心价值应该是‘我得到了反馈’。最后的问题也让我无感。”</p>
+              <p>“AI 的判断令我一点惊喜都没有。这里的核心价值应该是‘我得到了反馈后对自己结论的修正’，而且很明显。最后的问题也让我无感。”</p>
             </div>
             <div className={styles.scoreRow}>
               <span>关系成立度 <b>中</b></span>
@@ -180,8 +184,8 @@ export default function PortfolioPage() {
             <div className={styles.evalMeta}><span>CASE 10 · GOOD</span><b>Prompt v0.3</b></div>
             <h3>同一本书，推动了产品原则与自我审视</h3>
             <div className={styles.evalEvidence}>
-              <p><b>日记 A</b>“AI 做的是将思考中隐藏的变化显化……我要拿回思考的主导权。”</p>
-              <p><b>日记 B</b>“没想清楚的目标、含糊的动力源，才是拖慢我成长的主要因素。”</p>
+              <p><b>日记 A</b>“在我阅读了《复利效应》的一部分后……AI 做的是将其显化让我更清晰，我要拿回思考的主导权。”</p>
+              <p><b>日记 B</b>“阅读《复利效应》后会发现……没想清楚的目标、含糊的动力源才是拖慢我成长的主要因素。”</p>
             </div>
             <blockquote>
               AI 看见：你为回页定下的边界，也许紧接着就被自己实践了一次——先把生活里的因果拎清楚、决定什么值得改变的人，仍然是你。

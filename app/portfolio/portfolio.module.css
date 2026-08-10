@@ -49,7 +49,7 @@
 .hero {
   min-height: calc(100vh - 64px);
   display: grid;
-  grid-template-columns: minmax(0, 0.95fr) minmax(480px, 1.05fr);
+  grid-template-columns: minmax(360px, 3fr) minmax(620px, 7fr);
   align-items: stretch;
   border-bottom: 1px solid var(--line);
 }
@@ -58,28 +58,25 @@
   position: relative;
   min-height: 660px;
   display: grid;
-  grid-template-columns: minmax(150px, 0.8fr) minmax(100px, 0.55fr) minmax(150px, 0.8fr);
+  grid-template-columns: minmax(100px, 1fr) 54px minmax(100px, 1fr);
   align-items: center;
-  padding: clamp(52px, 7vw, 105px) clamp(28px, 5vw, 80px);
+  padding: clamp(52px, 7vw, 105px) clamp(24px, 2.5vw, 42px);
   overflow: hidden;
-  border-right: 1px solid var(--line);
-  background:
-    radial-gradient(circle at 50% 43%, rgba(168, 116, 53, 0.08), transparent 28%),
-    linear-gradient(140deg, #efeadd 0%, #f8f5ed 62%, #ece8dd 100%);
+  background: var(--paper);
 }
 
 .heroVisual::before {
   content: "";
   position: absolute;
   inset: 0;
-  opacity: 0.22;
+  opacity: 0.12;
   background-image: repeating-linear-gradient(0deg, transparent 0 31px, rgba(80, 85, 69, 0.08) 32px);
 }
 
 .heroVisual > p {
   position: absolute;
-  left: clamp(28px, 5vw, 80px);
-  right: clamp(28px, 5vw, 80px);
+  left: clamp(24px, 2.5vw, 42px);
+  right: clamp(24px, 2.5vw, 42px);
   bottom: clamp(34px, 5vh, 64px);
   margin: 0;
   text-align: center;
@@ -91,10 +88,10 @@
   position: relative;
   z-index: 2;
   width: 100%;
-  max-width: 205px;
-  min-height: 286px;
-  padding: 30px 24px;
-  border: 1px solid rgba(100, 92, 72, 0.17);
+  max-width: 160px;
+  min-height: 250px;
+  padding: 28px 20px;
+  border: 2px solid rgba(100, 92, 72, 0.24);
   border-radius: 3px;
   background: rgba(255, 253, 246, 0.9);
   box-shadow: 0 18px 34px rgba(69, 58, 38, 0.12);
@@ -115,7 +112,7 @@
   top: 42px;
   width: 56%;
   height: 34px;
-  border-top: 2px solid var(--sage-dark);
+  border-top: 3px solid var(--sage-dark);
 }
 .connector::before { right: 46%; border-radius: 0 70% 0 0; transform: rotate(12deg); }
 .connector::after { left: 46%; border-radius: 70% 0 0 0; transform: rotate(-12deg); }
@@ -206,6 +203,9 @@
 .evalEvidence p { margin: 0; font: 12px/1.75 Arial, sans-serif; color: #61635a; }
 .evalEvidence b { display: inline-block; min-width: 54px; color: var(--ink); }
 .evalCard blockquote { margin: 22px 0; padding-left: 16px; border-left: 2px solid var(--gold); font-size: 14px; line-height: 1.85; color: #464941; }
+.aiQuestion { margin: -6px 0 22px; padding: 15px 17px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.32); }
+.aiQuestion span { font: 9px Arial, sans-serif; color: #898980; }
+.aiQuestion p { margin: 7px 0 0; font-size: 12px; line-height: 1.75; color: #5f6158; }
 .userFeedback { padding: 18px; background: var(--sage-soft); }
 .userFeedback span { font: 9px Arial, sans-serif; color: var(--sage); }
 .userFeedback p { margin: 8px 0 0; font-size: 13px; line-height: 1.75; }
@@ -237,8 +237,8 @@
 
 @media (max-width: 1100px) {
   .navLinks { gap: 15px; }
-  .hero { grid-template-columns: 0.9fr 1.1fr; }
-  .heroVisual { grid-template-columns: minmax(110px, 1fr) 70px minmax(110px, 1fr); padding-inline: 28px; }
+  .hero { grid-template-columns: minmax(300px, 3fr) minmax(520px, 7fr); }
+  .heroVisual { grid-template-columns: minmax(90px, 1fr) 46px minmax(90px, 1fr); padding-inline: 22px; }
   .visualNote { min-height: 245px; padding: 26px 18px; }
   .sectionHeader { grid-template-columns: 1fr; gap: 24px; }
   .sourceGrid { grid-template-columns: 1fr 80px 1fr; }
