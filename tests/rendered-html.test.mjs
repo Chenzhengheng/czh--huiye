@@ -119,6 +119,14 @@ test("keeps PortfolioMode explicit and isolated from private storage", async () 
   assert.match(entries, /export const portfolioEntries/);
   assert.equal((entries.match(/\n  entry\(/g) ?? []).length, 13);
   assert.equal((evaluation.match(/id: "case-\d{2}"/g) ?? []).length, 10);
+  assert.match(
+    evaluation,
+    /id: "echo-eval-v03-case-01"[\s\S]*?lifecycle: "candidate"/,
+  );
+  assert.match(
+    page,
+    /setCurrentEchoId\(\s*selectCurrentEcho\(\s*seed\.echoRecords/,
+  );
   assert.doesNotMatch(
     `${seed}\n${entries}\n${evaluation}`,
     /local-data|api\/data|api\/echo-records|腾讯|字节|coze|Joe|尚文|明俊|程昊|王者|剑灵|三角洲|飞书/,

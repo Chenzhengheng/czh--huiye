@@ -218,7 +218,7 @@ export const portfolioEchoRecords: EchoRecordV2[] = [
     schemaVersion: 2,
     id: "echo-eval-v03-case-01",
     mode: "relational",
-    lifecycle: "evaluation_only",
+    lifecycle: "candidate",
     thoughtLineId: "line-1786190787677-1",
     relationType: "branch",
     sourceEntryIds: [1786169408882, 1786246774567],

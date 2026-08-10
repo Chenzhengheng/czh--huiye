@@ -770,7 +770,14 @@ export default function Home({
     setCaseRecords(seed.data.caseRecords ?? []);
     setEchoReplies(seed.data.echoReplies ?? []);
     setEchoRecords(seed.echoRecords);
-    setCurrentEchoId(seed.echoRecords[0]?.id ?? null);
+    setCurrentEchoId(
+      selectCurrentEcho(
+        seed.echoRecords,
+        seed.data.entries,
+        seed.data.thoughtLines ?? [],
+        Date.now(),
+      )?.id ?? null,
+    );
     setSelectedLineId(null);
     setSelectedId(null);
     setEdit(null);
