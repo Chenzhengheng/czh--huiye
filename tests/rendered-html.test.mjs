@@ -213,8 +213,9 @@ test("uses one lined editor for writing and diary-pool editing without moving th
   );
   assert.match(
     css,
-    /\.lined-markdown-editor-pool:before\s*\{[^}]*opacity:\s*0\.5/s,
+    /\.lined-markdown-editor-pool:before\s*\{[^}]*background:\s*none/s,
   );
+  assert.match(css, /\.lined-markdown-editor-pool \.rich-editor\s*\{[^}]*background-attachment:\s*local/s);
 });
 
 test("keeps scrolling ruled paper scoped to the diary pool editor", async () => {

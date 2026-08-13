@@ -1,5 +1,13 @@
 # 回页技术指南
 
+## 作品集匿名访问与本地看板
+
+- Worker 只在精确路径 `/portfolio` 返回成功页面时创建或复用 30 分钟访问会话。
+- 客户端不可见 Beacon 在页面完成渲染后确认会话；没有 Beacon 的记录保持“未确认”，不自动归为失败。
+- `/api/portfolio-visits/summary` 只接受本机代理持有的 Bearer 密钥，线上不提供看板 UI 或导航入口。
+- 本地 `scripts/portfolio-dashboard-server.mjs` 从被 Git 忽略的 `local-data/portfolio-dashboard-admin.json` 读取密钥并代理汇总；浏览器页面接触不到线上密钥。
+- `scripts/install-portfolio-dashboard-shortcut.ps1` 在桌面创建“回页 · 访问看板”，复用回页双页连接图标。
+
 本页只描述当前代码，不写未来设想。
 
 ## 运行结构
