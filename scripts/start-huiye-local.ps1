@@ -19,7 +19,10 @@ function Find-NodeExecutable {
 
 function Read-LocalStatus {
   try {
-    return Invoke-RestMethod -Uri $apiUrl -Method Get -TimeoutSec 2
+    $status = Invoke-RestMethod -Uri $apiUrl -Method Get -TimeoutSec 2
+    $page = Invoke-WebRequest -Uri $url -Method Get -UseBasicParsing -TimeoutSec 5
+    if ($page.StatusCode -ne 200) { return $null }
+    return $status
   } catch {
     return $null
   }

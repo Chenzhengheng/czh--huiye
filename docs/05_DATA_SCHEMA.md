@@ -47,3 +47,17 @@ ID 稳定唯一，非 merged 线名称唯一。新线只随 Entry 保存物化�
 - 旧反馈 `resonated`、`accurate_no_resonance` 只读兼容；
 - 旧单页回看或无共同用户线的记录只作 `legacy_evaluation`；
 - v1 Echo 不自动迁移为正式 EchoRecord，避免伪造关系。
+
+## generation 保留与恢复
+
+每次成功保存仍先生成一个完整、不可变的 generation，再切换 `current.json`。保留策略只在保存完成后运行，失败不会反向把本次保存报告为失败：
+
+- 始终保留当前 generation；
+- 保留最新 20 个 generation；
+- 最近 30 天按自然日保留每天最后一个 generation；
+- 更早历史按自然月保留每月最后一个 generation；
+- 首次实际删除前，把当前完整数据导出到 `local-data/backups/before-generation-retention-*.json` 并重新读回校验；
+- 删除 generation 时同步移除指向已删除 generation 的 pointer history；
+- 自动清理每天至多实际执行一次，也可用 `npm run local:prune` 手动执行并输出结果。
+
+自然日和自然月均按 `Asia/Shanghai` 计算。这里的“每日/每月版本”是从已经发生的保存中选取恢复点，不是定时复制数据。

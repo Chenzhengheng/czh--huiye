@@ -157,7 +157,7 @@ test("server-renders the private Huiye writing canvas at its dedicated entry", a
   assert.match(html, /此刻，想留下什么？/);
   assert.match(html, /不急着下结论，顺着念头再想一点。/);
   assert.match(html, /一段推理、一个疑问，或正在形成的看法……/);
-  assert.match(html, /class="paper rich-paper"/);
+  assert.match(html, /class="[^"]*\bpaper\b[^"]*\brich-paper\b[^"]*"/);
   assert.match(html, /class="rich-editor"/);
   assert.match(html, /height:304px/);
   assert.doesNotMatch(html, /支持 Markdown/);
@@ -190,18 +190,57 @@ test("uses a cache-busting high-contrast desktop icon", async () => {
   assert.match(installer, /-ArgumentList "-show"/);
 });
 
-test("keeps the writing canvas responsive to rendered lines", async () => {
+test("uses one lined editor for writing and diary-pool editing without moving the page", async () => {
   const page = await readFile(new URL("../app/huiye-app.tsx", import.meta.url), "utf8");
+  const model = await readFile(new URL("../app/lined-editor-model.ts", import.meta.url), "utf8");
+  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 
-  assert.match(page, /WRITE_LINE_HEIGHT = 41/);
-  assert.match(page, /WRITE_MIN_LINES = 6/);
-  assert.match(page, /WRITE_MAX_LINES = 15/);
-  assert.match(page, /new ResizeObserver\(\(\) => measureWritingEditor\(\)\)/);
-  assert.match(page, /editor\.cloneNode\(true\)/);
-  assert.match(page, /mirror\.scrollHeight \/ WRITE_LINE_HEIGHT/);
-  assert.match(page, /writeLines \+ 3/);
-  assert.match(page, /writeLines >= WRITE_MAX_LINES \? "auto" : "hidden"/);
+  assert.match(model, /LINED_EDITOR_LINE_HEIGHT = 41/);
+  assert.match(model, /LINED_EDITOR_MIN_LINES = 6/);
+  assert.match(model, /LINED_EDITOR_MAX_LINES = 15/);
+  assert.equal((page.match(/<LinedMarkdownEditor/g) ?? []).length, 2);
+  assert.doesNotMatch(page, /transform: `translateY/);
+  assert.doesNotMatch(page, /Markdown 编辑|预览 Markdown|previewMarkdown/);
+  assert.match(page, /followCaretAfterInput/);
+  assert.match(page, /behavior: reduceMotion \? "auto" : "smooth"/);
+  assert.match(page, /context="write"/);
+  assert.match(page, /context="pool"/);
   assert.match(page, /Array\.from\(markdownPreviewText\(firstLine\)\)\.slice\(0, 15\)/);
+  assert.doesNotMatch(css, /overscroll-behavior:\s*contain/);
+  assert.match(
+    css,
+    /\.lined-markdown-editor-pool\s*\{[^}]*background:\s*#faf9f5/s,
+  );
+  assert.match(
+    css,
+    /\.lined-markdown-editor-pool:before\s*\{[^}]*opacity:\s*0\.5/s,
+  );
+});
+
+test("keeps scrolling ruled paper scoped to the diary pool editor", async () => {
+  const appPage = await readFile("app/huiye-app.tsx", "utf8");
+  const styles = await readFile("app/globals.css", "utf8");
+
+  assert.doesNotMatch(appPage, /syncPaperRules|--paper-scroll-offset/);
+  assert.match(
+    styles,
+    /\.lined-markdown-editor-pool \.rich-editor\s*\{[\s\S]*background-image:\s*repeating-linear-gradient[\s\S]*background-attachment:\s*local/,
+  );
+  assert.match(styles, /background-position-y:\s*-14px/);
+  assert.match(
+    styles,
+    /--paper-rule-color:\s*rgba\(233,\s*229,\s*217,\s*0\.46\)/,
+  );
+  assert.match(styles, /--paper-line-height:\s*41px/);
+  assert.match(
+    styles,
+    /\.lined-markdown-editor-pool:before\s*\{\s*background:\s*none/,
+  );
+  assert.doesNotMatch(styles, /\.rich-paper:before\s*\{\s*background:\s*none/);
+  assert.doesNotMatch(
+    styles,
+    /(?:^|\n)\.rich-editor\s*\{[^}]*background-image:/,
+  );
 });
 
 test("never seeds or clears diary data automatically", async () => {
@@ -449,4 +488,26 @@ test("keeps hosted builds free of private data APIs and bindings", async () => {
 
   assert.doesNotMatch(worker, /\/api\/data|R2Bucket|huiye-data\.json|oai-authenticated-user-email/);
   assert.equal(hosting.r2, null);
+});
+
+test("keeps the RSC runtime out of Vite dependency prebundling", async () => {
+  const config = await readFile(new URL("../vite.config.ts", import.meta.url), "utf8");
+  assert.match(config, /optimizeDeps:\s*\{[\s\S]*exclude:\s*\["react-server-dom-webpack\/server\.edge"\]/);
+});
+
+test("desktop launchers wait for both the data API and the app page", async () => {
+  const cliLauncher = await readFile(
+    new URL("../scripts/start-huiye-local.ps1", import.meta.url),
+    "utf8",
+  );
+  const uiLauncher = await readFile(
+    new URL("../scripts/start-huiye-ui.ps1", import.meta.url),
+    "utf8",
+  );
+
+  for (const launcher of [cliLauncher, uiLauncher]) {
+    assert.match(launcher, /Invoke-RestMethod\s+-Uri\s+\$apiUrl/);
+    assert.match(launcher, /Invoke-WebRequest\s+-Uri\s+\$url/);
+    assert.match(launcher, /StatusCode\s+-ne\s+200/);
+  }
 });

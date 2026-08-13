@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { appendEchoEvent, readEchoRecords, writeEchoRecord } from "../build/echo-record-store.mjs";
-import { readLocalData, writeLocalData } from "../build/local-data-store.mjs";
+import { pruneLocalDataGenerations, readLocalData, selectRetainedGenerationIds, writeLocalData } from "../build/local-data-store.mjs";
 import { isLocalDataRequestAllowed } from "../build/local-data-vite-plugin.mjs";
 
 function fixture() {
@@ -144,6 +144,67 @@ test("persists thought lines, memberships and evaluation records in a recoverabl
     assert.deepEqual(restored.entries[0].thoughtLineIds, ["line-product"]);
     assert.deepEqual(restored.caseRecords, data.caseRecords);
     assert.deepEqual(restored.echoReplies, data.echoReplies);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("retains recent, daily and monthly generation recovery points", () => {
+  const generations = [];
+  for (let day = 0; day < 45; day += 1) {
+    for (let version = 0; version < 2; version += 1) {
+      const date = new Date(Date.UTC(2026, 7, 13 - day, 8 + version, 0, 0));
+      generations.push({ generationId: `day-${day}-${version}`, updatedAt: date.toISOString() });
+    }
+  }
+  generations.push({ generationId: "june-last", updatedAt: "2026-06-30T15:00:00.000Z" });
+  generations.push({ generationId: "june-older", updatedAt: "2026-06-01T01:00:00.000Z" });
+
+  const retained = selectRetainedGenerationIds(generations, "day-0-1", new Date("2026-08-13T12:00:00+08:00"));
+  assert.equal(retained.has("day-0-1"), true);
+  assert.equal(retained.has("day-9-0"), true, "the latest 20 generations stay dense");
+  assert.equal(retained.has("day-20-1"), true, "the latest generation for a recent day is retained");
+  assert.equal(retained.has("day-20-0"), false, "an older same-day generation is pruned");
+  assert.equal(retained.has("june-last"), true, "the latest generation for an older month is retained");
+  assert.equal(retained.has("june-older"), false);
+});
+
+test("prunes obsolete generations only after creating a recoverable backup", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "huiye-retention-"));
+  try {
+    const current = await writeLocalData(root, fixture(), { source: "test" });
+    const generationsDir = path.join(root, "generations");
+    const historyDir = path.join(root, "pointer-history");
+    await mkdir(historyDir, { recursive: true });
+    for (let index = 0; index < 24; index += 1) {
+      const generationId = `old-${String(index).padStart(2, "0")}`;
+      const generationDir = path.join(generationsDir, generationId);
+      await mkdir(generationDir, { recursive: true });
+      await writeFile(path.join(generationDir, "generation.json"), `${JSON.stringify({
+        format: "huiye-local-store",
+        version: 1,
+        generationId,
+        updatedAt: new Date(Date.UTC(2026, 7, 12, index, 0, 0)).toISOString(),
+      })}\n`, "utf8");
+      await writeFile(path.join(historyDir, `${generationId}.previous.json`), `${JSON.stringify({ generationId })}\n`, "utf8");
+    }
+
+    const result = await pruneLocalDataGenerations(root, {
+      force: true,
+      now: new Date("2026-08-13T18:00:00+08:00"),
+    });
+    assert.equal(result.deleted.length > 0, true);
+    assert.equal((await readdir(generationsDir)).includes(current.generationId), true);
+    const backup = JSON.parse(await readFile(path.join(root, result.initialBackupPath), "utf8"));
+    assert.equal(backup.entries.length, fixture().entries.length);
+    assert.equal((await readLocalData(root)).generationId, current.generationId);
+    const history = await readdir(historyDir);
+    assert.equal(history.some(name => result.deleted.some(id => name.startsWith(id))), false);
+
+    const second = await pruneLocalDataGenerations(root, {
+      now: new Date("2026-08-13T20:00:00+08:00"),
+    });
+    assert.equal(second.skipped, true);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

@@ -41,6 +41,12 @@ import {
   type ThoughtLine,
   type ThoughtLineSelection,
 } from "./thought-line-model";
+import {
+  caretFollowScrollTop,
+  linedEditorRows,
+  LINED_EDITOR_LINE_HEIGHT,
+  LINED_EDITOR_MAX_LINES,
+} from "./lined-editor-model";
 
 type View = "write" | "pool" | "lines" | "echo" | "evaluation" | "settings";
 type Attachment = { name: string; type: string; data: string };
@@ -119,9 +125,8 @@ type HuiyeAppProps = {
   initialView?: View;
 };
 const DRAFT_KEY = "huiye-writing-draft-v1";
-const WRITE_LINE_HEIGHT = 41;
-const WRITE_MIN_LINES = 6;
-const WRITE_MAX_LINES = 15;
+const WRITE_LINE_HEIGHT = LINED_EDITOR_LINE_HEIGHT;
+const WRITE_MAX_LINES = LINED_EDITOR_MAX_LINES;
 function createData(
   entries: Entry[],
   echoes: Echo[],
@@ -271,17 +276,6 @@ function formatWritingDate(now: number) {
     day: "numeric",
     weekday: "long",
   }).format(new Date(now));
-}
-
-function visualLineCount(value: string, charactersPerLine = 50) {
-  if (!value) return 0;
-  return value
-    .split("\n")
-    .reduce(
-      (total, line) =>
-        total + Math.max(1, Math.ceil(line.length / charactersPerLine)),
-      0,
-    );
 }
 
 function Toggle({
@@ -528,6 +522,252 @@ function editorElementToMarkdown(element: HTMLElement) {
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
+
+function LinedMarkdownEditor({
+  value,
+  resetKey,
+  onChange,
+  context,
+  placeholder = "一段推理、一个疑问，或正在形成的看法……",
+  autoFocus = false,
+  characterCount,
+  attachmentCount = 0,
+  extraTools,
+  onNotice,
+}: {
+  value: string;
+  resetKey: string | number;
+  onChange: (markdown: string) => void;
+  context: "write" | "pool";
+  placeholder?: string;
+  autoFocus?: boolean;
+  characterCount: number;
+  attachmentCount?: number;
+  extraTools?: ReactNode;
+  onNotice?: (message: string) => void;
+}) {
+  const editorRef = useRef<HTMLDivElement>(null);
+  const paperRef = useRef<HTMLDivElement>(null);
+  const resetValueRef = useRef(value);
+  const [lineCount, setLineCount] = useState(0);
+  const [selectionMenu, setSelectionMenu] = useState({
+    visible: false,
+    left: 20,
+    top: 14,
+  });
+  const { rows, scrollable } = linedEditorRows(lineCount);
+
+  useEffect(() => {
+    resetValueRef.current = value;
+  }, [value]);
+
+  function measureEditor() {
+    const editor = editorRef.current;
+    if (!editor) return;
+    if (!editor.textContent && !editor.querySelector("br")) {
+      setLineCount(0);
+      return;
+    }
+    const mirror = editor.cloneNode(true) as HTMLDivElement;
+    mirror.removeAttribute("contenteditable");
+    mirror.removeAttribute("id");
+    Object.assign(mirror.style, {
+      position: "fixed",
+      left: "-10000px",
+      top: "0",
+      width: `${editor.clientWidth}px`,
+      height: "auto",
+      minHeight: "0",
+      maxHeight: "none",
+      overflow: "visible",
+      visibility: "hidden",
+      pointerEvents: "none",
+      flex: "none",
+      paddingBottom: "0",
+    });
+    document.body.appendChild(mirror);
+    const measuredLines = Math.max(
+      1,
+      Math.ceil(mirror.scrollHeight / WRITE_LINE_HEIGHT),
+    );
+    mirror.remove();
+    setLineCount((current) =>
+      current === measuredLines ? current : measuredLines,
+    );
+  }
+
+  function followCaretAfterInput() {
+    const editor = editorRef.current;
+    const selection = window.getSelection();
+    if (
+      !editor ||
+      !selection ||
+      selection.rangeCount === 0 ||
+      !editor.contains(selection.anchorNode)
+    )
+      return;
+    const caret = selection.getRangeAt(0).getBoundingClientRect();
+    const bounds = editor.getBoundingClientRect();
+    const nextScrollTop = caretFollowScrollTop({
+      currentScrollTop: editor.scrollTop,
+      caretTop: caret.top,
+      caretHeight: caret.height || WRITE_LINE_HEIGHT,
+      viewport: { top: bounds.top, height: editor.clientHeight },
+      scrollHeight: editor.scrollHeight,
+    });
+    if (nextScrollTop === editor.scrollTop) return;
+    const reduceMotion = window.matchMedia?.(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    editor.scrollTo({
+      top: nextScrollTop,
+      behavior: reduceMotion ? "auto" : "smooth",
+    });
+  }
+
+  function syncEditor() {
+    const editor = editorRef.current;
+    if (!editor) return;
+    onChange(editorElementToMarkdown(editor));
+    window.requestAnimationFrame(() => {
+      measureEditor();
+      window.requestAnimationFrame(followCaretAfterInput);
+    });
+  }
+
+  function hideSelectionMenu() {
+    setSelectionMenu((current) => ({ ...current, visible: false }));
+  }
+
+  function showSelectionMenu() {
+    const selection = window.getSelection();
+    const paper = paperRef.current;
+    if (
+      !selection ||
+      selection.rangeCount === 0 ||
+      selection.isCollapsed ||
+      !paper ||
+      !editorRef.current?.contains(selection.anchorNode)
+    ) {
+      hideSelectionMenu();
+      return;
+    }
+    const selectionRect = selection.getRangeAt(0).getBoundingClientRect();
+    const bounds = paper.getBoundingClientRect();
+    const left = Math.max(
+      18,
+      Math.min(
+        selectionRect.left - bounds.left + selectionRect.width / 2 - 150,
+        bounds.width - 314,
+      ),
+    );
+    setSelectionMenu({
+      visible: true,
+      left,
+      top: selectionRect.top - bounds.top - 52,
+    });
+  }
+
+  function applyEditorCommand(command: string, commandValue?: string) {
+    editorRef.current?.focus();
+    document.execCommand(command, false, commandValue);
+    syncEditor();
+    hideSelectionMenu();
+  }
+
+  async function pasteText() {
+    try {
+      const clipboard = await navigator.clipboard.readText();
+      if (!clipboard) return onNotice?.("剪贴板里没有文字");
+      editorRef.current?.focus();
+      document.execCommand("insertText", false, clipboard);
+      syncEditor();
+      onNotice?.("已粘贴剪贴板文字");
+    } catch {
+      onNotice?.("请在输入框内使用 Ctrl + V 粘贴");
+    }
+  }
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.innerHTML = markdownToEditorHtml(resetValueRef.current);
+    editor.scrollTop = 0;
+    window.requestAnimationFrame(measureEditor);
+  }, [resetKey]);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measureEditor);
+    observer.observe(editor);
+    measureEditor();
+    return () => observer.disconnect();
+  }, [resetKey]);
+
+  return (
+    <div
+      ref={paperRef}
+      className={`paper rich-paper lined-markdown-editor lined-markdown-editor-${context}`}
+      data-editor-context={context}
+      style={{
+        height:
+          rows * WRITE_LINE_HEIGHT +
+          (lineCount < WRITE_MAX_LINES ? 58 : 100),
+        transition: "height .28s ease",
+      }}
+    >
+      <div
+        ref={editorRef}
+        className="rich-editor"
+        style={{
+          paddingBottom: scrollable ? 246 : 0,
+          overflowY: scrollable ? "auto" : "hidden",
+        }}
+        contentEditable={true}
+        role="textbox"
+        aria-multiline="true"
+        tabIndex={0}
+        autoFocus={autoFocus}
+        suppressContentEditableWarning
+        spellCheck
+        onInput={syncEditor}
+        onMouseUp={showSelectionMenu}
+        onKeyUp={showSelectionMenu}
+        onBlur={() => window.setTimeout(hideSelectionMenu, 120)}
+        data-placeholder={placeholder}
+      />
+      {selectionMenu.visible && (
+        <div
+          className="selection-format-menu"
+          style={{ left: selectionMenu.left, top: selectionMenu.top }}
+          onMouseDown={(event) => event.preventDefault()}
+        >
+          <button type="button" title="标题" onClick={() => applyEditorCommand("formatBlock", "H1")}>T</button>
+          <button type="button" title="小标题" onClick={() => applyEditorCommand("formatBlock", "H2")}>T₂</button>
+          <i />
+          <button type="button" title="加粗" onClick={() => applyEditorCommand("bold")}>B</button>
+          <button type="button" title="斜体" onClick={() => applyEditorCommand("italic")}>I</button>
+          <button type="button" title="删除线" onClick={() => applyEditorCommand("strikeThrough")}>S</button>
+          <button type="button" title="下划线" onClick={() => applyEditorCommand("underline")}>U</button>
+          <i />
+          <button type="button" title="引用" onClick={() => applyEditorCommand("formatBlock", "BLOCKQUOTE")}>❝</button>
+          <button type="button" title="列表" onClick={() => applyEditorCommand("insertUnorderedList")}>•</button>
+          <button type="button" title="居中" onClick={() => applyEditorCommand("justifyCenter")}>≡</button>
+        </div>
+      )}
+      <div className="paper-tools">
+        <span>
+          {characterCount} 字 · {attachmentCount} 张图片
+        </span>
+        <div>
+          <button type="button" onClick={pasteText}>粘贴</button>
+          {extraTools}
+        </div>
+      </div>
+    </div>
+  );
+}
 function markdownPreviewText(value: string) {
   return value
     .replace(/```[\s\S]*?```/g, "代码片段")
@@ -724,7 +964,6 @@ export default function Home({
   const [toast, setToast] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [edit, setEdit] = useState<Draft | null>(null);
-  const [previewMarkdown, setPreviewMarkdown] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [exportIds, setExportIds] = useState<number[]>([]);
   const [now, setNow] = useState(() => Date.now());
@@ -732,16 +971,7 @@ export default function Home({
   const importRef = useRef<HTMLInputElement>(null);
   const saveQueueRef = useRef<Promise<string>>(Promise.resolve(""));
   const skipInitialSaveRef = useRef(true);
-  const editorRef = useRef<HTMLDivElement>(null);
-  const paperRef = useRef<HTMLDivElement>(null);
-  const [editorInitialHtml, setEditorInitialHtml] = useState("");
   const [editorVersion, setEditorVersion] = useState(0);
-  const [writeLines, setWriteLines] = useState(0);
-  const [selectionMenu, setSelectionMenu] = useState({
-    visible: false,
-    left: 20,
-    top: 14,
-  });
 
   const queuePrivateSave = useCallback(
     (data: HuiyeBackup): Promise<string> => {
@@ -790,20 +1020,6 @@ export default function Home({
     notify("已恢复脱敏演示数据");
   }
 
-  useEffect(() => {
-    if (editorRef.current) {
-      editorRef.current.innerHTML = editorInitialHtml;
-      window.requestAnimationFrame(measureWritingEditor);
-    }
-  }, [editorVersion, editorInitialHtml]);
-  useEffect(() => {
-    const editor = editorRef.current;
-    if (!editor || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(() => measureWritingEditor());
-    observer.observe(editor);
-    measureWritingEditor();
-    return () => observer.disconnect();
-  }, [editorVersion, view]);
   useEffect(() => {
     let cancelled = false;
     async function loadPrivateData() {
@@ -1023,12 +1239,6 @@ export default function Home({
     }
     return entries.filter((entry) => connectedIds.has(entry.id));
   }, [selected, echoRecords, entries]);
-  const writeRows = Math.min(
-    WRITE_MAX_LINES,
-    Math.max(WRITE_MIN_LINES, writeLines + 3),
-  );
-  const editLines = visualLineCount(edit?.content || "", 55);
-  const editRows = Math.min(15, Math.max(6, editLines + 3));
   const evaluationRecords = useMemo(
     () =>
       [...echoRecords].sort(
@@ -1050,7 +1260,6 @@ export default function Home({
   const closeEdit = () => {
     setSelectedId(null);
     setEdit(null);
-    setPreviewMarkdown(false);
   };
 
   function saveCaseFeedback(
@@ -1207,95 +1416,9 @@ export default function Home({
     }
   }
 
-  function measureWritingEditor() {
-    const editor = editorRef.current;
-    if (!editor) return;
-    if (!editor.textContent && !editor.querySelector("br")) {
-      setWriteLines(0);
-      return;
-    }
-    const mirror = editor.cloneNode(true) as HTMLDivElement;
-    mirror.removeAttribute("contenteditable");
-    mirror.removeAttribute("id");
-    Object.assign(mirror.style, {
-      position: "fixed",
-      left: "-10000px",
-      top: "0",
-      width: `${editor.clientWidth}px`,
-      height: "auto",
-      minHeight: "0",
-      maxHeight: "none",
-      overflow: "visible",
-      visibility: "hidden",
-      pointerEvents: "none",
-      flex: "none",
-      paddingBottom: "0",
-    });
-    document.body.appendChild(mirror);
-    const measuredLines = Math.max(
-      1,
-      Math.ceil(mirror.scrollHeight / WRITE_LINE_HEIGHT),
-    );
-    mirror.remove();
-    setWriteLines((current) =>
-      current === measuredLines ? current : measuredLines,
-    );
-  }
-  function syncEditor() {
-    if (!editorRef.current) return;
-    setText(editorElementToMarkdown(editorRef.current));
-    window.requestAnimationFrame(measureWritingEditor);
-  }
   function resetWritingEditor(markdown = "") {
     setText(markdown);
-    setEditorInitialHtml(markdownToEditorHtml(markdown));
     setEditorVersion((current) => current + 1);
-    hideSelectionMenu();
-  }
-  function showSelectionMenu() {
-    const selection = window.getSelection();
-    const paper = paperRef.current;
-    if (
-      !selection ||
-      selection.rangeCount === 0 ||
-      selection.isCollapsed ||
-      !paper
-    ) {
-      hideSelectionMenu();
-      return;
-    }
-    const selectionRect = selection.getRangeAt(0).getBoundingClientRect();
-    const bounds = paper.getBoundingClientRect();
-    const left = Math.max(
-      18,
-      Math.min(
-        selectionRect.left - bounds.left + selectionRect.width / 2 - 150,
-        bounds.width - 314,
-      ),
-    );
-    const top = selectionRect.top - bounds.top - 52;
-    setSelectionMenu({ visible: true, left, top });
-  }
-  function hideSelectionMenu() {
-    setSelectionMenu((current) => ({ ...current, visible: false }));
-  }
-  function applyEditorCommand(command: string, value?: string) {
-    editorRef.current?.focus();
-    document.execCommand(command, false, value);
-    syncEditor();
-    hideSelectionMenu();
-  }
-  async function pasteText() {
-    try {
-      const clipboard = await navigator.clipboard.readText();
-      if (!clipboard) return notify("剪贴板里没有文字");
-      editorRef.current?.focus();
-      document.execCommand("insertText", false, clipboard);
-      syncEditor();
-      notify("已粘贴剪贴板文字");
-    } catch {
-      notify("请在输入框内使用 Ctrl + V 粘贴");
-    }
   }
 
   function addFiles(files: FileList | null) {
@@ -1521,7 +1644,6 @@ export default function Home({
       thoughtLineSelections: entry.thoughtLineIds ?? [],
       aiLink: entry.aiLink,
     });
-    setPreviewMarkdown(false);
   }
 
   function saveEdit() {
@@ -1917,8 +2039,6 @@ export default function Home({
             style={{
               maxWidth: 960,
               paddingTop: 20,
-              transform: `translateY(-${Math.min(190, Math.max(0, writeLines - 5) * 20)}px)`,
-              transition: "transform .28s ease",
             }}
           >
             <div className="eyebrow" suppressHydrationWarning>
@@ -1926,120 +2046,18 @@ export default function Home({
             </div>
             <h1>此刻，想留下什么？</h1>
             <p className="lead">不急着下结论，顺着念头再想一点。</p>
-            <div
-              ref={paperRef}
-              className="paper rich-paper"
-              style={{
-                height:
-                  writeRows * WRITE_LINE_HEIGHT +
-                  (writeLines < WRITE_MAX_LINES ? 58 : 100),
-                overflow: "visible",
-                transition: "height .28s ease",
-              }}
-            >
-              <div
-                key={editorVersion}
-                ref={editorRef}
-                className="rich-editor"
-                style={{
-                  paddingBottom: writeLines >= WRITE_MAX_LINES ? 72 : 0,
-                  overflowY: writeLines >= WRITE_MAX_LINES ? "auto" : "hidden",
-                }}
-                contentEditable={true}
-                role="textbox"
-                aria-multiline="true"
-                tabIndex={0}
-                autoFocus
-                suppressContentEditableWarning
-                spellCheck
-                onInput={syncEditor}
-                onMouseUp={showSelectionMenu}
-                onKeyUp={showSelectionMenu}
-                onBlur={() => window.setTimeout(hideSelectionMenu, 120)}
-                data-placeholder="一段推理、一个疑问，或正在形成的看法……"
-              />
-              {selectionMenu.visible && (
-                <div
-                  className="selection-format-menu"
-                  style={{ left: selectionMenu.left, top: selectionMenu.top }}
-                  onMouseDown={(event) => event.preventDefault()}
-                >
-                  <button
-                    type="button"
-                    title="标题"
-                    onClick={() => applyEditorCommand("formatBlock", "H1")}
-                  >
-                    T
-                  </button>
-                  <button
-                    type="button"
-                    title="小标题"
-                    onClick={() => applyEditorCommand("formatBlock", "H2")}
-                  >
-                    T₂
-                  </button>
-                  <i />
-                  <button
-                    type="button"
-                    title="加粗"
-                    onClick={() => applyEditorCommand("bold")}
-                  >
-                    B
-                  </button>
-                  <button
-                    type="button"
-                    title="斜体"
-                    onClick={() => applyEditorCommand("italic")}
-                  >
-                    I
-                  </button>
-                  <button
-                    type="button"
-                    title="删除线"
-                    onClick={() => applyEditorCommand("strikeThrough")}
-                  >
-                    S
-                  </button>
-                  <button
-                    type="button"
-                    title="下划线"
-                    onClick={() => applyEditorCommand("underline")}
-                  >
-                    U
-                  </button>
-                  <i />
-                  <button
-                    type="button"
-                    title="引用"
-                    onClick={() =>
-                      applyEditorCommand("formatBlock", "BLOCKQUOTE")
-                    }
-                  >
-                    ❝
-                  </button>
-                  <button
-                    type="button"
-                    title="列表"
-                    onClick={() => applyEditorCommand("insertUnorderedList")}
-                  >
-                    •
-                  </button>
-                  <button
-                    type="button"
-                    title="居中"
-                    onClick={() => applyEditorCommand("justifyCenter")}
-                  >
-                    ≡
-                  </button>
-                </div>
-              )}
-              <div className="paper-tools">
-                <span>
-                  {text.length} 字 · {attachments.length} 张图片
-                </span>
-                <div>
-                  <button onClick={pasteText}>粘贴</button>
-                  <button onClick={() => fileRef.current?.click()}>
+            <LinedMarkdownEditor
+              value={text}
+              resetKey={editorVersion}
+              onChange={setText}
+              context="write"
+              autoFocus
+              characterCount={text.length}
+              attachmentCount={attachments.length}
+              onNotice={notify}
+              extraTools={
+                <>
+                  <button type="button" onClick={() => fileRef.current?.click()}>
                     ＋ 手写 / 图片
                   </button>
                   <input
@@ -2053,9 +2071,9 @@ export default function Home({
                       event.target.value = "";
                     }}
                   />
-                </div>
-              </div>
-            </div>{" "}
+                </>
+              }
+            />{" "}
             {attachments.length > 0 && (
               <div className="attachment-row">
                 {attachments.map((attachment, index) => (
@@ -2879,35 +2897,18 @@ export default function Home({
                 }
               />
               <label>正文</label>
-              <div className="markdown-mode">
-                <span>
-                  {previewMarkdown ? "Markdown 预览" : "Markdown 编辑"}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setPreviewMarkdown(!previewMarkdown)}
-                >
-                  {previewMarkdown ? "继续编辑" : "预览 Markdown"}
-                </button>
-              </div>
-              {previewMarkdown ? (
-                <div className="markdown-preview">
-                  <Markdown content={edit.content} />
-                </div>
-              ) : (
-                <textarea
-                  style={{
-                    height: editRows * 29 + (editLines < 15 ? 40 : 70),
-                    minHeight: 0,
-                    overflowY: editLines >= 15 ? "auto" : "hidden",
-                    paddingBottom: editLines >= 15 ? 52 : 11,
-                  }}
-                  value={edit.content}
-                  onChange={(event) =>
-                    setEdit({ ...edit, content: event.target.value })
-                  }
-                />
-              )}
+              <LinedMarkdownEditor
+                value={edit.content}
+                resetKey={selected.id}
+                onChange={(content) =>
+                  setEdit((current) =>
+                    current ? { ...current, content } : current,
+                  )
+                }
+                context="pool"
+                characterCount={edit.content.length}
+                onNotice={notify}
+              />
               <div className="edit-tags-row">
                 <div>
                   <label>普通标签</label>

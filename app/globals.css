@@ -1162,18 +1162,12 @@ h1 {
   font-size: 10px;
   margin-top: 5px;
 }
-.review-body input,
-.review-body textarea {
+.review-body > input {
   border: 1px solid var(--line);
   background: #faf9f5;
   border-radius: 7px;
   padding: 11px;
   outline: 0;
-}
-.review-body textarea {
-  min-height: 130px;
-  line-height: 1.7;
-  resize: vertical;
 }
 .tag-line {
   display: flex;
@@ -2076,32 +2070,6 @@ h1 {
 .comparison-original article {
   white-space: normal;
 }
-.markdown-mode {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: -2px;
-}
-.markdown-mode span {
-  font-size: 10px;
-  color: #a09b90;
-}
-.markdown-mode button {
-  border: 0;
-  background: none;
-  color: #5d7057;
-  font-size: 11px;
-  padding: 2px 0;
-  cursor: pointer;
-}
-.markdown-preview {
-  min-height: 130px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  background: #faf9f5;
-  padding: 14px;
-  overflow: auto;
-}
 .comparison-tools {
   display: flex;
   align-items: center;
@@ -2469,7 +2437,7 @@ h1 {
 
 /* Rich writing canvas: formatting is visible now; Markdown is produced only when saved. */
 .rich-paper {
-  overflow: visible !important;
+  overflow: visible;
 }
 .rich-editor {
   position: relative;
@@ -2482,6 +2450,8 @@ h1 {
   font-size: 16px;
   line-height: 2.55;
   white-space: pre-wrap;
+  overscroll-behavior: auto;
+  scrollbar-gutter: stable;
 }
 .rich-editor:empty:before {
   content: attr(data-placeholder);
@@ -2581,21 +2551,46 @@ h1 {
 }
 /* Paper calibration: characters sit on the ruled baseline. */
 .rich-paper {
+  --paper-line-height: 41px;
   padding-top: 14px;
 }
 .rich-editor {
-  line-height: 41px;
+  line-height: var(--paper-line-height);
 }
 .rich-editor div,
 .rich-editor p {
-  line-height: 41px;
-  min-height: 41px;
+  line-height: var(--paper-line-height);
+  min-height: var(--paper-line-height);
 }
 .rich-editor h1 {
-  line-height: 41px;
+  line-height: var(--paper-line-height);
 }
 .rich-editor h2 {
-  line-height: 41px;
+  line-height: var(--paper-line-height);
+}
+.lined-markdown-editor-pool {
+  --paper-rule-color: rgba(233, 229, 217, 0.46);
+  width: 100%;
+  margin: 2px 0 10px;
+  background: #faf9f5;
+}
+.lined-markdown-editor-pool:before {
+  background: none;
+}
+.lined-markdown-editor-pool .rich-editor {
+  background-color: inherit;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 40px,
+    var(--paper-rule-color) 40px,
+    var(--paper-rule-color) var(--paper-line-height)
+  );
+  background-attachment: local;
+  background-position-y: -14px;
+}
+.lined-markdown-editor-pool .paper-tools > div:empty {
+  display: none;
 }
 /* Diary pool: each thought gets the same quiet visual weight. */
 .entry {

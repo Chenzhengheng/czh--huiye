@@ -45,6 +45,9 @@ export default defineConfig(async () => {
   const { cloudflare } = await import("@cloudflare/vite-plugin");
 
   return {
+    optimizeDeps: {
+      exclude: ["react-server-dom-webpack/server.edge"],
+    },
     server: {
       host: "127.0.0.1",
       watch: {

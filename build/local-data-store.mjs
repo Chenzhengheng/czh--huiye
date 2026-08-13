@@ -1,11 +1,63 @@
 import { createHash, randomUUID } from "node:crypto";
-import { copyFile, mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const STORE_FORMAT = "huiye-local-store";
 const STORE_VERSION = 1;
 const BACKUP_FORMAT = "huiye-backup";
 const BACKUP_VERSION = 1;
+const RETENTION_TIME_ZONE = "Asia/Shanghai";
+const RECENT_GENERATION_COUNT = 20;
+const DAILY_RETENTION_DAYS = 30;
+
+function calendarKey(value, options) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: RETENTION_TIME_ZONE,
+    ...options,
+  }).formatToParts(new Date(value));
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return options.day
+    ? `${values.year}-${values.month}-${values.day}`
+    : `${values.year}-${values.month}`;
+}
+
+function dayKey(value) {
+  return calendarKey(value, { year: "numeric", month: "2-digit", day: "2-digit" });
+}
+
+function monthKey(value) {
+  return calendarKey(value, { year: "numeric", month: "2-digit" });
+}
+
+export function selectRetainedGenerationIds(generations, currentGenerationId, now = new Date()) {
+  const sorted = [...generations]
+    .filter(item => item?.generationId && !Number.isNaN(Date.parse(item.updatedAt)))
+    .sort((left, right) => String(right.updatedAt).localeCompare(String(left.updatedAt)));
+  const retained = new Set(currentGenerationId ? [currentGenerationId] : []);
+  for (const item of sorted.slice(0, RECENT_GENERATION_COUNT)) retained.add(item.generationId);
+
+  const dailyCutoff = new Date(now);
+  dailyCutoff.setDate(dailyCutoff.getDate() - (DAILY_RETENTION_DAYS - 1));
+  const cutoffDay = dayKey(dailyCutoff);
+  const daily = new Set();
+  const monthly = new Set();
+  for (const item of sorted) {
+    const itemDay = dayKey(item.updatedAt);
+    if (itemDay >= cutoffDay) {
+      if (!daily.has(itemDay)) {
+        daily.add(itemDay);
+        retained.add(item.generationId);
+      }
+      continue;
+    }
+    const itemMonth = monthKey(item.updatedAt);
+    if (!monthly.has(itemMonth)) {
+      monthly.add(itemMonth);
+      retained.add(item.generationId);
+    }
+  }
+  return retained;
+}
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -116,6 +168,14 @@ async function writeJson(filePath, value) {
 
 async function readJson(filePath) {
   return JSON.parse(await readFile(filePath, "utf8"));
+}
+
+async function readOptionalJsonValue(filePath, fallback = null) {
+  try {
+    return await readJson(filePath);
+  } catch {
+    return fallback;
+  }
 }
 
 async function readOptionalJson(filePath, fallback) {
@@ -377,7 +437,77 @@ export async function writeLocalData(rootDir, input, options = {}) {
   await renameWithRetry(stagingDir, finalDir);
   await switchCurrentPointer(rootDir, generationId, updatedAt);
 
+  try {
+    await pruneLocalDataGenerations(rootDir, { now: new Date(updatedAt) });
+  } catch {
+    // Retention is best-effort. A completed data save must never be reported as failed.
+  }
+
   return { generationId, updatedAt, counts: staged.generation.counts, dataSha256: staged.generation.dataSha256 };
+}
+
+export async function pruneLocalDataGenerations(rootDir, options = {}) {
+  const now = options.now instanceof Date ? options.now : new Date(options.now ?? Date.now());
+  const statePath = path.join(rootDir, "retention.json");
+  const state = await readOptionalJsonValue(statePath, {});
+  const today = dayKey(now);
+  if (!options.force && state.lastPrunedDay === today) {
+    return { skipped: true, deleted: [], retained: [] };
+  }
+
+  const current = await readJson(path.join(rootDir, "current.json"));
+  const generationsDir = path.join(rootDir, "generations");
+  const names = await readdir(generationsDir, { withFileTypes: true });
+  const generations = [];
+  for (const entry of names) {
+    if (!entry.isDirectory() || entry.name.startsWith(".staging-")) continue;
+    const metadata = await readOptionalJsonValue(path.join(generationsDir, entry.name, "generation.json"));
+    if (metadata?.generationId === entry.name && metadata.updatedAt) generations.push(metadata);
+  }
+
+  const retained = selectRetainedGenerationIds(generations, current.generationId, now);
+  const deleted = generations
+    .map(item => item.generationId)
+    .filter(id => id !== current.generationId && !retained.has(id));
+
+  let initialBackupPath = state.initialBackupPath;
+  if (deleted.length && !initialBackupPath) {
+    const active = await readGeneration(path.join(generationsDir, current.generationId));
+    const backupsDir = path.join(rootDir, "backups");
+    await mkdir(backupsDir, { recursive: true });
+    const backupName = `before-generation-retention-${now.toISOString().replace(/[-:.TZ]/g, "").slice(0, 14)}.json`;
+    initialBackupPath = path.join("backups", backupName).replaceAll("\\", "/");
+    const backupPath = path.join(rootDir, initialBackupPath);
+    await writeFile(backupPath, `${JSON.stringify(active.data, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
+    assertBackup(await readJson(backupPath));
+  }
+
+  for (const id of deleted) await rm(path.join(generationsDir, id), { recursive: true, force: true });
+
+  const historyDir = path.join(rootDir, "pointer-history");
+  try {
+    const history = await readdir(historyDir, { withFileTypes: true });
+    const deletedSet = new Set(deleted);
+    for (const entry of history) {
+      if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
+      const pointer = await readOptionalJsonValue(path.join(historyDir, entry.name));
+      if (pointer?.generationId && deletedSet.has(pointer.generationId)) {
+        await rm(path.join(historyDir, entry.name), { force: true });
+      }
+    }
+  } catch {
+    // Older stores may not have pointer history.
+  }
+
+  const nextState = {
+    format: "huiye-generation-retention",
+    version: 1,
+    lastPrunedDay: today,
+    lastPrunedAt: now.toISOString(),
+    initialBackupPath: initialBackupPath ?? null,
+  };
+  await writeFile(statePath, `${JSON.stringify(nextState, null, 2)}\n`, "utf8");
+  return { skipped: false, deleted, retained: [...retained], initialBackupPath: nextState.initialBackupPath };
 }
 
 export async function importBackupFile(rootDir, backupPath, options = {}) {

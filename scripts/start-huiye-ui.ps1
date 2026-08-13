@@ -86,7 +86,14 @@ $timer = New-Object Windows.Threading.DispatcherTimer
 $timer.Interval = [TimeSpan]::FromMilliseconds(650)
 
 function Read-Status {
-  try { return Invoke-RestMethod -Uri $apiUrl -Method Get -TimeoutSec 1 } catch { return $null }
+  try {
+    $status = Invoke-RestMethod -Uri $apiUrl -Method Get -TimeoutSec 1
+    $page = Invoke-WebRequest -Uri $url -Method Get -UseBasicParsing -TimeoutSec 5
+    if ($page.StatusCode -ne 200) { return $null }
+    return $status
+  } catch {
+    return $null
+  }
 }
 
 function Show-Failure([string]$message) {

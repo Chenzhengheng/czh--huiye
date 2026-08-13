@@ -10,6 +10,7 @@
     "local": "vinext dev --host 127.0.0.1 --port 4317",
     "local:import": "node scripts/import-local-data.mjs",
     "local:verify": "node scripts/verify-local-data.mjs",
+    "local:prune": "node scripts/prune-local-data.mjs",
     "local:verify-echoes": "node scripts/verify-echo-records.mjs",
     "build": "vinext build",
     "start": "vinext start",
