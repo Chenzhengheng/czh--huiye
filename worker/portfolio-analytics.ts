@@ -202,6 +202,20 @@ export async function handlePortfolioAnalyticsApi(
       headers: { "cache-control": "no-store" },
     });
   }
+  if (url.pathname === "/api/portfolio-visits/admin/cleanup-verification" && request.method === "POST") {
+    if (!env.DB || !(await authorized(request, env.PORTFOLIO_DASHBOARD_TOKEN))) {
+      return Response.json({ error: "unauthorized" }, { status: 401 });
+    }
+    const before = await env.DB
+      .prepare("SELECT COUNT(*) AS count FROM portfolio_visit_sessions WHERE confirmed_at IS NULL")
+      .first<{ count: number | null }>();
+    const count = Number(before?.count ?? 0);
+    if (count !== 3) {
+      return Response.json({ error: "unexpected_record_count", count }, { status: 409 });
+    }
+    await env.DB.prepare("DELETE FROM portfolio_visit_sessions WHERE confirmed_at IS NULL").run();
+    return Response.json({ deleted: count }, { headers: { "cache-control": "no-store" } });
+  }
   if (url.pathname === "/api/portfolio-visits/admin/enroll" && request.method === "POST") {
     const form = await request.formData();
     const token = String(form.get("token") ?? "");
