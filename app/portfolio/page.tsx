@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import styles from "./portfolio.module.css";
+import { PortfolioVisitBeacon } from "./portfolio-visit-beacon";
 
 const githubUrl = "https://github.com/Chenzhengheng/czh--huiye";
 const userFlowUrl =
@@ -40,6 +41,7 @@ const productThoughtLine = [
 export default function PortfolioPage() {
   return (
     <main className={styles.page}>
+      <PortfolioVisitBeacon />
       <nav className={styles.nav} aria-label="作品集导航">
         <a className={styles.brand} href="#top" aria-label="回到页首">
           <span>回</span>
