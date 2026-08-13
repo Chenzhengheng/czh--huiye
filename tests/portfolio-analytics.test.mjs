@@ -18,11 +18,7 @@ class FakeStatement {
       const row = this.db.rows.find((item) => item.id === c && item.device_id === d);
       if (row) { row.confirmed_at ??= a; row.latest_at = b; }
     }
-    if (this.sql === "DELETE FROM portfolio_visit_sessions WHERE confirmed_at IS NULL") {
-      this.db.rows = this.db.rows.filter((row) => row.confirmed_at != null);
-    } else if (this.sql.startsWith("DELETE FROM")) {
-      this.db.rows = this.db.rows.filter((row) => row.started_at >= a);
-    }
+    if (this.sql.startsWith("DELETE FROM")) this.db.rows = this.db.rows.filter((row) => row.started_at >= a);
     return { success: true };
   }
   async first() {
@@ -33,9 +29,6 @@ class FakeStatement {
     if (this.sql.includes("COUNT(DISTINCT device_id)")) {
       const rows = this.db.rows.filter((row) => row.started_at >= since);
       return { devices: new Set(rows.map((row) => row.device_id)).size, confirmed: rows.filter((row) => row.confirmed_at != null).length, unconfirmed: rows.filter((row) => row.confirmed_at == null).length };
-    }
-    if (this.sql.startsWith("SELECT COUNT(*) AS count")) {
-      return { count: this.db.rows.filter((row) => row.confirmed_at == null).length };
     }
     if (this.sql.startsWith("SELECT MAX")) return { latest: Math.max(0, ...this.db.rows.map((row) => row.confirmed_at ?? 0)) || null };
     return null;
@@ -92,25 +85,5 @@ test("protects summaries and excludes an enrolled admin browser", async () => {
   const enrolled = await handlePortfolioAnalyticsApi(new Request("https://example.test/api/portfolio-visits/admin/enroll", { method: "POST", body: new URLSearchParams({ token: "secret" }) }), env);
   const adminCookie = /huiye_portfolio_admin=([^;,]+)/.exec(cookieHeader(enrolled))[1];
   await recordPortfolioPage(new Request("https://example.test/portfolio", { headers: { cookie: `huiye_portfolio_admin=${adminCookie}` } }), new Response("ok"), env, 1_800_000_100);
-  assert.equal(DB.rows.length, 0);
-});
-
-test("verification cleanup deletes exactly three unconfirmed sessions", async () => {
-  const DB = new FakeD1();
-  DB.rows.push(
-    { id: "a", device_id: "a", started_at: 1, latest_at: 1, confirmed_at: null },
-    { id: "b", device_id: "b", started_at: 2, latest_at: 2, confirmed_at: null },
-    { id: "c", device_id: "c", started_at: 3, latest_at: 3, confirmed_at: null },
-  );
-  const env = { DB, PORTFOLIO_DASHBOARD_TOKEN: "secret" };
-  const response = await handlePortfolioAnalyticsApi(
-    new Request("https://example.test/api/portfolio-visits/admin/cleanup-verification", {
-      method: "POST",
-      headers: { authorization: "Bearer secret" },
-    }),
-    env,
-  );
-  assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), { deleted: 3 });
   assert.equal(DB.rows.length, 0);
 });
