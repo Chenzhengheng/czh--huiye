@@ -202,7 +202,10 @@ test("uses one lined editor for writing and diary-pool editing without moving th
   assert.doesNotMatch(page, /transform: `translateY/);
   assert.doesNotMatch(page, /Markdown 编辑|预览 Markdown|previewMarkdown/);
   assert.match(page, /followCaretAfterInput/);
-  assert.match(page, /behavior: reduceMotion \? "auto" : "smooth"/);
+  assert.match(page, /paper\.appendChild\(mirror\)/);
+  assert.match(page, /editor\.scrollTo\(\{ top: nextScrollTop, behavior: "auto" \}\)/);
+  assert.match(page, /pageScrollBeforeInputRef/);
+  assert.doesNotMatch(page, /behavior: reduceMotion \? "auto" : "smooth"/);
   assert.match(page, /context="write"/);
   assert.match(page, /context="pool"/);
   assert.match(page, /Array\.from\(markdownPreviewText\(firstLine\)\)\.slice\(0, 15\)/);

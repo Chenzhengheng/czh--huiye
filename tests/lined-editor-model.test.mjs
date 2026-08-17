@@ -7,9 +7,26 @@ import {
 } from "../app/lined-editor-model.ts";
 
 test("the paper grows to fifteen lines and then scrolls internally", () => {
-  assert.deepEqual(linedEditorRows(0), { rows: 6, scrollable: false });
-  assert.deepEqual(linedEditorRows(9), { rows: 12, scrollable: false });
-  assert.deepEqual(linedEditorRows(16), { rows: 15, scrollable: true });
+  assert.deepEqual(linedEditorRows(0), {
+    rows: 6,
+    comfortPadding: false,
+    overflowReady: false,
+  });
+  assert.deepEqual(linedEditorRows(9), {
+    rows: 12,
+    comfortPadding: false,
+    overflowReady: false,
+  });
+  assert.deepEqual(linedEditorRows(15), {
+    rows: 15,
+    comfortPadding: false,
+    overflowReady: true,
+  });
+  assert.deepEqual(linedEditorRows(16), {
+    rows: 15,
+    comfortPadding: true,
+    overflowReady: true,
+  });
 });
 
 test("typing follows the caret by the minimum distance instead of recentering it", () => {

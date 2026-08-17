@@ -34,13 +34,13 @@
 10. Prompt 与评测界面用中文关系类型；EchoRecord 仍保存英文枚举，通过 `echoRelationLabel` 在展示层映射，避免迁移旧数据；
 11. EchoSource 外层 `details` 默认 open，直接显示原文节选；嵌套的完整原文 `details` 保持关闭。评测工作台和正式回响复用同一 EchoCard，因此初始状态一致。
 12. 日记池在搜索过滤后统一按 Entry 时间倒序排列，日期和具体时间越晚越靠前；PortfolioMode 的固定数据必须先通过 MinimumRedaction 审核，并由测试阻止已删除的敏感片段再次进入公开构建。
-13. 写下页与日记池编辑复用同一个 `LinedMarkdownEditor`：纸张先随内容增长，到 15 行后改为纸内滚动；当前行进入上方或下方边界时，只按重新进入舒适区所需的最小距离平滑跟随，不再瞬间回到编辑区中央。用户手动向上回看时不抢夺滚动位置，下一次输入才恢复跟随；系统启用“减少动态效果”时使用即时最小距离。页面本身不再通过位移追踪光标，因此标题和首行始终可由正常页面滚动到达。
+13. 写下页与日记池编辑复用同一个 `LinedMarkdownEditor`：测量镜像挂在真实纸张节点内，继承相同宽度、行高和场景样式，因此自动换行也按视觉行计数。前 15 行完整展开，并在第 15 行预先启用内部 overflow；第 16 行起增加光标舒适区，当前行进入上方或下方边界时立即按最小距离跟随。空白新行的 Range 若返回零尺寸，改用选区锚点所在块计算光标位置，避免连续回车时内部滚动反向。每次输入前记录外层页面位置，跟随完成后恢复；用户手动向上回看时不抢夺滚动位置，下一次输入才重新找到光标。
 14. 日记池仍将标题、普通标签、思考线、AI 权限、导出和保存作为结构化字段；只有正文编辑面板改用同款富文本纸张。正文继续按 Markdown 字符串保存，旧 Entry 无需迁移。
 15. generation 清理由 `pruneLocalDataGenerations` 负责：每次保存后检查、每天至多实际执行一次；`npm run local:prune` 可在校验当前 pointer 后手动执行相同策略。PortfolioMode 不访问这套私人存储和清理逻辑。
 
 ## 测试与技术债
 
-领域规则在 `thought-line-model.test.mjs`；纸张增长和光标跟随计算在 `lined-editor-model.test.mjs`；存储兼容在 `local-data-store.test.mjs`；界面边界在 `rendered-html.test.mjs`；回响事件由 store 测试覆盖。
+领域规则在 `thought-line-model.test.mjs`；纸张增长和光标跟随计算在 `lined-editor-model.test.mjs`；写下页与日记池的真实排版、连续回车、外层页面稳定和手动回看恢复由 Chromium 驱动的 `lined-editor-browser.test.mjs` 覆盖；存储兼容在 `local-data-store.test.mjs`；界面边界在 `rendered-html.test.mjs`；回响事件由 store 测试覆盖。
 
 `build/echo-candidate-controller.mjs` 为本地自动评测候选提供确定性控制：统计有效来源使用次数、构造排除组合、限制每条线最多三轮并校验强烈变化例外；`writeEchoRecord` 在落盘前重复执行来源复用门禁。语义上的关系、证据、显化增量、解释风险及例外是否真实仍由模型判断。Codex 自动化动态读取当前 Prompt，在每条合格主思考线内运行规则与模型循环，各线最多保留一条候选，最终至多写入一条 `evaluation_only` EchoRecord；保持沉默不持久化。
 

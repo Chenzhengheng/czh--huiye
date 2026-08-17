@@ -14,7 +14,8 @@
     "local:verify-echoes": "node scripts/verify-echo-records.mjs",
     "build": "vinext build",
     "start": "vinext start",
-    "test": "vinext build && node --experimental-strip-types --test tests/rendered-html.test.mjs tests/local-data-store.test.mjs tests/thought-line-model.test.mjs tests/portfolio-analytics.test.mjs tests/echo-candidate-controller.test.mjs",
+    "test": "vinext build && node --experimental-strip-types --test tests/rendered-html.test.mjs tests/local-data-store.test.mjs tests/thought-line-model.test.mjs tests/portfolio-analytics.test.mjs tests/echo-candidate-controller.test.mjs tests/lined-editor-model.test.mjs && node --test tests/lined-editor-browser.test.mjs",
+    "test:lined-editor-browser": "node --test tests/lined-editor-browser.test.mjs",
     "test:portfolio-analytics": "node --experimental-strip-types --test tests/portfolio-analytics.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
@@ -37,6 +38,7 @@
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.6",
     "node": "^22.23.1",
+    "playwright": "1.62.1",
     "react-server-dom-webpack": "19.2.6",
     "tailwindcss": "4.2.1",
     "typescript": "5.9.3",
