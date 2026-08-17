@@ -11,11 +11,15 @@ if (!(Test-Path -LiteralPath $configPath)) {
   $random.Dispose()
   $token = [Convert]::ToBase64String($tokenBytes).TrimEnd('=').Replace('+','-').Replace('/','_')
   New-Item -ItemType Directory -Force -Path (Split-Path $configPath) | Out-Null
-  @{ siteOrigin = "https://huiye-ai-diary.zhenghengchen13.chatgpt.site"; token = $token; port = 4321 } |
+  @{ siteOrigin = "https://huiye-ai-diary.zhenghengchen13.chatgpt.site"; token = $token; port = 4321; proxy = "http://127.0.0.1:12000" } |
     ConvertTo-Json | Set-Content -LiteralPath $configPath -Encoding UTF8
 }
 
 $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+if (!$config.PSObject.Properties["proxy"]) {
+  $config | Add-Member -NotePropertyName proxy -NotePropertyValue "http://127.0.0.1:12000"
+  $config | ConvertTo-Json | Set-Content -LiteralPath $configPath -Encoding UTF8
+}
 $port = [int]$config.port
 $dashboardUrl = "http://127.0.0.1:$port"
 $bundledNode = "C:\Users\chenzhengheng123\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe"

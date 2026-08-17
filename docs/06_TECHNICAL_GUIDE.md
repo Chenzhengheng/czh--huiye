@@ -5,7 +5,7 @@
 - Worker 只在精确路径 `/portfolio` 返回成功页面时创建或复用 30 分钟访问会话。
 - 客户端不可见 Beacon 在页面完成渲染后确认会话；没有 Beacon 的记录保持“未确认”，不自动归为失败。
 - `/api/portfolio-visits/summary` 只接受本机代理持有的 Bearer 密钥，线上不提供看板 UI 或导航入口。
-- 本地 `scripts/portfolio-dashboard-server.mjs` 从被 Git 忽略的 `local-data/portfolio-dashboard-admin.json` 读取密钥并代理汇总；浏览器页面接触不到线上密钥。
+- 本地 `scripts/portfolio-dashboard-server.mjs` 从被 Git 忽略的 `local-data/portfolio-dashboard-admin.json` 读取密钥与本机代理地址并代理汇总；浏览器页面接触不到线上密钥或代理配置。旧配置由启动脚本补入默认代理 `http://127.0.0.1:12000`，代理不可用时看板给出明确的开启提示。
 - `scripts/install-portfolio-dashboard-shortcut.ps1` 在桌面创建“回页 · 访问看板”，复用回页双页连接图标。
 
 本页只描述当前代码，不写未来设想。
@@ -30,7 +30,7 @@
 6. 回响回应在 EchoCard 内原地编辑，保存为独立 EchoReply；反馈事件与回应互不推断；
 7. EvaluationWorkbook 总表直接编辑 CaseRecord 的 dimensions、verdict 和 notes；详情卡仍负责证据阅读、EchoReply 与 OptionalEchoFeedback；
 8. 总表从来源 Entry 的 `thoughtLineIds` 与 EchoRecord 的 `thoughtLineId` 计算 ThoughtLine 并集，PromptVersion 优先读取 CaseRecord，旧数据回退到 EchoRecord ruleVersion；
-9. “Prompt 版本” Sheet 从 `promptVersions` 读取 v0.1–v0.3 的全文、状态、变更依据和继承关系；当前工作常量指向 v0.3，历史 Case 不随之改写；
+9. “Prompt 版本” Sheet 从 `promptVersions` 读取 v0.1–v0.4 的全文、状态、变更依据和继承关系；当前工作常量指向待评测的 v0.4，历史 Case 不随之改写；
 10. Prompt 与评测界面用中文关系类型；EchoRecord 仍保存英文枚举，通过 `echoRelationLabel` 在展示层映射，避免迁移旧数据；
 11. EchoSource 外层 `details` 默认 open，直接显示原文节选；嵌套的完整原文 `details` 保持关闭。评测工作台和正式回响复用同一 EchoCard，因此初始状态一致。
 12. 日记池在搜索过滤后统一按 Entry 时间倒序排列，日期和具体时间越晚越靠前；PortfolioMode 的固定数据必须先通过 MinimumRedaction 审核，并由测试阻止已删除的敏感片段再次进入公开构建。
@@ -42,4 +42,6 @@
 
 领域规则在 `thought-line-model.test.mjs`；纸张增长和光标跟随计算在 `lined-editor-model.test.mjs`；存储兼容在 `local-data-store.test.mjs`；界面边界在 `rendered-html.test.mjs`；回响事件由 store 测试覆盖。
 
-`app/huiye-app.tsx` 仍承担较多视图编排，MVP 验证后再拆组件。当前无生产模型调用；v0.3 是可追溯的生成契约，还没有接入自动调用或持久化保持沉默结果。CaseRecord 与 EchoReply 暂随主 generation 保存；`docs/assets/` 中三张正式图以 SVG 为唯一可编辑源，PNG、BPMN 与 HTML 为同步产物。
+`build/echo-candidate-controller.mjs` 为本地自动评测候选提供确定性控制：统计有效来源使用次数、构造排除组合、限制每条线最多三轮并校验强烈变化例外；`writeEchoRecord` 在落盘前重复执行来源复用门禁。语义上的关系、证据、显化增量、解释风险及例外是否真实仍由模型判断。Codex 自动化动态读取当前 Prompt，在每条合格主思考线内运行规则与模型循环，各线最多保留一条候选，最终至多写入一条 `evaluation_only` EchoRecord；保持沉默不持久化。
+
+`app/huiye-app.tsx` 仍承担较多视图编排，MVP 验证后再拆组件。当前应用运行时无生产模型调用；v0.4 是待评测的自动候选生成契约，调用发生在本地 Codex 自动化中。CaseRecord 与 EchoReply 暂随主 generation 保存；`docs/assets/` 中三张正式图以 SVG 为唯一可编辑源，PNG、BPMN 与 HTML 为同步产物。

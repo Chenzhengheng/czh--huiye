@@ -14,7 +14,7 @@
     "local:verify-echoes": "node scripts/verify-echo-records.mjs",
     "build": "vinext build",
     "start": "vinext start",
-    "test": "vinext build && node --experimental-strip-types --test tests/rendered-html.test.mjs tests/local-data-store.test.mjs tests/thought-line-model.test.mjs tests/portfolio-analytics.test.mjs",
+    "test": "vinext build && node --experimental-strip-types --test tests/rendered-html.test.mjs tests/local-data-store.test.mjs tests/thought-line-model.test.mjs tests/portfolio-analytics.test.mjs tests/echo-candidate-controller.test.mjs",
     "test:portfolio-analytics": "node --experimental-strip-types --test tests/portfolio-analytics.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"

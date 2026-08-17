@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { evaluateEchoCandidateSourceReuse } from "./echo-candidate-controller.mjs";
+
 const ECHO_MODES = new Set(["relational", "reflective_revisit"]);
 const EVENT_TYPES = new Set([
   "presented",
@@ -133,8 +135,17 @@ export async function readEchoRecords(rootDir) {
   return records.sort((left, right) => left.discoveredAt.localeCompare(right.discoveredAt));
 }
 
-export async function writeEchoRecord(rootDir, input) {
+export async function writeEchoRecord(rootDir, input, options = {}) {
   const record = validateEchoRecord(input);
+  const sourceReuse = evaluateEchoCandidateSourceReuse({
+    echoRecords: await readEchoRecords(rootDir),
+    sourceEntryIds: record.sourceEntryIds,
+    sourceReuseExceptions: options.sourceReuseExceptions,
+  });
+  if (!sourceReuse.allowed) {
+    const entryIds = sourceReuse.sourceReuseSignals.map((signal) => signal.entryId).join("、");
+    throw new Error(`EchoRecord 来源 ${entryIds} 本次将达到第三次使用，且没有完整的强烈变化例外`);
+  }
   await writeJsonAtomically(recordPath(rootDir, record.id), record);
   return record;
 }

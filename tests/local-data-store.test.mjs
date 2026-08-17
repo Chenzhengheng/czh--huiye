@@ -62,6 +62,16 @@ function echoFixture() {
   };
 }
 
+function echoFixtureWithSources(id, sourceEntryIds) {
+  const record = echoFixture();
+  record.id = id;
+  record.sourceEntryIds = sourceEntryIds;
+  record.triggerEntryId = sourceEntryIds.at(-1);
+  record.evidence = sourceEntryIds.map((entryId) => ({ entryId, quote: `Entry ${entryId} 的逐字证据。` }));
+  record.sourceSummaries = sourceEntryIds.map((entryId) => ({ entryId, text: `Entry ${entryId} 的浓缩。` }));
+  return record;
+}
+
 test("writes immutable generations and reconstructs human-readable entries", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "huiye-local-store-"));
   try {
@@ -370,6 +380,49 @@ test("accepts an evaluation-only EchoRecord without promoting it to a formal can
     record.lifecycle = "evaluation_only";
     await writeEchoRecord(root, record);
     assert.equal((await readEchoRecords(root))[0].lifecycle, "evaluation_only");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("rejects writing an EchoRecord that would reuse one source for the third time", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "huiye-echo-store-"));
+  try {
+    await writeEchoRecord(root, echoFixtureWithSources("echo-reuse-1", [101, 102]));
+    await writeEchoRecord(root, echoFixtureWithSources("echo-reuse-2", [101, 103]));
+
+    await assert.rejects(
+      () => writeEchoRecord(root, echoFixtureWithSources("echo-reuse-3", [101, 104])),
+      /第三次/,
+    );
+    assert.equal((await readEchoRecords(root)).length, 2);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("allows third source use when the write includes a complete strong-change exception", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "huiye-echo-store-"));
+  try {
+    await writeEchoRecord(root, echoFixtureWithSources("echo-exception-1", [101, 102]));
+    await writeEchoRecord(root, echoFixtureWithSources("echo-exception-2", [101, 103]));
+
+    await writeEchoRecord(
+      root,
+      echoFixtureWithSources("echo-exception-3", [101, 104]),
+      {
+        sourceReuseExceptions: [
+          {
+            entryId: 101,
+            materialChange: { passed: true, reason: "后来的行动结果修正了早期判断。" },
+            indispensableSource: { passed: true, reason: "删除早期来源后修正链不成立。" },
+            nonRestatement: { passed: true, reason: "候选显化了任意单篇都没有说清的变化。" },
+          },
+        ],
+      },
+    );
+
+    assert.equal((await readEchoRecords(root)).length, 3);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
