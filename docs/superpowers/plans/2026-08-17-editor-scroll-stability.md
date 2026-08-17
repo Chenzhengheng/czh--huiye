@@ -12,12 +12,14 @@
 
 - The first 15 rendered visual lines fit without user-visible internal scrolling; the 16th visual line starts internal scrolling.
 - Wrapped text counts by rendered visual lines, not paragraph or Enter count.
-- Input-triggered caret following is immediate and moves only the paper's internal scroller.
+- Input-triggered caret following is immediate. The diary pool moves only its paper scroller; the writing page also advances the outer page naturally as long-form input continues.
 - Once following begins, the caret settles near the 72% lower comfort boundary with about four visible lines below it.
 - Manual review scrolling is not overridden until the next input.
 - Writing and diary-pool editing keep one shared implementation.
 - PortfolioMode browser tests use only fixed redacted demo data and never access `local-data/`.
 - Markdown persistence, storage schemas, formatting controls, and responsive redesign are out of scope.
+
+**Approved amendment (2026-08-18):** The original outer-page invariant was too broad. Writing-page input must let the motto leave the viewport naturally and must return to the caret only after input resumes following manual review. Diary-pool editing continues to keep its background page fixed.
 
 ---
 

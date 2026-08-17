@@ -549,6 +549,9 @@ function LinedMarkdownEditor({
   const editorRef = useRef<HTMLDivElement>(null);
   const paperRef = useRef<HTMLDivElement>(null);
   const pageScrollBeforeInputRef = useRef<number | null>(null);
+  const editorScrollBeforeInputRef = useRef(0);
+  const inputAddsVisualLineRef = useRef(false);
+  const lastWritingPageScrollRef = useRef(0);
   const resetValueRef = useRef(value);
   const [lineCount, setLineCount] = useState(0);
   const [selectionMenu, setSelectionMenu] = useState({
@@ -646,10 +649,17 @@ function LinedMarkdownEditor({
     if (nextScrollTop !== editor.scrollTop) {
       editor.scrollTo({ top: nextScrollTop, behavior: "auto" });
     }
-    restoreOuterPageScroll(true);
+    if (context === "write") {
+      followWritingPageAfterInput(
+        Math.max(0, nextScrollTop - editorScrollBeforeInputRef.current),
+      );
+    } else {
+      restorePoolBackgroundScroll(true);
+    }
   }
 
-  function restoreOuterPageScroll(clear = false) {
+  function restorePoolBackgroundScroll(clear = false) {
+    if (context !== "pool") return;
     const pageScrollBeforeInput = pageScrollBeforeInputRef.current;
     if (
       pageScrollBeforeInput !== null &&
@@ -660,13 +670,46 @@ function LinedMarkdownEditor({
     if (clear) pageScrollBeforeInputRef.current = null;
   }
 
+  function followWritingPageAfterInput(internalScrollDelta: number) {
+    const paper = paperRef.current;
+    const pageScrollBeforeInput = pageScrollBeforeInputRef.current;
+    const inputAddsVisualLine = inputAddsVisualLineRef.current;
+    pageScrollBeforeInputRef.current = null;
+    inputAddsVisualLineRef.current = false;
+    if (!paper || pageScrollBeforeInput === null || !overflowReady) return;
+
+    const stickyBar = document.querySelector(".portfolio-mode-bar");
+    const topBoundary = stickyBar?.getBoundingClientRect().bottom ?? 0;
+    const remaining = Math.max(
+      0,
+      paper.getBoundingClientRect().top - topBoundary - 16,
+    );
+    if (remaining === 0) return;
+
+    const returningFromManualReview =
+      pageScrollBeforeInput + 1 < lastWritingPageScrollRef.current;
+    const advancesWriting = inputAddsVisualLine || internalScrollDelta > 0;
+    const pageDelta = returningFromManualReview
+      ? remaining
+      : advancesWriting
+        ? Math.min(
+            remaining,
+            Math.max(internalScrollDelta, WRITE_LINE_HEIGHT),
+          )
+        : 0;
+    if (pageDelta > 0) {
+      window.scrollBy({ top: pageDelta, behavior: "auto" });
+      lastWritingPageScrollRef.current = window.scrollY;
+    }
+  }
+
   function syncEditor() {
     const editor = editorRef.current;
     if (!editor) return;
-    restoreOuterPageScroll();
+    restorePoolBackgroundScroll();
     onChange(editorElementToMarkdown(editor));
     window.requestAnimationFrame(() => {
-      restoreOuterPageScroll();
+      restorePoolBackgroundScroll();
       measureEditor();
       window.requestAnimationFrame(followCaretAfterInput);
     });
@@ -730,6 +773,7 @@ function LinedMarkdownEditor({
     if (!editor) return;
     editor.innerHTML = markdownToEditorHtml(resetValueRef.current);
     editor.scrollTop = 0;
+    lastWritingPageScrollRef.current = window.scrollY;
     window.requestAnimationFrame(measureEditor);
   }, [resetKey]);
 
@@ -768,8 +812,12 @@ function LinedMarkdownEditor({
         autoFocus={autoFocus}
         suppressContentEditableWarning
         spellCheck
-        onBeforeInput={() => {
+        onBeforeInput={(event) => {
           pageScrollBeforeInputRef.current = window.scrollY;
+          editorScrollBeforeInputRef.current = editorRef.current?.scrollTop ?? 0;
+          const inputType = (event.nativeEvent as InputEvent).inputType;
+          inputAddsVisualLineRef.current =
+            inputType === "insertParagraph" || inputType === "insertLineBreak";
         }}
         onInput={syncEditor}
         onMouseUp={showSelectionMenu}

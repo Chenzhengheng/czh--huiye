@@ -131,7 +131,25 @@ async function typeFifteenLines(editor) {
   }
 }
 
-async function assertStableRepeatedEnter(page, contextName) {
+async function writingPageMetrics(page) {
+  return page.evaluate(() => {
+    const motto = document.querySelector(".write-page .lead");
+    const stickyBar = document.querySelector(".portfolio-mode-bar");
+    return {
+      documentHeight: document.documentElement.scrollHeight,
+      innerHeight: window.innerHeight,
+      mottoBottom: motto?.getBoundingClientRect().bottom ?? null,
+      paperTop:
+        document
+          .querySelector('[data-editor-context="write"]')
+          ?.getBoundingClientRect().top ?? null,
+      topBoundary: stickyBar?.getBoundingClientRect().bottom ?? 0,
+      pageY: window.scrollY,
+    };
+  });
+}
+
+async function assertStableRepeatedEnter(page, contextName, outerPageMode) {
   const paper = page.locator(`[data-editor-context="${contextName}"]`);
   const editor = paper.getByRole("textbox");
   await typeFifteenLines(editor);
@@ -201,12 +219,31 @@ async function assertStableRepeatedEnter(page, contextName) {
     window.removeEventListener("scroll", state.onScroll);
     return state.samples;
   });
-  assert.ok(
-    outerScrollSamples.every(
-      (sample) => Math.round(sample) === Math.round(pageY),
-    ),
-    `typing inside a fixed paper must not move the outer page: ${outerScrollSamples.join(", ")}`,
-  );
+  if (outerPageMode === "follow-writing") {
+    assert.ok(
+      outerScrollSamples.some((sample) => sample > pageY + 1),
+      `the writing page must naturally move down as typing continues: ${outerScrollSamples.join(", ")}`,
+    );
+    assert.ok(
+      outerScrollSamples.every(
+        (sample, index) =>
+          index === 0 || sample >= outerScrollSamples[index - 1] - 1,
+      ),
+      `the writing page must not jump back upward during continuous input: ${outerScrollSamples.join(", ")}`,
+    );
+    const writingPage = await writingPageMetrics(page);
+    assert.ok(
+      writingPage.mottoBottom <= writingPage.topBoundary + 1,
+      `the writing motto must leave the visible page: ${JSON.stringify(writingPage)}`,
+    );
+  } else {
+    assert.ok(
+      outerScrollSamples.every(
+        (sample) => Math.round(sample) === Math.round(pageY),
+      ),
+      `diary-pool typing must not move the background page: ${outerScrollSamples.join(", ")}`,
+    );
+  }
 
   await editor.evaluate((node) => {
     node.scrollTop = 0;
@@ -216,6 +253,16 @@ async function assertStableRepeatedEnter(page, contextName) {
     0,
     "manual review must keep its chosen scroll position until the next input",
   );
+
+  if (outerPageMode === "follow-writing") {
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: "auto" }));
+    await waitForAnimationFrames(page);
+    assert.equal(
+      Math.round((await writingPageMetrics(page)).pageY),
+      0,
+      "manual page review must stay at the writing-page top until input resumes",
+    );
+  }
 
   await editor.type("继续");
   await waitForAnimationFrames(page);
@@ -234,6 +281,14 @@ async function assertStableRepeatedEnter(page, contextName) {
     remainingLines >= 3 && remainingLines <= 5,
     `the settled caret must keep about four lines below it, got ${remainingLines}`,
   );
+  if (outerPageMode === "follow-writing") {
+    const writingPage = await writingPageMetrics(page);
+    assert.ok(
+      writingPage.pageY > 0 &&
+        writingPage.mottoBottom <= writingPage.topBoundary + 1,
+      `the next input must find the caret and move the motto out again: ${JSON.stringify(writingPage)}`,
+    );
+  }
 }
 
 test.before(async () => {
@@ -305,7 +360,7 @@ test("counts wrapped text by rendered visual lines", async () => {
 test("keeps repeated Enter stable in the writing editor", async () => {
   const { context, page } = await openDemoPage();
   try {
-    await assertStableRepeatedEnter(page, "write");
+    await assertStableRepeatedEnter(page, "write", "follow-writing");
   } finally {
     await context.close();
   }
@@ -326,7 +381,7 @@ test("keeps repeated Enter stable in diary-pool editing", async () => {
     await page.locator(".pool-page").waitFor();
     await page.locator("article.entry").first().click();
     await page.locator('[data-editor-context="pool"]').waitFor();
-    await assertStableRepeatedEnter(page, "pool");
+    await assertStableRepeatedEnter(page, "pool", "keep-background");
   } finally {
     await context.close();
   }

@@ -190,7 +190,7 @@ test("uses a cache-busting high-contrast desktop icon", async () => {
   assert.match(installer, /-ArgumentList "-show"/);
 });
 
-test("uses one lined editor for writing and diary-pool editing without moving the page", async () => {
+test("uses one lined editor with context-specific outer-page following", async () => {
   const page = await readFile(new URL("../app/huiye-app.tsx", import.meta.url), "utf8");
   const model = await readFile(new URL("../app/lined-editor-model.ts", import.meta.url), "utf8");
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
@@ -205,6 +205,9 @@ test("uses one lined editor for writing and diary-pool editing without moving th
   assert.match(page, /paper\.appendChild\(mirror\)/);
   assert.match(page, /editor\.scrollTo\(\{ top: nextScrollTop, behavior: "auto" \}\)/);
   assert.match(page, /pageScrollBeforeInputRef/);
+  assert.match(page, /followWritingPageAfterInput/);
+  assert.match(page, /restorePoolBackgroundScroll/);
+  assert.match(page, /context === "write"/);
   assert.doesNotMatch(page, /behavior: reduceMotion \? "auto" : "smooth"/);
   assert.match(page, /context="write"/);
   assert.match(page, /context="pool"/);
@@ -219,6 +222,7 @@ test("uses one lined editor for writing and diary-pool editing without moving th
     /\.lined-markdown-editor-pool:before\s*\{[^}]*background:\s*none/s,
   );
   assert.match(css, /\.lined-markdown-editor-pool \.rich-editor\s*\{[^}]*background-attachment:\s*local/s);
+  assert.match(css, /\.write-page\s*\{[^}]*padding-bottom:\s*141px/s);
 });
 
 test("keeps scrolling ruled paper scoped to the diary pool editor", async () => {
