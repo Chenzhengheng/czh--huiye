@@ -548,6 +548,10 @@ function LinedMarkdownEditor({
 }) {
   const editorRef = useRef<HTMLDivElement>(null);
   const paperRef = useRef<HTMLDivElement>(null);
+  const pageScrollBeforeInputRef = useRef<number | null>(null);
+  const editorScrollBeforeInputRef = useRef(0);
+  const inputAddsVisualLineRef = useRef(false);
+  const lastWritingPageScrollRef = useRef(0);
   const resetValueRef = useRef(value);
   const [lineCount, setLineCount] = useState(0);
   const [selectionMenu, setSelectionMenu] = useState({
@@ -555,7 +559,7 @@ function LinedMarkdownEditor({
     left: 20,
     top: 14,
   });
-  const { rows, scrollable } = linedEditorRows(lineCount);
+  const { rows, comfortPadding, overflowReady } = linedEditorRows(lineCount);
 
   useEffect(() => {
     resetValueRef.current = value;
@@ -563,7 +567,8 @@ function LinedMarkdownEditor({
 
   function measureEditor() {
     const editor = editorRef.current;
-    if (!editor) return;
+    const paper = paperRef.current;
+    if (!editor || !paper) return;
     if (!editor.textContent && !editor.querySelector("br")) {
       setLineCount(0);
       return;
@@ -585,7 +590,7 @@ function LinedMarkdownEditor({
       flex: "none",
       paddingBottom: "0",
     });
-    document.body.appendChild(mirror);
+    paper.appendChild(mirror);
     const measuredLines = Math.max(
       1,
       Math.ceil(mirror.scrollHeight / WRITE_LINE_HEIGHT),
@@ -594,6 +599,32 @@ function LinedMarkdownEditor({
     setLineCount((current) =>
       current === measuredLines ? current : measuredLines,
     );
+  }
+
+  function caretBounds(selection: Selection, editor: HTMLDivElement) {
+    const rangeRect = selection.getRangeAt(0).getBoundingClientRect();
+    if (rangeRect.height > 0 && Number.isFinite(rangeRect.top)) {
+      return { top: rangeRect.top, height: rangeRect.height };
+    }
+
+    let anchor =
+      selection.anchorNode instanceof Element
+        ? selection.anchorNode
+        : selection.anchorNode?.parentElement;
+    if (anchor === editor) {
+      const childIndex = Math.max(
+        0,
+        Math.min(editor.children.length - 1, selection.anchorOffset - 1),
+      );
+      anchor = editor.children.item(childIndex) ?? editor;
+    }
+    const block = anchor?.closest("div, p, h1, h2, blockquote, li") ?? anchor;
+    const blockRect =
+      block && editor.contains(block) ? block.getBoundingClientRect() : null;
+    return {
+      top: blockRect?.top ?? editor.getBoundingClientRect().top,
+      height: WRITE_LINE_HEIGHT,
+    };
   }
 
   function followCaretAfterInput() {
@@ -606,30 +637,79 @@ function LinedMarkdownEditor({
       !editor.contains(selection.anchorNode)
     )
       return;
-    const caret = selection.getRangeAt(0).getBoundingClientRect();
+    const caret = caretBounds(selection, editor);
     const bounds = editor.getBoundingClientRect();
     const nextScrollTop = caretFollowScrollTop({
       currentScrollTop: editor.scrollTop,
       caretTop: caret.top,
-      caretHeight: caret.height || WRITE_LINE_HEIGHT,
+      caretHeight: caret.height,
       viewport: { top: bounds.top, height: editor.clientHeight },
       scrollHeight: editor.scrollHeight,
     });
-    if (nextScrollTop === editor.scrollTop) return;
-    const reduceMotion = window.matchMedia?.(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
-    editor.scrollTo({
-      top: nextScrollTop,
-      behavior: reduceMotion ? "auto" : "smooth",
-    });
+    if (nextScrollTop !== editor.scrollTop) {
+      editor.scrollTo({ top: nextScrollTop, behavior: "auto" });
+    }
+    if (context === "write") {
+      followWritingPageAfterInput(
+        Math.max(0, nextScrollTop - editorScrollBeforeInputRef.current),
+      );
+    } else {
+      restorePoolBackgroundScroll(true);
+    }
+  }
+
+  function restorePoolBackgroundScroll(clear = false) {
+    if (context !== "pool") return;
+    const pageScrollBeforeInput = pageScrollBeforeInputRef.current;
+    if (
+      pageScrollBeforeInput !== null &&
+      Math.round(window.scrollY) !== Math.round(pageScrollBeforeInput)
+    ) {
+      window.scrollTo({ top: pageScrollBeforeInput, behavior: "auto" });
+    }
+    if (clear) pageScrollBeforeInputRef.current = null;
+  }
+
+  function followWritingPageAfterInput(internalScrollDelta: number) {
+    const paper = paperRef.current;
+    const pageScrollBeforeInput = pageScrollBeforeInputRef.current;
+    const inputAddsVisualLine = inputAddsVisualLineRef.current;
+    pageScrollBeforeInputRef.current = null;
+    inputAddsVisualLineRef.current = false;
+    if (!paper || pageScrollBeforeInput === null || !overflowReady) return;
+
+    const stickyBar = document.querySelector(".portfolio-mode-bar");
+    const topBoundary = stickyBar?.getBoundingClientRect().bottom ?? 0;
+    const remaining = Math.max(
+      0,
+      paper.getBoundingClientRect().top - topBoundary - 16,
+    );
+    if (remaining === 0) return;
+
+    const returningFromManualReview =
+      pageScrollBeforeInput + 1 < lastWritingPageScrollRef.current;
+    const advancesWriting = inputAddsVisualLine || internalScrollDelta > 0;
+    const pageDelta = returningFromManualReview
+      ? remaining
+      : advancesWriting
+        ? Math.min(
+            remaining,
+            Math.max(internalScrollDelta, WRITE_LINE_HEIGHT),
+          )
+        : 0;
+    if (pageDelta > 0) {
+      window.scrollBy({ top: pageDelta, behavior: "auto" });
+      lastWritingPageScrollRef.current = window.scrollY;
+    }
   }
 
   function syncEditor() {
     const editor = editorRef.current;
     if (!editor) return;
+    restorePoolBackgroundScroll();
     onChange(editorElementToMarkdown(editor));
     window.requestAnimationFrame(() => {
+      restorePoolBackgroundScroll();
       measureEditor();
       window.requestAnimationFrame(followCaretAfterInput);
     });
@@ -693,6 +773,7 @@ function LinedMarkdownEditor({
     if (!editor) return;
     editor.innerHTML = markdownToEditorHtml(resetValueRef.current);
     editor.scrollTop = 0;
+    lastWritingPageScrollRef.current = window.scrollY;
     window.requestAnimationFrame(measureEditor);
   }, [resetKey]);
 
@@ -721,8 +802,8 @@ function LinedMarkdownEditor({
         ref={editorRef}
         className="rich-editor"
         style={{
-          paddingBottom: scrollable ? 246 : 0,
-          overflowY: scrollable ? "auto" : "hidden",
+          paddingBottom: comfortPadding ? 246 : 0,
+          overflowY: overflowReady ? "auto" : "hidden",
         }}
         contentEditable={true}
         role="textbox"
@@ -731,6 +812,13 @@ function LinedMarkdownEditor({
         autoFocus={autoFocus}
         suppressContentEditableWarning
         spellCheck
+        onBeforeInput={(event) => {
+          pageScrollBeforeInputRef.current = window.scrollY;
+          editorScrollBeforeInputRef.current = editorRef.current?.scrollTop ?? 0;
+          const inputType = (event.nativeEvent as InputEvent).inputType;
+          inputAddsVisualLineRef.current =
+            inputType === "insertParagraph" || inputType === "insertLineBreak";
+        }}
         onInput={syncEditor}
         onMouseUp={showSelectionMenu}
         onKeyUp={showSelectionMenu}

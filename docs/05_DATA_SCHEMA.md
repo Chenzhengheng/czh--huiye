@@ -1,5 +1,19 @@
 # 回页数据契约
 
+## PortfolioVisitSession（作品集访问会话）
+
+公开作品集只新增一张与私人日记完全隔离的 D1 表 `portfolio_visit_sessions`：
+
+| 字段 | 含义 |
+| --- | --- |
+| `id` | 30 分钟访问会话 ID |
+| `device_id` | 随机浏览器设备标识的 SHA-256，不是账户或真实身份 |
+| `started_at` | 会话首次请求 `/portfolio` 的时间 |
+| `latest_at` | 同一窗口内最近一次活动时间 |
+| `confirmed_at` | 浏览器完成渲染并上报的时间；为空仅表示未确认 |
+
+记录保留 90 天。系统不保存 IP、地区、浏览器详情、姓名或公司；`/portfolio/demo` 与管理员设备不写入此表。
+
 > 当前实现契约，2026-08-09。私人数据以不可变 generation 保存；缺少新文件的旧 generation 仍可读取。
 
 ## Entry

@@ -8,7 +8,8 @@ export function linedEditorRows(lineCount: number) {
       LINED_EDITOR_MAX_LINES,
       Math.max(LINED_EDITOR_MIN_LINES, lineCount + 3),
     ),
-    scrollable: lineCount >= LINED_EDITOR_MAX_LINES,
+    comfortPadding: lineCount > LINED_EDITOR_MAX_LINES,
+    overflowReady: lineCount >= LINED_EDITOR_MAX_LINES,
   };
 }
 

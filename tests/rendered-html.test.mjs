@@ -190,7 +190,7 @@ test("uses a cache-busting high-contrast desktop icon", async () => {
   assert.match(installer, /-ArgumentList "-show"/);
 });
 
-test("uses one lined editor for writing and diary-pool editing without moving the page", async () => {
+test("uses one lined editor with context-specific outer-page following", async () => {
   const page = await readFile(new URL("../app/huiye-app.tsx", import.meta.url), "utf8");
   const model = await readFile(new URL("../app/lined-editor-model.ts", import.meta.url), "utf8");
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
@@ -202,7 +202,13 @@ test("uses one lined editor for writing and diary-pool editing without moving th
   assert.doesNotMatch(page, /transform: `translateY/);
   assert.doesNotMatch(page, /Markdown 编辑|预览 Markdown|previewMarkdown/);
   assert.match(page, /followCaretAfterInput/);
-  assert.match(page, /behavior: reduceMotion \? "auto" : "smooth"/);
+  assert.match(page, /paper\.appendChild\(mirror\)/);
+  assert.match(page, /editor\.scrollTo\(\{ top: nextScrollTop, behavior: "auto" \}\)/);
+  assert.match(page, /pageScrollBeforeInputRef/);
+  assert.match(page, /followWritingPageAfterInput/);
+  assert.match(page, /restorePoolBackgroundScroll/);
+  assert.match(page, /context === "write"/);
+  assert.doesNotMatch(page, /behavior: reduceMotion \? "auto" : "smooth"/);
   assert.match(page, /context="write"/);
   assert.match(page, /context="pool"/);
   assert.match(page, /Array\.from\(markdownPreviewText\(firstLine\)\)\.slice\(0, 15\)/);
@@ -213,8 +219,10 @@ test("uses one lined editor for writing and diary-pool editing without moving th
   );
   assert.match(
     css,
-    /\.lined-markdown-editor-pool:before\s*\{[^}]*opacity:\s*0\.5/s,
+    /\.lined-markdown-editor-pool:before\s*\{[^}]*background:\s*none/s,
   );
+  assert.match(css, /\.lined-markdown-editor-pool \.rich-editor\s*\{[^}]*background-attachment:\s*local/s);
+  assert.match(css, /\.write-page\s*\{[^}]*padding-bottom:\s*141px/s);
 });
 
 test("keeps scrolling ruled paper scoped to the diary pool editor", async () => {
@@ -381,10 +389,15 @@ test("keeps evaluation criteria, Chinese relation labels and traceable Prompt ve
   assert.match(model, /echo-eval-v0\.1/);
   assert.match(model, /echo-eval-v0\.2/);
   assert.match(model, /echo-eval-v0\.3/);
+  assert.match(model, /echo-eval-v0\.4/);
   assert.match(model, /status:\s*"evaluated"/);
   assert.match(
     model,
     /version:\s*"echo-eval-v0\.3",\s*status:\s*"evaluated"/s,
+  );
+  assert.match(
+    model,
+    /version:\s*"echo-eval-v0\.4",\s*status:\s*"pending_evaluation"/s,
   );
   assert.match(model, /人工评测为 good/);
   assert.match(model, /inheritsFrom:\s*"echo-eval-v0\.1"/);
@@ -393,6 +406,12 @@ test("keeps evaluation criteria, Chinese relation labels and traceable Prompt ve
   assert.match(model, /决定：生成／保持沉默/);
   assert.match(model, /无真实关系／证据不足／无显化增量／解释风险过高/);
   assert.match(model, /relationValidity/);
+  assert.match(model, /source_usage_count/);
+  assert.match(model, /candidate_usage_count/);
+  assert.match(model, /来源复用负面信号/);
+  assert.match(model, /来源过度复用/);
+  assert.match(model, /ECHO_EVAL_PROMPT_VERSION = "echo-eval-v0\.4"/);
+  assert.match(model, /ECHO_EVAL_PROMPT = ECHO_EVAL_PROMPT_V04/);
   assert.match(model, /manifestationGain/);
   assert.match(model, /reencounterFeeling/);
   assert.match(model, /同主题、关键词相似或情绪相似本身不构成关系/);
