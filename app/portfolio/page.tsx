@@ -38,10 +38,12 @@ const productThoughtLine = [
   },
 ];
 
-export default function PortfolioPage() {
+export default function PortfolioPage({
+  enableVisitBeacon = true,
+}: Readonly<{ enableVisitBeacon?: boolean }> = {}) {
   return (
     <main className={styles.page}>
-      <PortfolioVisitBeacon />
+      {enableVisitBeacon ? <PortfolioVisitBeacon /> : null}
       <nav className={styles.nav} aria-label="作品集导航">
         <a className={styles.brand} href="#top" aria-label="回到页首">
           <span>回</span>

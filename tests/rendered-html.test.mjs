@@ -9,12 +9,17 @@ async function loadWorker() {
   return worker;
 }
 
-async function render(pathname = "/") {
+async function render(pathname = "/", origin = "http://localhost") {
   const worker = await loadWorker();
+  const url = new URL(pathname, origin);
 
   return worker.fetch(
-    new Request(`http://localhost${pathname}`, {
-      headers: { accept: "text/html" },
+    new Request(url, {
+      headers: {
+        accept: "text/html",
+        "x-forwarded-host": url.host,
+        "x-forwarded-proto": url.protocol.slice(0, -1),
+      },
     }),
     {
       ASSETS: {
@@ -27,6 +32,39 @@ async function render(pathname = "/") {
     },
   );
 }
+
+test("shows the ICP filing link on every mainland public page", async () => {
+  for (const pathname of ["/", "/portfolio/demo", "/portfolio/demo/evaluation"]) {
+    const response = await render(pathname, "https://huiye-ai.cn");
+    assert.equal(response.status, 200);
+    const html = await response.text();
+
+    assert.match(html, /粤ICP备2026122805号/);
+    assert.match(html, /href="https:\/\/beian\.miit\.gov\.cn\/"/);
+  }
+});
+
+test("does not add mainland compliance copy to the overseas backup", async () => {
+  const response = await render(
+    "/",
+    "https://huiye-ai-diary.zhenghengchen13.chatgpt.site",
+  );
+  assert.equal(response.status, 200);
+  assert.doesNotMatch(await response.text(), /粤ICP备2026122805号/);
+});
+
+test("keeps the public root free of visit tracking while preserving the legacy portfolio route", async () => {
+  const rootResponse = await render("/", "https://huiye-ai.cn");
+  assert.equal(rootResponse.status, 200);
+  assert.doesNotMatch(await rootResponse.text(), /portfolio-visit-beacon/);
+
+  const legacyResponse = await render(
+    "/portfolio",
+    "https://huiye-ai-diary.zhenghengchen13.chatgpt.site",
+  );
+  assert.equal(legacyResponse.status, 200);
+  assert.match(await legacyResponse.text(), /portfolio-visit-beacon/);
+});
 
 test("renders the portfolio at the public root instead of the private writing canvas", async () => {
   const response = await render("/");

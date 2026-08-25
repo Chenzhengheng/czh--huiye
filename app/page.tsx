@@ -1,1 +1,7 @@
-export { default, metadata } from "./portfolio/page";
+import PortfolioPage, { metadata } from "./portfolio/page";
+
+export { metadata };
+
+export default function PublicHomePage() {
+  return <PortfolioPage enableVisitBeacon={false} />;
+}

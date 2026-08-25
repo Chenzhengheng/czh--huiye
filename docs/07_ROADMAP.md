@@ -50,3 +50,4 @@ Agent Prompt v0.3 已完成一条新 good case 的首轮验证：它从完整主
 4. [x] 使用经用户审核的 13 篇 MinimumRedaction Entry 和 10 个 Case 建立可操作 PortfolioMode；不公开私人本地数据。
 5. [x] 公开根网址展示作品集，本地桌面快捷方式进入 `/app` 私人回页。
 6. [x] 将作品集从宣传式长页重构为证据型项目档案，以真实脱敏笔记、Case、模型观察和用户反馈呈现产品判断与评测迭代。
+7. [x] 完成 `huiye-ai.cn` 的 ICP 备案合规页脚、EdgeOne 静态导出流程、旧 `/portfolio` 跳转和国内统计禁用边界；正式上线仍待在 EdgeOne Makers 上传生产部署并绑定根域名。

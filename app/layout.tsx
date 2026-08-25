@@ -41,9 +41,32 @@ export async function generateMetadata(): Promise<Metadata> {
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  return <PublicRootLayout>{children}</PublicRootLayout>;
+}
+
+async function PublicRootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const requestHeaders = await headers();
+  const host = (
+    requestHeaders.get("x-forwarded-host") ??
+    requestHeaders.get("host") ??
+    ""
+  )
+    .split(":")[0]
+    .toLowerCase();
+  const showMainlandCompliance = host === "huiye-ai.cn";
+
   return (
     <html lang="zh-CN">
-      <body>{children}</body>
+      <body>
+        {children}
+        {showMainlandCompliance ? (
+          <footer className="mainland-compliance-footer">
+            <a href="https://beian.miit.gov.cn/" target="_blank" rel="noreferrer">
+              粤ICP备2026122805号
+            </a>
+          </footer>
+        ) : null}
+      </body>
     </html>
   );
 }
