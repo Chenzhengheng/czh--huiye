@@ -122,7 +122,7 @@ for (const assetName of assetNames) {
   );
 }
 
-for (const publicFile of ["favicon.svg", "file.svg", "globe.svg", "og.png", "window.svg"]) {
+for (const publicFile of ["og.png"]) {
   const source = path.join(clientDir, publicFile);
   await stat(source)
     .then(() => copyFile(source, path.join(outputDir, publicFile)))

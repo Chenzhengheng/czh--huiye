@@ -44,6 +44,9 @@ test("exports an EdgeOne-ready PublicPortfolioDeployment", async (t) => {
   await assert.rejects(stat(path.join(outputDir, "local-data")));
   const assets = await readdir(path.join(outputDir, "assets"));
   assert.equal(assets.some((name) => name.includes("portfolio-visit-beacon")), false);
+  for (const unusedStarterAsset of ["file.svg", "globe.svg", "window.svg"]) {
+    await assert.rejects(stat(path.join(outputDir, unusedStarterAsset)));
+  }
 
   for (const relativePath of requiredFiles.slice(0, 3)) {
     const html = await readFile(path.join(outputDir, relativePath), "utf8");
