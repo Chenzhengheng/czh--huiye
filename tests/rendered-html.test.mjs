@@ -58,6 +58,13 @@ test("keeps the public root free of visit tracking while preserving the legacy p
   assert.equal(rootResponse.status, 200);
   assert.doesNotMatch(await rootResponse.text(), /portfolio-visit-beacon/);
 
+  const overseasRootResponse = await render(
+    "/",
+    "https://huiye-ai-diary.zhenghengchen13.chatgpt.site",
+  );
+  assert.equal(overseasRootResponse.status, 200);
+  assert.match(await overseasRootResponse.text(), /portfolio-visit-beacon/);
+
   const legacyResponse = await render(
     "/portfolio",
     "https://huiye-ai-diary.zhenghengchen13.chatgpt.site",

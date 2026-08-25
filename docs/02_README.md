@@ -8,7 +8,7 @@
 - `pnpm install`：安装依赖
 - `pnpm local`：本地私人模式，默认 `127.0.0.1:4317/app`
 - `pnpm test`：构建并运行回归测试
-- `pnpm build:edgeone`：从当前源码生成 `.site-artifacts/edgeone-public/` 国内公开静态产物；
+- `pnpm build:edgeone`：从当前源码生成 `.site-artifacts/edgeone-public/` 国内公开静态产物和可直接上传的 `.site-artifacts/huiye-edgeone.zip`；
 - `pnpm test:edgeone-export`：验证 EdgeOne 产物的公开路由、备案展示和隐私边界；
 - `pnpm local:verify`：校验本地不可变数据代次
 - `pnpm local:verify-echoes`：校验 EchoRecord
@@ -23,7 +23,7 @@
 - `app/echo-card.tsx`：回响的证据、AI 初判、卡片内 EchoReply 和反馈呈现；
 - `build/local-data-store.mjs`：本地不可变代次读写；
 - `build/echo-record-store.mjs`：回响事件存储与校验；
-- `scripts/export-edgeone-static.mjs`：将已构建页面导出为 EdgeOne Makers 可直接上传的静态目录；
+- `scripts/export-edgeone-static.mjs`：将已构建页面导出为 EdgeOne Makers 可直接上传的静态目录和 ZIP；
 - `worker/index.ts`：公开托管入口，不接触私人本地数据；
 - `tests/`：数据、领域规则和服务端渲染回归测试；
 - `local-data/`：私人数据，忽略于 Git。

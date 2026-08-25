@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -10,13 +10,25 @@ const execFileAsync = promisify(execFile);
 
 test("exports an EdgeOne-ready PublicPortfolioDeployment", async (t) => {
   const outputDir = await mkdtemp(path.join(tmpdir(), "huiye-edgeone-"));
+  const archivePath = `${outputDir}.zip`;
   t.after(() => rm(outputDir, { recursive: true, force: true }));
+  t.after(() => rm(archivePath, { force: true }));
 
   await execFileAsync(
     process.execPath,
-    ["scripts/export-edgeone-static.mjs", outputDir],
+    ["scripts/export-edgeone-static.mjs", outputDir, archivePath],
     { cwd: process.cwd() },
   );
+
+  assert.equal((await stat(archivePath)).isFile(), true);
+  const { stdout: archiveListing } = await execFileAsync(
+    "tar",
+    ["-tf", archivePath],
+  );
+  const archiveEntries = archiveListing
+    .split(/\r?\n/)
+    .map((entry) => entry.replace(/^\.\//, ""));
+  assert.equal(archiveEntries.includes("index.html"), true);
 
   const requiredFiles = [
     "index.html",
@@ -30,6 +42,8 @@ test("exports an EdgeOne-ready PublicPortfolioDeployment", async (t) => {
 
   await assert.rejects(stat(path.join(outputDir, "app/index.html")));
   await assert.rejects(stat(path.join(outputDir, "local-data")));
+  const assets = await readdir(path.join(outputDir, "assets"));
+  assert.equal(assets.some((name) => name.includes("portfolio-visit-beacon")), false);
 
   for (const relativePath of requiredFiles.slice(0, 3)) {
     const html = await readFile(path.join(outputDir, relativePath), "utf8");

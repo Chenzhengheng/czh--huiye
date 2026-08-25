@@ -11,9 +11,9 @@
 ## 国内公开静态部署
 
 - `scripts/export-edgeone-static.mjs` 从当前 `dist` Worker 以 `https://huiye-ai.cn` 为请求来源渲染 `/`、`/portfolio/demo` 和 `/portfolio/demo/evaluation`，再复制这些页面所需的客户端静态资源。
-- 导出根目录包含 `index.html` 与 `edgeone.json`；后者使用 301 将 `/portfolio` 和 `/portfolio/` 跳转到 `/`，可作为 EdgeOne Makers Direct Upload 的输入。
+- 导出根目录包含 `index.html` 与 `edgeone.json`；后者使用 301 将 `/portfolio` 和 `/portfolio/` 跳转到 `/`。导出器同时生成根层级正确、可直接交给 EdgeOne Makers Direct Upload 的 ZIP。
 - 国内根域名的所有公开页面显示并链接 `粤ICP备2026122805号`；该合规页脚按请求域名生成，不进入 `chatgpt.site` 海外备份。
-- 国内根入口不渲染 `PortfolioVisitBeacon`；海外旧 `/portfolio` 路径仍保留既有匿名统计闭环。国内统计后端迁移不属于本次部署。
+- 国内根入口不渲染 `PortfolioVisitBeacon`；海外根入口和旧 `/portfolio` 路径仍保留既有匿名统计闭环。国内统计后端迁移不属于本次部署。
 - 导出器不生成 `/app`，也不读取或复制 `local-data`。PortfolioMode 继续只使用代码内已审核的固定脱敏数据。
 
 本页只描述当前代码，不写未来设想。

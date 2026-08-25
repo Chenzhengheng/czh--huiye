@@ -1,10 +1,24 @@
-import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import {
+  copyFile,
+  mkdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 
 const workspaceDir = process.cwd();
 const outputDir = path.resolve(
   process.argv[2] ?? path.join(".site-artifacts", "edgeone-public"),
+);
+const archivePath = path.resolve(
+  process.argv[3] ?? path.join(".site-artifacts", "huiye-edgeone.zip"),
 );
 const clientDir = path.resolve("dist", "client");
 const workerEntry = path.resolve("dist", "server", "index.js");
@@ -21,6 +35,15 @@ if (
   containsPath(outputDir, workspaceDir)
 ) {
   throw new Error(`Refusing unsafe output directory: ${outputDir}`);
+}
+if (
+  archivePath === path.parse(archivePath).root ||
+  archivePath === workspaceDir ||
+  containsPath(archivePath, workspaceDir) ||
+  archivePath === outputDir ||
+  containsPath(outputDir, archivePath)
+) {
+  throw new Error(`Refusing unsafe archive path: ${archivePath}`);
 }
 
 await Promise.all([stat(clientDir), stat(workerEntry)]).catch(() => {
@@ -41,6 +64,7 @@ const routes = [
     file: "portfolio/demo/evaluation/index.html",
   },
 ];
+const renderedPages = new Map();
 
 for (const route of routes) {
   const response = await worker.fetch(
@@ -68,17 +92,40 @@ for (const route of routes) {
 
   const target = path.join(outputDir, route.file);
   await mkdir(path.dirname(target), { recursive: true });
-  await writeFile(target, await response.text(), "utf8");
+  const html = await response.text();
+  renderedPages.set(route.file, html);
+  await writeFile(target, html, "utf8");
 }
 
-await cp(path.join(clientDir, "assets"), path.join(outputDir, "assets"), {
-  recursive: true,
-});
+const assetNames = new Set();
+const pendingContents = [...renderedPages.values()];
+for (let index = 0; index < pendingContents.length; index += 1) {
+  const content = pendingContents[index];
+  const localAssetPattern = /(?<![A-Za-z0-9])\/assets\/([A-Za-z0-9._-]+)/g;
+  for (const match of content.matchAll(localAssetPattern)) {
+    const assetName = match[1];
+    if (assetNames.has(assetName)) continue;
+    assetNames.add(assetName);
+    const source = path.join(clientDir, "assets", assetName);
+    const linkedContent = /\.(?:css|js)$/.test(assetName)
+      ? await readFile(source, "utf8").catch(() => null)
+      : null;
+    if (linkedContent !== null) pendingContents.push(linkedContent);
+  }
+}
+
+await mkdir(path.join(outputDir, "assets"), { recursive: true });
+for (const assetName of assetNames) {
+  await copyFile(
+    path.join(clientDir, "assets", assetName),
+    path.join(outputDir, "assets", assetName),
+  );
+}
 
 for (const publicFile of ["favicon.svg", "file.svg", "globe.svg", "og.png", "window.svg"]) {
   const source = path.join(clientDir, publicFile);
   await stat(source)
-    .then(() => cp(source, path.join(outputDir, publicFile)))
+    .then(() => copyFile(source, path.join(outputDir, publicFile)))
     .catch(() => undefined);
 }
 
@@ -101,4 +148,12 @@ for (const route of routes) {
   }
 }
 
-console.log(`Exported ${routes.length} public routes to ${outputDir}`);
+await mkdir(path.dirname(archivePath), { recursive: true });
+await rm(archivePath, { force: true });
+await execFileAsync("tar", ["-a", "-c", "-f", archivePath, "."], {
+  cwd: outputDir,
+});
+
+console.log(
+  `Exported ${routes.length} public routes and ${assetNames.size} assets to ${outputDir}\nCreated ${archivePath}`,
+);
