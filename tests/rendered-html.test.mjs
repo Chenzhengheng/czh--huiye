@@ -80,7 +80,10 @@ test("renders the portfolio at the public root instead of the private writing ca
 
   assert.match(html, /让思考/);
   assert.match(html, /继续生长/);
-  assert.match(html, /从 0 到 1 独立负责回页的产品定位/);
+  assert.match(
+    html,
+    /我从 0 到 1 独立负责回页的产品定位、交互设计、Agent Prompt、评测体系与工程交付（Codex）。/,
+  );
   assert.match(html, /体验回页/);
   assert.match(html, /查看完整评测/);
   assert.match(html, /负责人：陈政亨/);
@@ -88,6 +91,12 @@ test("renders the portfolio at the public root instead of the private writing ca
   assert.match(html, /回页<\/b><em>让思考继续生长<\/em>/);
   assert.match(html, /回页完整用户流程图/);
   assert.match(html, /github\.com\/Chenzhengheng\/czh--huiye/);
+  assert.match(
+    html,
+    /href="\/assets\/huiye-user-path-bpmn[^"']*\.svg"[^>]*><img src="\/assets\/huiye-user-path-bpmn[^"']*\.svg"/,
+  );
+  assert.doesNotMatch(html, /(?:href|src)="\[object Object\]"/);
+  assert.doesNotMatch(html, /raw\.githubusercontent\.com/);
   assert.doesNotMatch(html, /此刻，想留下什么？/);
 });
 
@@ -96,12 +105,34 @@ test("presents the portfolio as a Chinese evidence-led project archive", async (
   assert.equal(response.status, 200);
   const html = await response.text();
 
-  assert.match(html, /产品核心/);
+  assert.match(html, /01 · 核心体验/);
+  assert.match(
+    html,
+    /关于同一件事的思考常散落在许多日记里，变化已经发生，却未必能及时看清。/,
+  );
+  assert.match(
+    html,
+    /AI 只在线内观察，把原文中的延续、修正、分支、冲突或未解决问题显化出来。/,
+  );
+  assert.match(
+    html,
+    /它只提出一次可以被修正的暂时看见。用户可以回味、回应、继续写，也可以沉默离开。/,
+  );
   assert.match(html, /用户流程图/);
   assert.match(html, /回响评测/);
-  assert.match(html, /思考线（ThoughtLine）/);
-  assert.match(html, /回响（Echo）/);
+  assert.match(html, /用特殊标签建立思考线/);
+  assert.match(html, /检查回响/);
   assert.match(html, /工程交付/);
+  assert.match(html, /AI 暂时看见 · 由你判断/);
+  assert.match(
+    html,
+    /AI 发现：回页对 AI 职责的设想，从替每篇记录做轻量整理，逐渐收窄为只在用户划定的思考线内观察。/,
+  );
+  assert.match(html, /评测 AI 的观察，是否让变化更清楚。/);
+  assert.match(html, /<dt>5<\/dt><dd>类思考关系<\/dd>/);
+  assert.doesNotMatch(html, /真实产品判断/);
+  assert.doesNotMatch(html, /当“主导权在人”从一句原则，变成产品结构/);
+  assert.doesNotMatch(html, /真正新增的不是一句价值观/);
   assert.doesNotMatch(html, /AI PRODUCT|CASE STUDY|USER FLOW|EVALUATION|PRODUCT/);
 
   const productIndex = html.indexOf('id="product"');

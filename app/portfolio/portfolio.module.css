@@ -152,7 +152,7 @@
 .caseLabel { margin: 0; font: 11px/1.5 Arial, sans-serif; letter-spacing: 0.16em; color: #7e826f; }
 .eyebrow { margin: 0; font: 16px/1.5 Arial, sans-serif; letter-spacing: 0.14em; color: #737765; }
 .sectionIndex { margin: 0; font: 14px/1.5 Arial, sans-serif; letter-spacing: 0.14em; color: #737765; }
-.heroContent h1 { max-width: 900px; margin: 20px 0 22px; font-size: clamp(34px, 3.6vw, 54px); font-weight: 400; line-height: 1.25; letter-spacing: -0.035em; }
+.heroContent h1 { max-width: 900px; margin: 20px 0 22px; font-size: clamp(34px, 3vw, 48px); font-weight: 400; line-height: 1.25; letter-spacing: -0.035em; }
 .lead { max-width: 860px; margin: 0; font-size: clamp(16px, 1.45vw, 21px); line-height: 1.75; color: #56584f; }
 .actions { display: flex; align-items: center; gap: 22px; margin-top: 30px; }
 .actions a { text-decoration: none; }
@@ -170,8 +170,12 @@
 
 .product, .flow, .evaluation, .delivery { padding: 108px clamp(24px, 7vw, 118px); border-bottom: 1px solid var(--line); }
 .sectionHeader { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 72px; align-items: end; }
-.sectionHeader h2, .flow h2 { margin: 20px 0 0; font-size: clamp(40px, 5vw, 72px); font-weight: 400; line-height: 1.12; letter-spacing: -0.05em; }
+.sectionHeader h2, .flow h2 { margin: 20px 0 0; font-size: clamp(36px, 3.6vw, 54px); font-weight: 400; line-height: 1.16; letter-spacing: -0.045em; }
 .sectionHeader > p, .flowIntro > p:last-child { margin: 0; font: 14px/1.9 Arial, sans-serif; color: #5f6158; }
+.productHeader { grid-template-columns: minmax(340px, 0.78fr) minmax(520px, 1.22fr); align-items: start; }
+.coreEssay { width: 100%; max-width: 760px; justify-self: end; }
+.coreEssay p { margin: 0; font: 14px/1.9 Arial, sans-serif; color: #5f6158; }
+.coreEssay p + p { margin-top: 16px; }
 
 .principles { display: grid; grid-template-columns: repeat(3, 1fr); margin: 58px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .principles li { padding: 25px 28px 28px 0; border-right: 1px solid var(--line); }
@@ -208,7 +212,7 @@
 
 .realCase { margin-top: 24px; padding: clamp(24px, 4vw, 48px); border: 1px solid var(--line); background: rgba(255, 255, 255, 0.34); }
 .caseHeader { display: flex; justify-content: space-between; gap: 40px; align-items: flex-start; }
-.caseHeader h3 { max-width: 760px; margin: 12px 0 0; font-size: clamp(26px, 3vw, 40px); font-weight: 500; line-height: 1.35; }
+.caseHeader h3 { max-width: 820px; margin: 12px 0 0; font-size: clamp(24px, 2.2vw, 32px); font-weight: 500; line-height: 1.45; }
 .caseHeader > span { flex: none; padding: 8px 10px; border-radius: 999px; background: var(--sage-soft); font: 10px Arial, sans-serif; color: var(--sage-dark); }
 .sourceGrid { display: grid; grid-template-columns: 1fr 120px 1fr; gap: 20px; align-items: center; margin-top: 40px; }
 .sourceCard { min-height: 230px; display: flex; flex-direction: column; padding: 24px; border: 1px solid var(--line); background: var(--white); }
@@ -221,11 +225,6 @@
 .caseBridge i { height: 1px; background: var(--sage); }
 .caseBridge span { font: 9px Arial, sans-serif; color: var(--sage-dark); }
 .privacyNote { margin: 12px 0 0; text-align: right; font: 9px Arial, sans-serif; color: #96958b; }
-.aiObservation { margin-top: 30px; padding: 28px 32px; border-left: 3px solid var(--sage); background: var(--sage-soft); }
-.aiObservation p { margin: 0 0 15px; font: 10px Arial, sans-serif; letter-spacing: 0.06em; color: var(--sage); }
-.aiObservation strong { display: block; font-size: 17px; font-weight: 500; line-height: 1.8; }
-.aiObservation span { display: block; margin-top: 12px; font: 13px/1.85 Arial, sans-serif; color: #5f655c; }
-
 .flow { display: grid; grid-template-columns: 0.62fr 1.38fr; gap: 64px; align-items: start; background: #f8f5ed; }
 .flowIntro { position: sticky; top: 100px; }
 .flowIntro > p:last-child { margin-top: 30px; }
@@ -282,6 +281,8 @@
   .heroVisual { grid-template-columns: minmax(90px, 1fr) 46px minmax(90px, 1fr); padding-inline: 22px; }
   .visualNote { min-height: 245px; padding: 26px 18px; }
   .sectionHeader { grid-template-columns: 1fr; gap: 24px; }
+  .productHeader { grid-template-columns: 1fr; }
+  .coreEssay { max-width: none; justify-self: stretch; }
   .sourceGrid { grid-template-columns: 1fr 80px 1fr; }
   .iterationNote { grid-template-columns: 1fr auto 1fr auto 1fr; }
   .iterationNote a { grid-column: 1 / -1; justify-self: end; }
@@ -298,7 +299,7 @@
   .brand em { padding-left: 8px; font-size: 10px; letter-spacing: 0.04em; }
   .heroContent h1 { font-size: clamp(30px, 8vw, 42px); }
   .lead { font-size: 16px; }
-  .lead, .heroThesis p { overflow-wrap: anywhere; word-break: break-all; }
+  .lead, .heroThesis p { overflow-wrap: anywhere; word-break: normal; }
   .actions { align-items: flex-start; flex-direction: column; gap: 18px; }
   .stats { width: 100%; }
   .stats div { padding-right: 10px; }
@@ -310,7 +311,7 @@
   .visualNote i { margin: 14px 0; }
   .heroVisual > p { bottom: 28px; }
   .product, .flow, .evaluation, .delivery { padding: 72px 22px; }
-  .sectionHeader h2, .flow h2 { font-size: 42px; }
+  .sectionHeader h2, .flow h2 { font-size: clamp(34px, 9vw, 38px); }
   .principles { grid-template-columns: 1fr; }
   .principles li, .principles li + li { padding: 24px 0; border-right: 0; border-bottom: 1px solid var(--line); }
   .principles li:last-child { border-bottom: 0; }
@@ -328,7 +329,6 @@
   .caseBridge { grid-template-columns: 1fr auto 1fr; padding: 8px 20px; }
   .sourceCard { min-height: auto; }
   .sourceCard blockquote { margin-top: 26px; }
-  .aiObservation { padding: 24px 20px; }
   .flow { grid-template-columns: 1fr; gap: 38px; }
   .flowIntro { position: static; }
   .flowCanvas { padding: 10px; overflow-x: auto; }
