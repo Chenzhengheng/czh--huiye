@@ -56,7 +56,11 @@ export default defineConfig(async () => {
       },
     },
     plugins: [
-      localDataPlugin({ rootDir: "local-data" }),
+      localDataPlugin({
+        rootDir: "local-data",
+        contextRootDir: "local-context/thought-line-context",
+        evaluationRootDir: "local-context/evaluation",
+      }),
       vinext(),
       sites(),
       cloudflare({

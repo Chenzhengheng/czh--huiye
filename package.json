@@ -14,7 +14,7 @@
     "local:verify-echoes": "node scripts/verify-echo-records.mjs",
     "build": "vinext build",
     "start": "vinext start",
-    "test": "vinext build && node --experimental-strip-types --test tests/rendered-html.test.mjs tests/local-data-store.test.mjs tests/thought-line-model.test.mjs tests/portfolio-analytics.test.mjs tests/echo-candidate-controller.test.mjs tests/lined-editor-model.test.mjs && node --test tests/lined-editor-browser.test.mjs",
+    "test": "vinext build && node --experimental-strip-types --test tests/rendered-html.test.mjs tests/local-data-store.test.mjs tests/thought-line-context-runtime.test.mjs tests/thought-line-context-snapshot.test.mjs tests/context-module-maintenance.test.mjs tests/context-relation-evaluation-runner.test.mjs tests/paired-relation-evaluation.test.mjs tests/relation-module.test.mjs tests/thought-line-context-prompts.test.mjs tests/thought-line-model.test.mjs tests/portfolio-analytics.test.mjs tests/echo-candidate-controller.test.mjs tests/lined-editor-model.test.mjs && node --test tests/lined-editor-browser.test.mjs",
     "test:lined-editor-browser": "node --test tests/lined-editor-browser.test.mjs",
     "test:portfolio-analytics": "node --experimental-strip-types --test tests/portfolio-analytics.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",

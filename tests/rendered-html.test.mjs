@@ -164,6 +164,29 @@ test("server-renders the private Huiye writing canvas at its dedicated entry", a
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|Codex is working/i);
 });
 
+test("server-renders the read-only Context experiment at its dedicated private entry", async () => {
+  const response = await render("/app/context");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+
+  assert.match(html, /Context \+ 关系模型/);
+  assert.match(html, /思考线认识/);
+  assert.match(html, /EntryCards/);
+  assert.match(html, /关系运行/);
+  assert.match(html, /Prompt 版本/);
+  assert.match(html, /只读实验/);
+  assert.doesNotMatch(html, /运行关系核验|生成正式回响/);
+
+  const workbench = await readFile(
+    new URL("../app/thought-line-context-workbench.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(workbench, /card\.cardVersion/);
+  assert.match(workbench, /change\.previous\.cardVersion/);
+  assert.match(workbench, /change\.next\.cardVersion/);
+  assert.match(workbench, /version\.diff\.macroSections\.map/);
+});
+
 test("keeps the desktop launcher pointed at the private Huiye entry", async () => {
   const launcher = await readFile(
     new URL("../scripts/start-huiye-ui.ps1", import.meta.url),
@@ -175,7 +198,8 @@ test("keeps the desktop launcher pointed at the private Huiye entry", async () =
   );
 
   assert.match(launcher, /\$url = "http:\/\/localhost:4317\/app"/);
-  assert.match(consoleLauncher, /\$url = "http:\/\/localhost:4317\/app"/);
+  assert.match(consoleLauncher, /\$url = "http:\/\/localhost:\$Port\$AppPath"/);
+  assert.match(consoleLauncher, /\[string\]\$AppPath = "\/app"/);
 });
 
 test("uses a cache-busting high-contrast desktop icon", async () => {
@@ -350,12 +374,19 @@ test("uses an always-visible evaluation workbook with criteria and one selected 
     "utf8",
   );
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  const contextWorkbench = await readFile(
+    new URL("../app/thought-line-context-workbench.tsx", import.meta.url),
+    "utf8",
+  );
 
   assert.doesNotMatch(page, /echoRecords\.length <= 15/);
   assert.match(page, /evaluationSheet/);
   assert.match(page, /评测总表/);
   assert.match(page, /评测标准/);
   assert.match(page, /Prompt 版本记录/);
+  assert.match(page, /ThoughtLinePromptCatalog/);
+  assert.match(contextWorkbench, /Context \+ Relation 新机制/);
+  assert.match(page, /冻结 Echo 评测基线/);
   assert.match(page, /关系成立度/);
   assert.match(page, /显化增量/);
   assert.match(page, /重逢感/);
@@ -378,6 +409,40 @@ test("uses an always-visible evaluation workbook with criteria and one selected 
   assert.match(css, /\.evaluation-criteria-sheet\s*\{/);
   assert.match(css, /\.evaluation-prompt-history\s*\{/);
   assert.match(css, /min-width:\s*1780px/);
+});
+
+test("reads ThoughtLine Context through the ContextModule inspection seam", async () => {
+  const plugin = await readFile(
+    new URL("../build/local-data-vite-plugin.mjs", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(plugin, /createContextModule/);
+  assert.match(plugin, /contextModule\.inspect\(thoughtLineId\)/);
+  assert.doesNotMatch(plugin, /readThoughtLineContextSnapshot/);
+});
+
+test("keeps the one-off B/C Relation experiment isolated and read-only", async () => {
+  const page = await readFile(new URL("../app/huiye-app.tsx", import.meta.url), "utf8");
+  const experiment = await readFile(
+    new URL("../app/paired-relation-experiment.tsx", import.meta.url),
+    "utf8",
+  );
+  const plugin = await readFile(
+    new URL("../build/local-data-vite-plugin.mjs", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(page, /\/api\/paired-relation-evaluation/);
+  assert.match(page, /<PairedRelationExperiment/);
+  assert.match(experiment, /B\/C 单次对照/);
+  assert.match(experiment, /宏观 Context 仅供参考/);
+  assert.match(experiment, /只读草稿预览/);
+  assert.match(experiment, /<EchoCard/);
+  assert.match(experiment, /没有形成回响/);
+  assert.doesNotMatch(experiment, /onFeedback|onSaveReply|textarea/);
+  assert.match(plugin, /readLatestPairedRelationEvaluation/);
+  assert.match(plugin, /\/api\/paired-relation-evaluation/);
 });
 
 test("keeps evaluation criteria, Chinese relation labels and traceable Prompt versions in one shared module", async () => {

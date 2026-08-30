@@ -18,6 +18,22 @@
 
 本地私人模式通过 `/api/data` 读写 `local-data/` 不可变 generation：创建 staging、校验内容与引用、生成 manifest、再更新 current pointer。保存成功后按“当前版本 + 最新 20 个 + 近 30 天每日最后一个 + 更早每月最后一个”保留恢复点；首次删除前生成并校验完整 JSON 备份，清理失败不影响已完成的保存。EchoRecord 和事件经独立端点读取、追加。
 
+旧 `build/thought-line-context-runtime.mjs` 仍是可执行的隔离实验写入器，但不是新版调用路径：`buildContext(thoughtLineId)` 只读取绑定的开发 generation，把旧格式 EntryCard 与 `context.md` 写入独立 `local-context/`；`evaluateRelations(thoughtLineId)` 使用已退役的 Navigation/Verification 两段式 Adapter 并把结果写入独立 evaluation 目录。它不调用 `writeEchoRecord`、不写稳定版 `local-data`，只为旧数据兼容与回归测试保留；不得用它运行新版四 Prompt 机制。
+
+新版深模块实验以 `createContextModule()` 暴露 `maintain(signal)` 与 `inspect(thoughtLineId)` 两个 seam。`maintain()` 接受注入的来源读取器、Agent Adapter、固定时间、三份 Context 侧 Prompt 正文及四份 Prompt 版本；仅传版本而没有正文会被拒绝。它生成或复用全局不可变 EntryCardVersion，维护六章节 ThoughtLineContext；Entry 增量、Prompt 变化与 `feedback_not_quite` 由 ContextMaintenance Agent 判断 `no_context_change | revise_context | full_rebuild_needed`。Entry 或 Prompt 变化先把受影响线切为 `stale`；即使宏观章节无需改变，来源变化仍会发布包含新 CardVersion 的完整快照。只有单次 `feedback_not_quite` 被判断为不影响 Context 时不创建快照；其余路径完整写入卡片、历史快照、当前快照与 manifest 后再把目标线切回 `ready`。该框架仍不由 Entry 保存路径同步调用；真实 Adapter 只存在于显式运行的开发评测脚本。
+
+四份新 Prompt 的唯一正文与版本记录位于 `app/thought-line-context-prompts.ts`：EntryCard、ThoughtLineContext、ContextMaintenance、RelationJudgment 均保存模块名、`v0.1` 版本、待评测状态、完整正文、变化说明、基线、评测方法与回滚方式，并以同一段回页产品价值观开头。`app/thought-line-context-model.ts` 不再提供旧 Navigation/Verification 运行时导出，只作为兼容入口重新导出这套新机制。Prompt 正文与版本已分别接入 ContextModule 和 RelationModule 的 Fake Agent 边界；这表示调用契约已接通，不表示真实模型质量经过验证。
+
+`createRelationModule()` 只暴露 `run(trigger)`：内部 Harness 把同一份 RelationJudgment Prompt 正文与版本交给同一个 Fake Agent，先以 `select_candidates` 读取全部 ready Context，再按 `check_candidate_1..3` 顺序处理最多三组。Source Adapter 把元数据索引与原文读取拆成两个操作，使规则层能在原文读取前拒绝权限、跨线、数量、顺序、CardVersion/来源指纹或历史状态无效的组合；通过后才读取原文，并由 History Adapter 构造精确/重叠旧回响、反馈和来源使用次数。Agent 首次输出即返回内存 StructuredEchoDraft，全部放弃则沉默；模块没有写入路径。
+
+`scripts/create-isolated-context-generation.mjs` 使用 `readLocalData` 与 `writeLocalData` 建立开发 generation，显式拒绝源目录与目标目录相同；`scripts/run-manual-context-agent.mjs` 只保留旧格式兼容。新版 `scripts/run-context-relation-evaluation.mjs` 使用 `gpt-5.6-sol` 与 Codex Structured Outputs，依次通过 ContextModule 和 RelationModule，再由 `context-relation-evaluation-runner.mjs` 把 accepted 草稿映射为既有 `EchoRecordV2`。2026-08-28 的“秋招”隔离运行读取 9 篇合格 Entry，写入 9 张新版 EntryCard、一份 ready Snapshot、一份最终评测 result 和一条开发版 `evaluation_only` EchoRecord；主 `local-data/current.json` 指针与哈希未变化。
+
+`runPairedRelationEvaluation()` 是一次性 B/C 评测的最高测试 seam：只执行一次候选选择并冻结 Source、CandidateHistory 与 ContextSnapshot，随后让 B 与 C 独立遍历同一候选。B 使用完整 `relation-judgment-b-v0.2` Prompt；C 使用另一份完整 `relation-judgment-c-v0.2` Prompt，且其 Context 输入被明确降级为宏观参考。`scripts/run-paired-relation-evaluation.mjs` 只向终端打印 run 元数据与分支结论，完整结果留在隔离的 paired-runs；本地评测页通过只读 GET 端点显示结果，不复用原评测表的写入控件。
+
+`scripts/start-huiye-local.ps1` 接受可选 `-Port`，使稳定版和多个 worktree 使用彼此独立的本地端口；Context/关系模型开发版桌面快捷方式固定打开 `http://localhost:4324/app`，其工作目录和 `local-data/` 都位于该开发 worktree。
+
+开发版 `/app/context` 只读看板与 `/api/thought-line-context` 本地同源 GET 端点只读取 `local-context`。看板分“思考线认识、EntryCards、历史 Diff、Prompt 版本、关系运行”五个页签；Prompt 页签无需已有 Context 数据即可查看四模块全文，Context 页签按快照显示四个模块版本。关系页只解释同一 RelationJudgment Agent 的导航与逐组判断，不提供运行关系或生成回响的按钮。评测工作台的 Prompt 版本页把“Context + Relation 新机制”与“冻结 Echo 评测基线”分组显示。
+
 公开 `worker/index.ts` 只服务托管页面，不暴露私人数据 API、不读取 `local-data/`、不绑定私人存储。
 
 ## 当前状态流
@@ -30,7 +46,7 @@
 6. 回响回应在 EchoCard 内原地编辑，保存为独立 EchoReply；反馈事件与回应互不推断；
 7. EvaluationWorkbook 总表直接编辑 CaseRecord 的 dimensions、verdict 和 notes；详情卡仍负责证据阅读、EchoReply 与 OptionalEchoFeedback；
 8. 总表从来源 Entry 的 `thoughtLineIds` 与 EchoRecord 的 `thoughtLineId` 计算 ThoughtLine 并集，PromptVersion 优先读取 CaseRecord，旧数据回退到 EchoRecord ruleVersion；
-9. “Prompt 版本” Sheet 从 `promptVersions` 读取 v0.1–v0.4 的全文、状态、变更依据和继承关系；当前工作常量指向待评测的 v0.4，历史 Case 不随之改写；
+9. “Prompt 版本” Sheet 分两组读取：`thoughtLinePromptVersions` 展示 Context + Relation 四模块的独立版本、状态和全文；`promptVersions` 展示冻结 Echo v0.1–v0.4 基线。历史 Case 不随任一当前版本改写；
 10. Prompt 与评测界面用中文关系类型；EchoRecord 仍保存英文枚举，通过 `echoRelationLabel` 在展示层映射，避免迁移旧数据；
 11. EchoSource 外层 `details` 默认 open，直接显示原文节选；嵌套的完整原文 `details` 保持关闭。评测工作台和正式回响复用同一 EchoCard，因此初始状态一致。
 12. 日记池在搜索过滤后统一按 Entry 时间倒序排列，日期和具体时间越晚越靠前；PortfolioMode 的固定数据必须先通过 MinimumRedaction 审核，并由测试阻止已删除的敏感片段再次进入公开构建。
@@ -41,6 +57,10 @@
 ## 测试与技术债
 
 领域规则在 `thought-line-model.test.mjs`；纸张增长和光标跟随计算在 `lined-editor-model.test.mjs`；写下页与日记池的真实排版、连续回车、写下页自然下移、日记池背景稳定和手动回看恢复由 Chromium 驱动的 `lined-editor-browser.test.mjs` 覆盖；存储兼容在 `local-data-store.test.mjs`；界面边界在 `rendered-html.test.mjs`；回响事件由 store 测试覆盖。
+
+线级 Context 的旧 runtime 只保留兼容回归在 `thought-line-context-runtime.test.mjs`。新版 `context-module-maintenance.test.mjs` 只经 `ContextModule` seam 覆盖维护行为；`thought-line-context-snapshot.test.mjs` 覆盖快照、diff 和目录穿越；`relation-module.test.mjs` 覆盖同 Prompt 双阶段、硬门禁、历史包和三候选 loop；`context-relation-evaluation-runner.test.mjs` 覆盖最终 Context、关系评测与 `evaluation_only` EchoRecord 的统一发布。测试仍以 Fake Adapter 隔离外部模型；2026-08-28 另完成一次真实模型内部运行，但尚待用户人工标注 good/bad，不能视为质量验证。
+
+`paired-relation-evaluation.test.mjs` 额外约束三份独立 Structured Output 合约、共享且冻结的选择/历史、只有 C 获得完整所选线 Context，以及配对结果只写独立实验目录。这里验证的是 Harness 与隔离边界，不等同于 B/C 语义质量结论。
 
 `build/echo-candidate-controller.mjs` 为本地自动评测候选提供确定性控制：统计有效来源使用次数、构造排除组合、限制每条线最多三轮并校验强烈变化例外；`writeEchoRecord` 在落盘前重复执行来源复用门禁。语义上的关系、证据、显化增量、解释风险及例外是否真实仍由模型判断。Codex 自动化动态读取当前 Prompt，在每条合格主思考线内运行规则与模型循环，各线最多保留一条候选，最终至多写入一条 `evaluation_only` EchoRecord；保持沉默不持久化。
 

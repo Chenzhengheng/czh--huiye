@@ -45,5 +45,8 @@ next-env.d.ts
 # Private local diary data. Never commit or publish this directory.
 /local-data/
 
+# Private AI-maintained context and evaluation artifacts. Never commit or publish.
+/local-context/
+
 # Local planning drafts and temporary review artifacts.
 /.scratch/

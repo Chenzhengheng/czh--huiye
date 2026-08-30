@@ -14,7 +14,7 @@
 
 记录保留 90 天。系统不保存 IP、地区、浏览器详情、姓名或公司；`/portfolio/demo` 与管理员设备不写入此表。
 
-> 当前实现契约，2026-08-09。私人数据以不可变 generation 保存；缺少新文件的旧 generation 仍可读取。
+> 当前实现契约，最后检查于 2026-08-24。私人数据以不可变 generation 保存；缺少新文件的旧 generation 仍可读取。
 
 ## Entry
 
@@ -75,3 +75,34 @@ ID 稳定唯一，非 merged 线名称唯一。新线只随 Entry 保存物化�
 - 自动清理每天至多实际执行一次，也可用 `npm run local:prune` 手动执行并输出结果。
 
 自然日和自然月均按 `Asia/Shanghai` 计算。这里的“每日/每月版本”是从已经发生的保存中选取恢复点，不是定时复制数据。
+
+## 实验性 ThoughtLineContext 私有存储
+
+线级 Context 不写入主 `local-data` generation，而是保存在同样被 Git 忽略的 `local-context/`。它引用某个只读的 `sourceGenerationId`；源 generation 变化后，关系核验必须先拒绝并要求重新建立或增量更新 Context。
+
+- `thought-line-context/manifest.json`：当前实验涉及的 ThoughtLine、Entry 与源 generation 索引；
+- `thought-line-context/entries/<entryId>/versions/<cardVersion>.json`：不可变 EntryCardVersion；保存结构化系统字段、AI 概要与不确定性，不复制 Entry 原文；
+- `thought-line-context/entries/<entryId>/current.json`：全局 EntryCard 当前版本指针；来源指纹与 EntryCard Prompt 版本均未变化时，不同 ThoughtLine 复用同一个 CardVersion；
+- `thought-line-context/thought-lines/<thoughtLineId>/snapshot.json`：当前完整 ContextSnapshot，包含六个宏观章节、完整 EntryCardVersion 引用与哈希、四份 Prompt 版本、触发信号、维护方式、状态和创建时间；
+- `thought-line-context/thought-lines/<thoughtLineId>/state.json`：当前发布门。Entry 增量或 Prompt 重建开始后先切为 `stale`，完整新快照与索引发布完毕后才切回 `ready`；失败时保持 `stale`；
+- `thought-line-context/thought-lines/<thoughtLineId>/history/<snapshotId>/snapshot.json`：不可变历史完整快照。检查视图按 `createdAt`、再按 `snapshotId` 稳定排序，并对相邻快照用代码生成宏观章节、EntryCard 引用和 Prompt 版本三类 diff；
+- 旧实验的 `entries/<entryId>/card.json`、`context.md`、`record.json` 与 `history/*/{context.md,change.json}` 暂时保留只读兼容，不是新版写入契约；
+- `evaluation/runs/<runId>/result.json`：旧实验 runtime 与新版隔离评测运行器共用的关系评测结果位置；新版只记录最终 accepted/silent 结果，不保留临时候选组合；
+- 开发版 `local-data/echoes/<echoRecordId>.json`：新版运行 accepted 后，经 `writeEchoRecord` 门禁写入的 `evaluation_only` EchoRecord；稳定版目录不写入。
+
+新版 ThoughtLineContext 不保存具体 Entry 关系、关系类型或核验状态。测试夹具的 accepted 结果不构成真实候选或质量证据。
+
+## 实验性 RelationModule 内存契约
+
+`RelationModule.run(trigger)` 只读取全部 `ready` 且当前仍允许 AI 的 Context，并把去除审计历史与旧评测结果后的 Context 视图连同 RelationJudgment Prompt 正文与版本交给同一个 Agent Adapter。选择阶段一次返回零至三个临时候选；每组包含一个 `thoughtLineId`、两至三个时间正序 `entryIds` 和 `navigationBasis`，不写入文件。
+
+每个候选先使用只含元数据与来源指纹的 SourceIndex、ContextSnapshot/CardVersion 和 CandidateHistory 状态执行硬门禁。数量、唯一性、重复组合、权限、同线归属、存在性、时间顺序、卡片来源版本或历史 ready 状态任一失败时，不调用原文读取。通过后才按候选顺序读取两至三篇原文，再从历史索引确定性构造：
+
+- `exactEchoes`：来源集合完全相同的旧回响；
+- `overlappingEchoes`：同线且与候选至少共享一篇来源的其他回响；
+- `feedback`：上述回响对应的用户反馈与补充说明；
+- `sourceUsage`：仍有效候选及 `evaluation_only` 的逐篇累计来源次数。
+
+同一个 Agent 随后返回 `next_candidate` 或 `output`；前者继续已有下一组，首个 `output` 立即结束，全部失败则返回 `{ decision: "silent" }`。`RelationModule.run()` 本身仍只返回内存 `StructuredEchoDraft`。显式调用 `runContextRelationEvaluation()` 时，外层运行器才会把 accepted 草稿映射为原有 `EchoRecordV2`，补充 ID、`evaluation_only`、时间、模型与空事件数组，并经 `writeEchoRecord` 再次执行来源复用门禁。
+
+一次性 B/C 配对实验使用独立目录 `local-context/evaluation/paired-runs/<runId>/result.json`，索引为 `paired-runs/index.json`。记录冻结的共享候选、Snapshot 与 History 身份、B/C 各自 attempts、只供诊断的 `assessment` 与可选内存草稿；同目录 `data-protection.json` 保存真实运行前后的稳定版与隔离版 `current.json` 哈希及 Echo 文件名集合。实验不会写入 `EchoRecord`、`CaseRecord`、Prompt 正式评测维度或来源使用历史。B 的逐组输入不含 Context；C 只额外得到所选线的宏观六段 Context 与全部有效 EntryCard 摘要。该 Context 是 AI 生成的参考认识，不能充当用户事实或回响证据。

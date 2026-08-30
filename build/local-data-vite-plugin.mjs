@@ -1,6 +1,8 @@
 import path from "node:path";
 import { appendEchoEvent, readEchoRecords } from "./echo-record-store.mjs";
 import { readLocalData, writeLocalData } from "./local-data-store.mjs";
+import { createContextModule } from "./thought-line-context-module.mjs";
+import { readLatestPairedRelationEvaluation } from "./paired-relation-evaluation.mjs";
 
 function sendJson(response, statusCode, value) {
   response.statusCode = statusCode;
@@ -37,6 +39,12 @@ export function isLocalDataRequestAllowed(request) {
 
 export function localDataPlugin(options = {}) {
   const rootDir = path.resolve(options.rootDir || "local-data");
+  const contextRootDir = path.resolve(options.contextRootDir || "local-context/thought-line-context");
+  const evaluationRootDir = path.resolve(options.evaluationRootDir || "local-context/evaluation");
+  const contextModule = createContextModule({
+    contextRoot: contextRootDir,
+    evaluationRoot: evaluationRootDir,
+  });
   let dataOperation = Promise.resolve();
   const serialize = task => {
     const next = dataOperation.then(task, task);
@@ -48,10 +56,28 @@ export function localDataPlugin(options = {}) {
     apply: "serve",
     configureServer(server) {
       server.middlewares.use(async (request, response, next) => {
-        const pathname = new URL(request.url || "/", "http://127.0.0.1").pathname;
-        if (!["/api/data", "/api/echo-records", "/api/echo-events"].includes(pathname)) return next();
+        const requestUrl = new URL(request.url || "/", "http://127.0.0.1");
+        const pathname = requestUrl.pathname;
+        if (!["/api/data", "/api/echo-records", "/api/echo-events", "/api/thought-line-context", "/api/paired-relation-evaluation"].includes(pathname)) return next();
         try {
           if (!isLocalDataRequestAllowed(request)) return sendJson(response, 403, { error: "拒绝非本地同源的数据请求" });
+          if (pathname === "/api/thought-line-context") {
+            if (request.method !== "GET") {
+              response.setHeader("allow", "GET");
+              return sendJson(response, 405, { error: "Method Not Allowed" });
+            }
+            const thoughtLineId = requestUrl.searchParams.get("thoughtLineId") || undefined;
+            const snapshot = await serialize(() => contextModule.inspect(thoughtLineId));
+            return sendJson(response, 200, { snapshot, storageKind: "local-context" });
+          }
+          if (pathname === "/api/paired-relation-evaluation") {
+            if (request.method !== "GET") {
+              response.setHeader("allow", "GET");
+              return sendJson(response, 405, { error: "Method Not Allowed" });
+            }
+            const evaluation = await serialize(() => readLatestPairedRelationEvaluation(evaluationRootDir));
+            return sendJson(response, 200, { evaluation, storageKind: "local-context" });
+          }
           if (pathname === "/api/echo-records") {
             if (request.method !== "GET") {
               response.setHeader("allow", "GET");

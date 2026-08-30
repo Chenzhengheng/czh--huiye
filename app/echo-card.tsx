@@ -199,6 +199,7 @@ export function EchoCard({
   onDeleteReply,
   onFeedback,
   onOpenEntry,
+  readOnly = false,
 }: {
   record: EchoRecordV2;
   entries: EchoEntry[];
@@ -206,10 +207,11 @@ export function EchoCard({
   renderContent: (content: string) => ReactNode;
   reply?: EchoReply;
   selectedFeedback?: EchoFeedback;
-  onSaveReply: (record: EchoRecordV2, content: string) => void;
-  onDeleteReply: (record: EchoRecordV2) => void;
-  onFeedback: (record: EchoRecordV2, feedback: EchoFeedback) => void;
-  onOpenEntry: (entryId: number) => void;
+  onSaveReply?: (record: EchoRecordV2, content: string) => void;
+  onDeleteReply?: (record: EchoRecordV2) => void;
+  onFeedback?: (record: EchoRecordV2, feedback: EchoFeedback) => void;
+  onOpenEntry?: (entryId: number) => void;
+  readOnly?: boolean;
 }) {
   const [replyOpen, setReplyOpen] = useState(Boolean(reply));
   const [replyDraft, setReplyDraft] = useState(reply?.content ?? "");
@@ -298,7 +300,7 @@ export function EchoCard({
             <button
               type="button"
               key={entry.id}
-              onClick={() => onOpenEntry(entry.id)}
+              onClick={() => onOpenEntry?.(entry.id)}
             >
               {entry.title}
               <span>{displayDate(entry)}</span>
@@ -306,7 +308,7 @@ export function EchoCard({
           ))}
         </section>
       )}
-      {replyOpen && (
+      {!readOnly && replyOpen && (
         <section className="echo-reply" aria-label="回响回应">
           <label htmlFor={`echo-reply-${record.id}`}>
             {reply ? "你留在这条回响下的话" : "此刻想回应什么？"}
@@ -324,7 +326,7 @@ export function EchoCard({
                 type="button"
                 className="quiet"
                 onClick={() => {
-                  onDeleteReply(record);
+                  onDeleteReply?.(record);
                   setReplyDraft("");
                   setReplyOpen(false);
                 }}
@@ -335,14 +337,14 @@ export function EchoCard({
             <button
               type="button"
               disabled={!replyDraft.trim()}
-              onClick={() => onSaveReply(record, replyDraft)}
+              onClick={() => onSaveReply?.(record, replyDraft)}
             >
               {reply ? "保存修改" : "留下回应"}
             </button>
           </div>
         </section>
       )}
-      <section className="echo-v2-end">
+      {!readOnly && <section className="echo-v2-end">
         <button
           className="echo-response-action"
           type="button"
@@ -359,14 +361,14 @@ export function EchoCard({
                 key={item.value}
                 className={selectedFeedback === item.value ? "selected" : ""}
                 aria-pressed={selectedFeedback === item.value}
-                onClick={() => onFeedback(record, item.value)}
+                onClick={() => onFeedback?.(record, item.value)}
               >
                 {item.label}
               </button>
             ))}
           </div>
         </div>
-      </section>
+      </section>}
     </article>
   );
 }

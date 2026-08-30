@@ -1,6 +1,6 @@
 # 回页产品原则与 MVP 规格
 
-> 状态：2026-08-08 已充分对齐；本页是完整产品意图，不把未来计划写成现状。
+> 状态：核心产品原则于 2026-08-08 对齐；线级 Context 评测实验于 2026-08-24 对齐。本页不把未来计划写成现状。
 
 ## 1. 核心定位
 
@@ -81,6 +81,20 @@ AI 先展示用户原文，再给出“暂时看见、由你判断”的初判�
 评测体系按“场景输入 → 预期输出 → 模型能力与上下文 → 上下文模块与动作框架”拆解，再对 bad case 做归因。一次完整评测最终需要评测集、参考答案、模型输出集和评测标准。
 
 当前仍处于 good case 探索期：已有真实输入、候选模型输出和人工反馈，但尚无稳定参考答案。因此本阶段不能把第一批输出冒充标准答案，而应先找到真正具有显化价值的 good case，再反推参考答案、能力要求、上下文供给和完整归因标准。结构化反馈只评价 AI 观察质量；good/bad 是独立的评测判断，用户原话另行逐字保存。
+
+### 10.1 线级 Context 评测实验
+
+线级 Context 实验的产品行为不是把所有两两 Entry 组合交给模型，而是先维护整条线的宏观认识，再按索引回看少量原文：
+
+1. EntryCard Agent 为每篇允许 AI 的 Entry 建立跨 ThoughtLine 共用的不可变 CardVersion；每条线的完整引用章节由代码维护，所有合格 Entry 恰好出现一次；
+2. ThoughtLineContext Agent 只维护 discusses、majorConcerns、thoughtStages、stableView、currentFocus、tensions 六个宏观章节，不保存 A→B 等具体关系、关系类型或核验状态；
+3. ContextMaintenance Agent 接收 Entry 增量、Prompt 变化或单次 Echo 的 `not_quite` 反馈，判断宏观 Context 保持不变、局部修订或全量重建；来源变化后受影响线先进入 `stale`，完整新快照发布后才恢复 `ready`；
+4. 同一个 RelationJudgment Agent 使用同一份 Prompt：先读取全部 `ready` Context，一次给出零至三个两至三篇的有序候选，再在规则门禁通过后按顺序读取原文与历史状态；首个输出立即停止，全部放弃则沉默；
+5. ContextModule 与 RelationModule 是两个深模块；正式产品调度不调用该实验链路，显式开发评测可接 Fake 或真实 Agent Adapter，RelationModule 自身只返回内存草稿。
+
+一次性 B/C 配对评测是上述正式结构之外的诊断实验：候选选择仍只执行一次，但 Step 2 分成两份完整 Prompt。B 仅依赖增强后的结构化 `navigationBasis`、候选原文与冻结历史；C 在相同输入上额外读取所选线的宏观 ContextSnapshot。C 必须把 Context 当作发现断层与校准解释风险的参考，不能把它当作用户事实或证据。两分支结果只进入独立只读实验区，不改变 EvaluationWorkbook、EchoRecord 或正式评测维度。
+
+这个实验保留 ThoughtLine 权限边界：交汇 Entry 可以显示全部思考线身份，但不能借交汇点读取其他线 Entry。它也保留沉默、两篇默认而三篇只补足必要断层、原文证据与解释风险门槛。`echo-eval-v0.4` 及更早 Echo Prompt 只作为冻结评测基线，不是新版 RelationModule 的调用路径，也不被描述为已经替换；只有完成 Context 与最终回响两层真实 Case 对比后，才决定是否接真实模型、继续调整或停用新模块。
 
 评测界面采用 EvaluationWorkbook：顶部始终显示可横向浏览的评测总表，点击一行后只展开该 Case 的完整证据与反馈；“评测标准” Sheet 保存当前维度尺度，“Prompt 版本” Sheet 保存每版全文、状态、变更原因、评测依据和继承关系。来源 Entry 在详情卡中纵向排列，右上角展示其涉及的一条或多条 ThoughtLine。
 

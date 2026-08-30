@@ -47,8 +47,10 @@ import {
   LINED_EDITOR_LINE_HEIGHT,
   LINED_EDITOR_MAX_LINES,
 } from "./lined-editor-model";
+import ThoughtLineContextWorkbench, { ThoughtLinePromptCatalog } from "./thought-line-context-workbench";
+import PairedRelationExperiment, { type PairedRelationRun } from "./paired-relation-experiment";
 
-type View = "write" | "pool" | "lines" | "echo" | "evaluation" | "settings";
+type View = "write" | "pool" | "lines" | "context" | "echo" | "evaluation" | "settings";
 type Attachment = { name: string; type: string; data: string };
 export type Entry = {
   id: number;
@@ -166,6 +168,7 @@ const nav: { id: View; icon: string; label: string }[] = [
   { id: "write", icon: "✎", label: "写下" },
   { id: "pool", icon: "□", label: "日记池" },
   { id: "lines", icon: "⌁", label: "思考线" },
+  { id: "context", icon: "◎", label: "Context 实验" },
   { id: "echo", icon: "↗", label: "回响" },
 ];
 
@@ -1024,6 +1027,7 @@ export default function Home({
   const [currentEchoId, setCurrentEchoId] = useState<string | null>(null);
   const [echoSeenThisSession, setEchoSeenThisSession] = useState(false);
   const [echoLoadError, setEchoLoadError] = useState(false);
+  const [pairedRelationEvaluation, setPairedRelationEvaluation] = useState<PairedRelationRun | null>(null);
   const [storageReady, setStorageReady] = useState(false);
   const [storageStatus, setStorageStatus] = useState<StorageStatus>("loading");
   const [storageUpdatedAt, setStorageUpdatedAt] = useState<string | null>(null);
@@ -1093,7 +1097,7 @@ export default function Home({
         seed.echoRecords,
         seed.data.entries,
         seed.data.thoughtLines ?? [],
-        Date.now(),
+        now,
       )?.id ?? null,
     );
     setSelectedLineId(null);
@@ -1183,6 +1187,20 @@ export default function Home({
             setEchoRecords([]);
             setEchoLoadError(true);
           }
+        }
+        try {
+          const pairedResponse = await fetch("/api/paired-relation-evaluation", {
+            cache: "no-store",
+          });
+          const pairedResult = (await pairedResponse.json()) as {
+            evaluation?: PairedRelationRun | null;
+            error?: string;
+          };
+          if (!pairedResponse.ok)
+            throw new Error(pairedResult.error || "无法读取 B/C 配对评测");
+          if (!cancelled) setPairedRelationEvaluation(pairedResult.evaluation ?? null);
+        } catch {
+          if (!cancelled) setPairedRelationEvaluation(null);
         }
       } catch {
         if (cancelled) return;
@@ -1673,9 +1691,10 @@ export default function Home({
       thoughtLines,
       writeThoughtLineSelections,
     );
+    const createdAt = new Date().toISOString();
     const entry: Entry = {
-      id: Date.now(),
-      createdAt: new Date().toISOString(),
+      id: Date.parse(createdAt),
+      createdAt,
       title: titleFromContent(content),
       content,
       tags: writeTags,
@@ -2036,7 +2055,7 @@ export default function Home({
           </span>
         </div>
         <nav>
-          {nav.map((item) => (
+          {nav.filter((item) => !portfolioMode || item.id !== "context").map((item) => (
             <button
               key={item.id}
               className={view === item.id ? "active" : ""}
@@ -2566,6 +2585,12 @@ export default function Home({
               </section>
             ) : (
               <div className="evaluation-workbench">
+                <PairedRelationExperiment
+                  run={pairedRelationEvaluation}
+                  entries={entries}
+                  thoughtLineName={thoughtLines.find((line) => line.id === pairedRelationEvaluation?.thoughtLineId)?.name}
+                  renderContent={(content) => <Markdown content={content} />}
+                />
                 <div className="evaluation-stage">
                   <span>GOOD CASE 探索期</span>
                   <strong>{echoRecords.length} 个 case</strong>
@@ -2608,9 +2633,15 @@ export default function Home({
                       <span>Prompt 版本记录</span>
                       <strong>保留每一次规则变化，也保留它依据了什么</strong>
                       <p>
-                        当前工作版本为 {ECHO_EVAL_PROMPT_VERSION}。输入数量、时间跨度和思考线变化不升级版本；规则实质变化才新增版本。
+                        新 Context + Relation 机制与冻结 Echo 评测基线分别记录。模块规则实质变化才升级对应模块版本。
                       </p>
                     </header>
+                    <ThoughtLinePromptCatalog />
+                    <section className="evaluation-prompt-group">
+                      <header>
+                        <strong>冻结 Echo 评测基线</strong>
+                        <small>当前冻结版本 {ECHO_EVAL_PROMPT_VERSION}</small>
+                      </header>
                     <div className="evaluation-prompt-list">
                       {[...promptVersions].reverse().map((version) => (
                         <article className="evaluation-prompt-sheet" key={version.version}>
@@ -2634,6 +2665,7 @@ export default function Home({
                         </article>
                       ))}
                     </div>
+                    </section>
                   </section>
                 ) : evaluationSheet === "criteria" ? (
                   <section className="evaluation-criteria-sheet">
@@ -2794,6 +2826,7 @@ export default function Home({
             )}
           </div>
         )}
+        {view === "context" && !portfolioMode && <ThoughtLineContextWorkbench />}
         {view === "settings" && (
           <div className="page settings-page">
             <div className="eyebrow">你的思考，只属于你</div>

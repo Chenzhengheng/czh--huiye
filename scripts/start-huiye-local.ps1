@@ -1,11 +1,15 @@
 param(
-  [switch]$NoBrowser
+  [switch]$NoBrowser,
+  [ValidateRange(1024, 65535)]
+  [int]$Port = 4317,
+  [ValidatePattern('^/app(?:/context)?$')]
+  [string]$AppPath = "/app"
 )
 
 $ErrorActionPreference = "Stop"
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$url = "http://localhost:4317/app"
-$apiUrl = "http://localhost:4317/api/data"
+$url = "http://localhost:$Port$AppPath"
+$apiUrl = "http://localhost:$Port/api/data"
 $runtimeDir = Join-Path $projectRoot "local-data\runtime"
 $pidFile = Join-Path $runtimeDir "server.pid"
 
@@ -32,6 +36,10 @@ try {
   Set-Location -LiteralPath $projectRoot
   $node = Find-NodeExecutable
   $cli = Join-Path $projectRoot "node_modules\vinext\dist\cli.js"
+  if (!(Test-Path -LiteralPath $cli)) {
+    $ancestorCli = Join-Path (Resolve-Path (Join-Path $projectRoot "..\..\..")).Path "node_modules\vinext\dist\cli.js"
+    if (Test-Path -LiteralPath $ancestorCli) { $cli = $ancestorCli }
+  }
   $verify = Join-Path $projectRoot "scripts\verify-local-data.mjs"
   if (!(Test-Path -LiteralPath $cli)) { throw "Project dependencies are incomplete: vinext is missing." }
 
@@ -52,7 +60,7 @@ try {
   $startInfo = New-Object System.Diagnostics.ProcessStartInfo
   $startInfo.FileName = $node
   $startInfo.WorkingDirectory = $projectRoot
-  $startInfo.Arguments = ('"{0}" dev --host 127.0.0.1 --port 4317' -f $cli)
+  $startInfo.Arguments = ('"{0}" dev --host 127.0.0.1 --port {1}' -f $cli, $Port)
   $startInfo.UseShellExecute = $false
   $startInfo.CreateNoWindow = $true
   $process = New-Object System.Diagnostics.Process
