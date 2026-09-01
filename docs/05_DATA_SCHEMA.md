@@ -2,19 +2,19 @@
 
 ## PortfolioVisitSession（作品集访问会话）
 
-公开作品集只新增一张与私人日记完全隔离的 D1 表 `portfolio_visit_sessions`：
+海外备份使用一张与私人日记完全隔离的 D1 表 `portfolio_visit_sessions`：
 
 | 字段 | 含义 |
 | --- | --- |
 | `id` | 30 分钟访问会话 ID |
 | `device_id` | 随机浏览器设备标识的 SHA-256，不是账户或真实身份 |
-| `started_at` | 会话首次请求 `/portfolio` 的时间 |
+| `started_at` | 会话首次成功获得公开首页响应的时间 |
 | `latest_at` | 同一窗口内最近一次活动时间 |
-| `confirmed_at` | 浏览器完成渲染并上报的时间；为空仅表示未确认 |
+| `confirmed_at` | 旧版兼容字段；当前统计不再读取或区分其状态 |
 
-记录保留 90 天。系统不保存 IP、地区、浏览器详情、姓名或公司；`/portfolio/demo` 与管理员设备不写入此表。
+国内主站使用 EdgeOne KV 保存同等语义的 30 分钟会话记录，键空间与海外 D1 独立。本地看板将两站 `visits` 相加；`devices` 也只是两个分站匿名设备数之和，不表示跨域去重后的用户数。记录保留 90 天。系统不保存 IP、地区、浏览器详情、姓名或公司；PortfolioMode 演示页、可识别机器人/链接预览/预取与管理员设备不写入。
 
-> 当前实现契约，2026-08-09。私人数据以不可变 generation 保存；缺少新文件的旧 generation 仍可读取。
+> 当前实现契约，2026-09-01。私人数据以不可变 generation 保存；缺少新文件的旧 generation 仍可读取。
 
 ## Entry
 

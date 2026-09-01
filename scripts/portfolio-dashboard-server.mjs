@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { combinePortfolioSummaries, validatePortfolioSummary } from "./portfolio-dashboard-summary.mjs";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dashboardRoot = path.join(projectRoot, "tools", "portfolio-dashboard");
@@ -10,7 +11,6 @@ const configPath = path.join(projectRoot, "local-data", "portfolio-dashboard-adm
 const configText = await readFile(configPath, "utf8");
 const config = JSON.parse(configText.replace(/^\uFEFF/, ""));
 const port = Number(config.port || 4321);
-const proxy = typeof config.proxy === "string" ? config.proxy.trim() : "";
 
 const mime = {
   ".html": "text/html; charset=utf-8",
@@ -18,8 +18,9 @@ const mime = {
   ".js": "text/javascript; charset=utf-8",
 };
 
-function fetchSummary() {
+function fetchSummary(sourceName, source) {
   return new Promise((resolve, reject) => {
+    const proxy = typeof source.proxy === "string" ? source.proxy.trim() : "";
     const requestScript = `
       try {
         const response = await fetch(process.env.HUIYE_SUMMARY_URL, {
@@ -49,8 +50,8 @@ function fetchSummary() {
         env: {
           ...process.env,
           ...(proxy ? { HTTP_PROXY: proxy, HTTPS_PROXY: proxy } : {}),
-          HUIYE_SUMMARY_URL: `${config.siteOrigin}/api/portfolio-visits/summary`,
-          HUIYE_SUMMARY_TOKEN: config.token,
+          HUIYE_SUMMARY_URL: `${source.origin}/api/portfolio-visits/summary`,
+          HUIYE_SUMMARY_TOKEN: source.token,
         },
       },
     );
@@ -69,28 +70,43 @@ function fetchSummary() {
         reject(new Error(detail || `curl exited with ${code}`));
         return;
       }
-      resolve({ status: 200, contentType: "application/json", body: Buffer.concat(stdout) });
+      try {
+        const summary = JSON.parse(Buffer.concat(stdout).toString("utf8"));
+        resolve(validatePortfolioSummary(summary, sourceName));
+      } catch (error) {
+        reject(error);
+      }
     });
   });
+}
+
+async function fetchCombinedSummary() {
+  const names = ["mainland", "overseas"];
+  const results = await Promise.allSettled(names.map((name) => fetchSummary(name, config.sources[name])));
+  return combinePortfolioSummaries(Object.fromEntries(results.map((result, index) => [
+    names[index], result.status === "fulfilled" ? result.value : result.reason,
+  ])));
 }
 
 const server = createServer(async (request, response) => {
   try {
     const url = new URL(request.url, `http://127.0.0.1:${port}`);
     if (url.pathname === "/api/summary") {
-      const upstream = await fetchSummary();
-      response.writeHead(upstream.status, {
-        "content-type": upstream.contentType,
+      const summary = await fetchCombinedSummary();
+      response.writeHead(200, {
+        "content-type": "application/json; charset=utf-8",
         "cache-control": "no-store",
       });
-      response.end(upstream.body);
+      response.end(JSON.stringify(summary));
       return;
     }
 
-    if (url.pathname === "/exclude") {
-      const escapedToken = config.token.replaceAll("&", "&amp;").replaceAll('"', "&quot;");
+    const excludeMatch = url.pathname.match(/^\/exclude\/(mainland|overseas)$/);
+    if (excludeMatch) {
+      const source = config.sources[excludeMatch[1]];
+      const escapedToken = source.token.replaceAll("&", "&amp;").replaceAll('"', "&quot;");
       response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-      response.end(`<!doctype html><meta charset="utf-8"><title>正在排除本机</title><form id="f" method="post" action="${config.siteOrigin}/api/portfolio-visits/admin/enroll"><input type="hidden" name="token" value="${escapedToken}"></form><p>正在将这台浏览器标记为管理员设备…</p><script>document.getElementById('f').submit()</script>`);
+      response.end(`<!doctype html><meta charset="utf-8"><title>正在排除本机</title><form id="f" method="post" action="${source.origin}/api/portfolio-visits/admin/enroll"><input type="hidden" name="token" value="${escapedToken}"></form><p>正在将这台浏览器标记为管理员设备…</p><script>document.getElementById('f').submit()</script>`);
       return;
     }
 

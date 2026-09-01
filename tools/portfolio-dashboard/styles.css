@@ -20,6 +20,16 @@ button:hover,.actions a:hover { border-color:var(--green); }
 .periods p { margin:0 0 20px; color:var(--ink); }
 .periods strong { display:inline-block; margin-right:8px; font-size:42px; font-weight:500; }
 .periods small { margin-top:18px; }
+.sources { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:28px; }
+.sources article { border:1px solid var(--line); background:rgba(255,255,255,.25); padding:24px; }
+.sources article.error { border-color:#cfaaa5; }
+.sources h2 { margin:0; font-size:22px; font-weight:500; }
+.source-status { color:var(--green); font:13px "Segoe UI",sans-serif; }
+.sources .error .source-status { color:#b34f45; }
+.sources dl { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin:22px 0; }
+.sources dl div { border-top:1px solid var(--line); padding-top:12px; }
+.sources dt,.sources dd,.sources small { margin:0; color:var(--muted); font:12px/1.5 "Segoe UI",sans-serif; }
+.sources dd { color:var(--ink); font-size:20px; margin-top:4px; }
 .chart-card { margin-top:28px; border:1px solid var(--line); background:#faf8f2; padding:30px 30px 24px; }
 .section-head { display:flex; justify-content:space-between; align-items:flex-end; }
 .section-head h2 { margin:0; font-weight:500; font-size:26px; }
@@ -29,5 +39,6 @@ button:hover,.actions a:hover { border-color:var(--green); }
 .bar { width:min(9px,42%); min-height:2px; background:var(--green); transition:height .2s ease; }
 .bar.unconfirmed { background:var(--pale); }
 .bar-day span { position:absolute; bottom:-25px; color:var(--muted); font:10px "Segoe UI",sans-serif; white-space:nowrap; }
+.chart .empty { align-self:center; grid-column:1/-1; text-align:center; color:var(--muted); font:14px "Segoe UI",sans-serif; }
 footer { padding-top:38px; text-align:center; color:var(--muted); font:12px "Segoe UI",sans-serif; }
-@media (max-width:760px) { main{width:min(100% - 24px,1180px);padding-top:28px} header{align-items:flex-start;flex-direction:column}.periods{grid-template-columns:1fr 1fr}.periods article:nth-child(2){border-right:0}.periods article:nth-child(-n+2){border-bottom:1px solid var(--line)}.section-head>p{display:none}.chart{gap:3px}.actions{width:100%}.actions>*{flex:1;text-align:center} }
+@media (max-width:760px) { main{width:min(100% - 24px,1180px);padding-top:28px} header{align-items:flex-start;flex-direction:column}.periods{grid-template-columns:1fr 1fr}.periods article:nth-child(2){border-right:0}.periods article:nth-child(-n+2){border-bottom:1px solid var(--line)}.sources{grid-template-columns:1fr}.section-head>p{display:none}.chart{gap:3px}.actions{width:100%;flex-wrap:wrap}.actions>*{flex:1;text-align:center} }

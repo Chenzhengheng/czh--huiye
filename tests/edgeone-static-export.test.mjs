@@ -35,6 +35,10 @@ test("exports an EdgeOne-ready PublicPortfolioDeployment", async (t) => {
     "portfolio/demo/index.html",
     "portfolio/demo/evaluation/index.html",
     "edgeone.json",
+    "middleware.js",
+    "edge-functions/_shared/portfolio-analytics.js",
+    "edge-functions/api/portfolio-visits/summary.js",
+    "edge-functions/api/portfolio-visits/admin/enroll.js",
   ];
   for (const relativePath of requiredFiles) {
     assert.equal((await stat(path.join(outputDir, relativePath))).isFile(), true);
@@ -68,4 +72,7 @@ test("exports an EdgeOne-ready PublicPortfolioDeployment", async (t) => {
     { source: "/portfolio", destination: "/", statusCode: 301 },
     { source: "/portfolio/", destination: "/", statusCode: 301 },
   ]);
+  for (const runtimeFile of requiredFiles.slice(4)) {
+    assert.equal(archiveEntries.includes(runtimeFile), true);
+  }
 });

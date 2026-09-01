@@ -53,7 +53,7 @@ test("does not add mainland compliance copy to the overseas backup", async () =>
   assert.doesNotMatch(await response.text(), /粤ICP备2026122805号/);
 });
 
-test("keeps the public root free of visit tracking while preserving the legacy portfolio route", async () => {
+test("keeps public portfolio pages free of the retired confirmation beacon", async () => {
   const rootResponse = await render("/", "https://huiye-ai.cn");
   assert.equal(rootResponse.status, 200);
   assert.doesNotMatch(await rootResponse.text(), /portfolio-visit-beacon/);
@@ -63,14 +63,14 @@ test("keeps the public root free of visit tracking while preserving the legacy p
     "https://huiye-ai-diary.zhenghengchen13.chatgpt.site",
   );
   assert.equal(overseasRootResponse.status, 200);
-  assert.match(await overseasRootResponse.text(), /portfolio-visit-beacon/);
+  assert.doesNotMatch(await overseasRootResponse.text(), /portfolio-visit-beacon/);
 
   const legacyResponse = await render(
     "/portfolio",
     "https://huiye-ai-diary.zhenghengchen13.chatgpt.site",
   );
   assert.equal(legacyResponse.status, 200);
-  assert.match(await legacyResponse.text(), /portfolio-visit-beacon/);
+  assert.doesNotMatch(await legacyResponse.text(), /portfolio-visit-beacon/);
 });
 
 test("renders the portfolio at the public root instead of the private writing canvas", async () => {

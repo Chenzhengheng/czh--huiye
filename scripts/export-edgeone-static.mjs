@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import {
+  cp,
   copyFile,
   mkdir,
   readFile,
@@ -128,6 +129,11 @@ for (const publicFile of ["og.png"]) {
     .then(() => copyFile(source, path.join(outputDir, publicFile)))
     .catch(() => undefined);
 }
+
+await copyFile(path.join("edgeone", "middleware.js"), path.join(outputDir, "middleware.js"));
+await cp(path.join("edgeone", "edge-functions"), path.join(outputDir, "edge-functions"), {
+  recursive: true,
+});
 
 const edgeOneConfig = {
   redirects: [

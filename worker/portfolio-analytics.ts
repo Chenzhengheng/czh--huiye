@@ -1,5 +1,4 @@
 const DEVICE_COOKIE = "huiye_portfolio_device";
-const SESSION_COOKIE = "huiye_portfolio_session";
 const ADMIN_COOKIE = "huiye_portfolio_admin";
 const THIRTY_MINUTES = 30 * 60;
 const NINETY_DAYS = 90 * 24 * 60 * 60;
@@ -11,19 +10,35 @@ export interface PortfolioAnalyticsEnv {
 }
 
 type VisitSummaryPeriod = {
+  visits: number;
   devices: number;
-  confirmed: number;
-  unconfirmed: number;
 };
 
 export type PortfolioVisitSummary = {
+  source: "overseas";
   generatedAt: number;
+  trackingStartedAt: number | null;
   today: VisitSummaryPeriod;
   last7Days: VisitSummaryPeriod;
   last30Days: VisitSummaryPeriod;
-  daily: Array<{ day: string; devices: number; confirmed: number; unconfirmed: number }>;
-  latestConfirmedAt: number | null;
+  daily: Array<{ day: string; visits: number; devices: number }>;
+  latestVisitAt: number | null;
 };
+
+const NON_HUMAN_USER_AGENT = /bot|crawler|spider|slurp|preview|facebookexternalhit|whatsapp|slackbot|discordbot|twitterbot|linkedinbot|telegrambot/i;
+
+function isEligiblePortfolioNavigation(request: Request, response: Response) {
+  const url = new URL(request.url);
+  if (request.method !== "GET" || !response.ok || (url.pathname !== "/" && url.pathname !== "/portfolio")) return false;
+  if (NON_HUMAN_USER_AGENT.test(request.headers.get("user-agent") ?? "")) return false;
+  if (/prefetch|prerender/i.test(request.headers.get("purpose") ?? "")) return false;
+  if (/prefetch|prerender/i.test(request.headers.get("sec-purpose") ?? "")) return false;
+  const destination = request.headers.get("sec-fetch-dest");
+  if (destination && destination !== "document") return false;
+  const mode = request.headers.get("sec-fetch-mode");
+  if (mode && mode !== "navigate") return false;
+  return true;
+}
 
 function parseCookies(request: Request) {
   return Object.fromEntries(
@@ -99,52 +114,33 @@ export async function recordPortfolioPage(
   env: PortfolioAnalyticsEnv,
   now = Math.floor(Date.now() / 1000),
 ) {
-  if (!env.DB || response.status !== 200 || (await isAdmin(request, env.PORTFOLIO_DASHBOARD_TOKEN))) {
+  if (!env.DB || !isEligiblePortfolioNavigation(request, response) || (await isAdmin(request, env.PORTFOLIO_DASHBOARD_TOKEN))) {
     return response;
   }
 
   const cookies = parseCookies(request);
   const rawDeviceId = cookies[DEVICE_COOKIE] || crypto.randomUUID();
   const deviceId = await sha256(rawDeviceId);
-  const sessionId = await startVisit(env.DB, deviceId, now);
+  await startVisit(env.DB, deviceId, now);
   await env.DB.prepare("DELETE FROM portfolio_visit_sessions WHERE started_at < ?").bind(now - NINETY_DAYS).run();
 
   const headers = new Headers(response.headers);
   if (!cookies[DEVICE_COOKIE]) appendCookie(headers, cookie(DEVICE_COOKIE, rawDeviceId, 365 * 24 * 60 * 60));
-  appendCookie(headers, cookie(SESSION_COOKIE, sessionId, THIRTY_MINUTES));
   return cloneWithHeaders(response, headers);
-}
-
-async function confirmVisit(request: Request, env: PortfolioAnalyticsEnv, now: number) {
-  if (!env.DB || (await isAdmin(request, env.PORTFOLIO_DASHBOARD_TOKEN))) return new Response(null, { status: 204 });
-  const cookies = parseCookies(request);
-  if (!cookies[DEVICE_COOKIE] || !cookies[SESSION_COOKIE]) return new Response(null, { status: 204 });
-  const deviceId = await sha256(cookies[DEVICE_COOKIE]);
-  await env.DB
-    .prepare(
-      `UPDATE portfolio_visit_sessions
-       SET confirmed_at = COALESCE(confirmed_at, ?), latest_at = ?
-       WHERE id = ? AND device_id = ?`,
-    )
-    .bind(now, now, cookies[SESSION_COOKIE], deviceId)
-    .run();
-  return new Response(null, { status: 204 });
 }
 
 async function periodSummary(db: D1Database, since: number): Promise<VisitSummaryPeriod> {
   const row = await db
     .prepare(
       `SELECT COUNT(DISTINCT device_id) AS devices,
-              SUM(CASE WHEN confirmed_at IS NOT NULL THEN 1 ELSE 0 END) AS confirmed,
-              SUM(CASE WHEN confirmed_at IS NULL THEN 1 ELSE 0 END) AS unconfirmed
+              COUNT(*) AS visits
        FROM portfolio_visit_sessions WHERE started_at >= ?`,
     )
     .bind(since)
-    .first<{ devices: number | null; confirmed: number | null; unconfirmed: number | null }>();
+    .first<{ devices: number | null; visits: number | null }>();
   return {
+    visits: Number(row?.visits ?? 0),
     devices: Number(row?.devices ?? 0),
-    confirmed: Number(row?.confirmed ?? 0),
-    unconfirmed: Number(row?.unconfirmed ?? 0),
   };
 }
 
@@ -154,28 +150,31 @@ async function getSummary(db: D1Database, now: number): Promise<PortfolioVisitSu
     .prepare(
       `SELECT strftime('%Y-%m-%d', started_at + ${CHINA_TIME_OFFSET}, 'unixepoch') AS day,
               COUNT(DISTINCT device_id) AS devices,
-              SUM(CASE WHEN confirmed_at IS NOT NULL THEN 1 ELSE 0 END) AS confirmed,
-              SUM(CASE WHEN confirmed_at IS NULL THEN 1 ELSE 0 END) AS unconfirmed
+              COUNT(*) AS visits
        FROM portfolio_visit_sessions WHERE started_at >= ?
        GROUP BY day ORDER BY day ASC`,
     )
     .bind(todayStart - 29 * 24 * 60 * 60)
-    .all<{ day: string; devices: number; confirmed: number; unconfirmed: number }>();
+    .all<{ day: string; devices: number; visits: number }>();
+  const earliest = await db
+    .prepare("SELECT MIN(started_at) AS earliest FROM portfolio_visit_sessions")
+    .first<{ earliest: number | null }>();
   const latest = await db
-    .prepare("SELECT MAX(confirmed_at) AS latest FROM portfolio_visit_sessions")
+    .prepare("SELECT MAX(latest_at) AS latest FROM portfolio_visit_sessions")
     .first<{ latest: number | null }>();
   return {
+    source: "overseas",
     generatedAt: now,
+    trackingStartedAt: earliest?.earliest == null ? null : Number(earliest.earliest),
     today: await periodSummary(db, todayStart),
     last7Days: await periodSummary(db, todayStart - 6 * 24 * 60 * 60),
     last30Days: await periodSummary(db, todayStart - 29 * 24 * 60 * 60),
-    daily: (dailyResult.results ?? []).map((row: { day: string; devices: number; confirmed: number; unconfirmed: number }) => ({
+    daily: (dailyResult.results ?? []).map((row: { day: string; devices: number; visits: number }) => ({
       day: String(row.day),
+      visits: Number(row.visits),
       devices: Number(row.devices),
-      confirmed: Number(row.confirmed),
-      unconfirmed: Number(row.unconfirmed),
     })),
-    latestConfirmedAt: latest?.latest == null ? null : Number(latest.latest),
+    latestVisitAt: latest?.latest == null ? null : Number(latest.latest),
   };
 }
 
@@ -192,7 +191,7 @@ export async function handlePortfolioAnalyticsApi(
 ): Promise<Response | null> {
   const url = new URL(request.url);
   if (url.pathname === "/api/portfolio-visits/confirm" && request.method === "POST") {
-    return confirmVisit(request, env, now);
+    return new Response(null, { status: 204 });
   }
   if (url.pathname === "/api/portfolio-visits/summary" && request.method === "GET") {
     if (!env.DB || !(await authorized(request, env.PORTFOLIO_DASHBOARD_TOKEN))) {
@@ -208,7 +207,7 @@ export async function handlePortfolioAnalyticsApi(
     if (!env.PORTFOLIO_DASHBOARD_TOKEN || (await sha256(token)) !== (await sha256(env.PORTFOLIO_DASHBOARD_TOKEN))) {
       return new Response("Unauthorized", { status: 401 });
     }
-    const headers = new Headers({ location: "/portfolio" });
+    const headers = new Headers({ location: "/" });
     appendCookie(headers, cookie(ADMIN_COOKIE, await sha256(`portfolio-admin:${token}`), 365 * 24 * 60 * 60));
     return new Response(null, { status: 303, headers });
   }

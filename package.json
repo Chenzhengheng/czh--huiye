@@ -16,9 +16,10 @@
     "build:edgeone": "vinext build && node scripts/export-edgeone-static.mjs",
     "test:edgeone-export": "node --test tests/edgeone-static-export.test.mjs",
     "start": "vinext start",
-    "test": "vinext build && node --experimental-strip-types --test tests/rendered-html.test.mjs tests/edgeone-static-export.test.mjs tests/local-data-store.test.mjs tests/thought-line-model.test.mjs tests/portfolio-analytics.test.mjs tests/echo-candidate-controller.test.mjs tests/lined-editor-model.test.mjs && node --test tests/lined-editor-browser.test.mjs",
+    "test": "vinext build && node --experimental-strip-types --test tests/rendered-html.test.mjs tests/edgeone-static-export.test.mjs tests/local-data-store.test.mjs tests/thought-line-model.test.mjs tests/portfolio-analytics.test.mjs tests/edgeone-portfolio-analytics.test.mjs tests/portfolio-dashboard-summary.test.mjs tests/portfolio-dashboard-network.test.mjs tests/echo-candidate-controller.test.mjs tests/lined-editor-model.test.mjs && node --test tests/lined-editor-browser.test.mjs",
     "test:lined-editor-browser": "node --test tests/lined-editor-browser.test.mjs",
     "test:portfolio-analytics": "node --experimental-strip-types --test tests/portfolio-analytics.test.mjs",
+    "test:portfolio-dashboard": "node --test tests/portfolio-dashboard-summary.test.mjs tests/portfolio-dashboard-network.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
   },

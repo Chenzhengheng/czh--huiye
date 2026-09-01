@@ -2,18 +2,18 @@
 
 ## 作品集匿名访问与本地看板
 
-- Worker 只在精确路径 `/portfolio` 返回成功页面时创建或复用 30 分钟访问会话。
-- 客户端不可见 Beacon 在页面完成渲染后确认会话；没有 Beacon 的记录保持“未确认”，不自动归为失败。
-- `/api/portfolio-visits/summary` 只接受本机代理持有的 Bearer 密钥，线上不提供看板 UI 或导航入口。
-- 本地 `scripts/portfolio-dashboard-server.mjs` 从被 Git 忽略的 `local-data/portfolio-dashboard-admin.json` 读取密钥与本机代理地址并代理汇总；浏览器页面接触不到线上密钥或代理配置。旧配置由启动脚本补入默认代理 `http://127.0.0.1:12000`，代理不可用时看板给出明确的开启提示。
+- 海外 Worker 在 `/` 或旧 `/portfolio` 成功返回公开首页后创建或复用 30 分钟访问会话；国内 EdgeOne Middleware 只在 `/` 成功响应后执行相同口径。两边都不使用客户端 Beacon。
+- 两个部署分别排除可识别机器人、链接预览、预取和管理员设备，不保存 IP 或浏览器指纹；Cookie 被禁用或清除时接受重复计数。
+- 两边各自的 `/api/portfolio-visits/summary` 只接受对应管理员 Bearer 密钥，线上不提供看板 UI 或导航入口。海外使用 Cloudflare D1，国内使用 EdgeOne KV，记录分别保留 90 天。
+- 本地 `scripts/portfolio-dashboard-server.mjs` 从被 Git 忽略的 `local-data/portfolio-dashboard-admin.json` 读取两站独立密钥与代理配置，并并行读取、校验和合并汇总；浏览器页面接触不到线上密钥或代理配置。海外旧配置会自动迁移并保留原令牌与代理，国内站生成独立令牌。任一分站失败时看板保留健康分站数据，但不显示可能误导的合计。
 - `scripts/install-portfolio-dashboard-shortcut.ps1` 在桌面创建“回页 · 访问看板”，复用回页双页连接图标。
 
 ## 国内公开静态部署
 
-- `scripts/export-edgeone-static.mjs` 从当前 `dist` Worker 以 `https://huiye-ai.cn` 为请求来源渲染 `/`、`/portfolio/demo` 和 `/portfolio/demo/evaluation`，再复制这些页面所需的客户端静态资源。
+- `scripts/export-edgeone-static.mjs` 从当前 `dist` Worker 以 `https://huiye-ai.cn` 为请求来源渲染 `/`、`/portfolio/demo` 和 `/portfolio/demo/evaluation`，再复制客户端静态资源、`edgeone/middleware.js` 和 `edgeone/edge-functions/`。
 - 导出根目录包含 `index.html` 与 `edgeone.json`；后者使用 301 将 `/portfolio` 和 `/portfolio/` 跳转到 `/`。导出器同时生成根层级正确、可直接交给 EdgeOne Makers Direct Upload 的 ZIP。
 - 国内根域名的所有公开页面显示并链接 `粤ICP备2026122805号`；该合规页脚按请求域名生成，不进入 `chatgpt.site` 海外备份。
-- 国内根入口不渲染 `PortfolioVisitBeacon`；海外根入口仍保留既有 Beacon 渲染行为，旧 `/portfolio` 路径保留完整匿名统计闭环。国内统计后端迁移不属于本次部署。
+- 国内与海外公开入口都不渲染 `PortfolioVisitBeacon`。成功页面响应即作为访问事实；海外旧数据无论原 `confirmed_at` 状态都按普通访问计入汇总。
 - 导出器不生成 `/app`，也不读取或复制 `local-data`。PortfolioMode 继续只使用代码内已审核的固定脱敏数据。
 
 本页只描述当前代码，不写未来设想。
@@ -48,7 +48,7 @@
 
 ## 测试与技术债
 
-领域规则在 `thought-line-model.test.mjs`；纸张增长和光标跟随计算在 `lined-editor-model.test.mjs`；写下页与日记池的真实排版、连续回车、写下页自然下移、日记池背景稳定和手动回看恢复由 Chromium 驱动的 `lined-editor-browser.test.mjs` 覆盖；存储兼容在 `local-data-store.test.mjs`；界面边界在 `rendered-html.test.mjs`；回响事件由 store 测试覆盖。
+领域规则在 `thought-line-model.test.mjs`；纸张增长和光标跟随计算在 `lined-editor-model.test.mjs`；写下页与日记池的真实排版、连续回车、写下页自然下移、日记池背景稳定和手动回看恢复由 Chromium 驱动的 `lined-editor-browser.test.mjs` 覆盖；存储兼容在 `local-data-store.test.mjs`；界面边界在 `rendered-html.test.mjs`；海外、国内与双站汇总分别由 `portfolio-analytics.test.mjs`、`edgeone-portfolio-analytics.test.mjs` 和 `portfolio-dashboard-*.test.mjs` 覆盖；回响事件由 store 测试覆盖。
 
 `build/echo-candidate-controller.mjs` 为本地自动评测候选提供确定性控制：统计有效来源使用次数、构造排除组合、限制每条线最多三轮并校验强烈变化例外；`writeEchoRecord` 在落盘前重复执行来源复用门禁。语义上的关系、证据、显化增量、解释风险及例外是否真实仍由模型判断。Codex 自动化动态读取当前 Prompt，在每条合格主思考线内运行规则与模型循环，各线最多保留一条候选，最终至多写入一条 `evaluation_only` EchoRecord；保持沉默不持久化。
 

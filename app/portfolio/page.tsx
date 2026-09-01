@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import userFlowAsset from "../../docs/assets/huiye-user-path-bpmn.svg";
 import styles from "./portfolio.module.css";
-import { PortfolioVisitBeacon } from "./portfolio-visit-beacon";
 
 const githubUrl = "https://github.com/Chenzhengheng/czh--huiye";
 const userFlowUrl = userFlowAsset.src;
@@ -38,12 +37,9 @@ const productThoughtLine = [
   },
 ];
 
-export default function PortfolioPage({
-  enableVisitBeacon = true,
-}: Readonly<{ enableVisitBeacon?: boolean }> = {}) {
+export default function PortfolioPage() {
   return (
     <main className={styles.page}>
-      {enableVisitBeacon ? <PortfolioVisitBeacon /> : null}
       <nav className={styles.nav} aria-label="作品集导航">
         <a className={styles.brand} href="#top" aria-label="回到页首">
           <span>回</span>
