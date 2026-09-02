@@ -83,4 +83,10 @@ test("exports an EdgeOne-ready PublicPortfolioDeployment", async (t) => {
     const source = await readFile(path.join(outputDir, relativePath), "utf8");
     assert.match(source, /export\s+(?:async\s+)?function\s+onRequest/);
   }
+
+  const edgeRuntimeSource = await readFile(
+    path.join(outputDir, "lib/portfolio-analytics.js"),
+    "utf8",
+  );
+  assert.doesNotMatch(edgeRuntimeSource, /Response\.json\(/);
 });

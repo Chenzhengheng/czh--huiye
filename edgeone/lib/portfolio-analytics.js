@@ -59,6 +59,12 @@ function cloneWithHeaders(response, headers) {
   });
 }
 
+function jsonResponse(value, init = {}) {
+  const headers = new Headers(init.headers);
+  headers.set("content-type", "application/json; charset=utf-8");
+  return new Response(JSON.stringify(value), { ...init, headers });
+}
+
 async function listAll(store, prefix) {
   const keys = [];
   let cursor;
@@ -159,9 +165,9 @@ export async function handleMainlandPortfolioAnalyticsApi(request, env, now = Ma
   const store = analyticsStore(env);
   if (url.pathname === "/api/portfolio-visits/summary" && request.method === "GET") {
     if (!store || !(await authorized(request, env.PORTFOLIO_DASHBOARD_TOKEN))) {
-      return Response.json({ error: "unauthorized" }, { status: 401 });
+      return jsonResponse({ error: "unauthorized" }, { status: 401 });
     }
-    return Response.json(await summary(store, now), { headers: { "cache-control": "no-store" } });
+    return jsonResponse(await summary(store, now), { headers: { "cache-control": "no-store" } });
   }
   if (url.pathname === "/api/portfolio-visits/admin/enroll" && request.method === "POST") {
     const form = await request.formData();
