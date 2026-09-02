@@ -1,4 +1,4 @@
-import { recordMainlandPortfolioPage } from "./edge-functions/_shared/portfolio-analytics.js";
+import { recordMainlandPortfolioPage } from "./lib/portfolio-analytics.js";
 
 export async function middleware(context) {
   const response = await context.next();

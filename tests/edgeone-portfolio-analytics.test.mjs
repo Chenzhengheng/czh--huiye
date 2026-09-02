@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   handleMainlandPortfolioAnalyticsApi,
   recordMainlandPortfolioPage,
-} from "../edgeone/edge-functions/_shared/portfolio-analytics.js";
+} from "../edgeone/lib/portfolio-analytics.js";
 
 class FakeKV {
   values = new Map();

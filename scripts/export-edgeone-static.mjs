@@ -134,6 +134,9 @@ await copyFile(path.join("edgeone", "middleware.js"), path.join(outputDir, "midd
 await cp(path.join("edgeone", "edge-functions"), path.join(outputDir, "edge-functions"), {
   recursive: true,
 });
+await cp(path.join("edgeone", "lib"), path.join(outputDir, "lib"), {
+  recursive: true,
+});
 
 const edgeOneConfig = {
   redirects: [

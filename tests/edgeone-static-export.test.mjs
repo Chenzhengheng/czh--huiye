@@ -36,7 +36,7 @@ test("exports an EdgeOne-ready PublicPortfolioDeployment", async (t) => {
     "portfolio/demo/evaluation/index.html",
     "edgeone.json",
     "middleware.js",
-    "edge-functions/_shared/portfolio-analytics.js",
+    "lib/portfolio-analytics.js",
     "edge-functions/api/portfolio-visits/summary.js",
     "edge-functions/api/portfolio-visits/admin/enroll.js",
   ];
@@ -74,5 +74,13 @@ test("exports an EdgeOne-ready PublicPortfolioDeployment", async (t) => {
   ]);
   for (const runtimeFile of requiredFiles.slice(4)) {
     assert.equal(archiveEntries.includes(runtimeFile), true);
+  }
+
+  const edgeFunctionFiles = requiredFiles.filter((relativePath) =>
+    relativePath.startsWith("edge-functions/"),
+  );
+  for (const relativePath of edgeFunctionFiles) {
+    const source = await readFile(path.join(outputDir, relativePath), "utf8");
+    assert.match(source, /export\s+(?:async\s+)?function\s+onRequest/);
   }
 });
