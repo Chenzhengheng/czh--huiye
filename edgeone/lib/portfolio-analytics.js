@@ -6,10 +6,6 @@ const NINETY_DAYS = 90 * 24 * 60 * 60;
 const CHINA_TIME_OFFSET = 8 * 60 * 60;
 const NON_HUMAN_USER_AGENT = /bot|crawler|spider|slurp|preview|facebookexternalhit|whatsapp|slackbot|discordbot|twitterbot|linkedinbot|telegrambot/i;
 
-function analyticsStore(env) {
-  return env?.HUIYE_PORTFOLIO_ANALYTICS ?? globalThis.HUIYE_PORTFOLIO_ANALYTICS;
-}
-
 function parseCookies(request) {
   return Object.fromEntries(
     (request.headers.get("cookie") ?? "")
@@ -39,24 +35,13 @@ async function isAdmin(request, token) {
   return parseCookies(request)[ADMIN_COOKIE] === (await sha256(`portfolio-admin:${token}`));
 }
 
-function isEligibleNavigation(request, response) {
+function isEligibleVisit(request) {
   const url = new URL(request.url);
-  if (request.method !== "GET" || !response.ok || url.pathname !== "/") return false;
+  if (request.method !== "POST" || url.pathname !== "/api/portfolio-visits/visit") return false;
   if (NON_HUMAN_USER_AGENT.test(request.headers.get("user-agent") ?? "")) return false;
   if (/prefetch|prerender/i.test(request.headers.get("purpose") ?? "")) return false;
   if (/prefetch|prerender/i.test(request.headers.get("sec-purpose") ?? "")) return false;
-  const destination = request.headers.get("sec-fetch-dest");
-  if (destination && destination !== "document") return false;
-  const mode = request.headers.get("sec-fetch-mode");
-  return !mode || mode === "navigate";
-}
-
-function cloneWithHeaders(response, headers) {
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  });
+  return request.headers.get("sec-fetch-site") === "same-origin";
 }
 
 function jsonResponse(value, init = {}) {
@@ -96,9 +81,11 @@ async function pruneSessions(store, now) {
   }));
 }
 
-export async function recordMainlandPortfolioPage(request, response, env, now = Math.floor(Date.now() / 1000)) {
-  const store = analyticsStore(env);
-  if (!store || !isEligibleNavigation(request, response) || (await isAdmin(request, env.PORTFOLIO_DASHBOARD_TOKEN))) return response;
+export async function recordMainlandPortfolioVisit(request, store, env, now = Math.floor(Date.now() / 1000)) {
+  if (!store) return jsonResponse({ error: "storage_unavailable" }, { status: 503 });
+  if (!isEligibleVisit(request) || (await isAdmin(request, env.PORTFOLIO_DASHBOARD_TOKEN))) {
+    return new Response(null, { status: 204 });
+  }
 
   const cookies = parseCookies(request);
   const rawDeviceId = cookies[DEVICE_COOKIE] || crypto.randomUUID();
@@ -113,12 +100,11 @@ export async function recordMainlandPortfolioPage(request, response, env, now = 
     : { deviceId, startedAt, latestAt: now };
   await store.put(key, JSON.stringify(session));
   if (!(await store.get("tracking_started_at"))) await store.put("tracking_started_at", String(now));
-  await pruneSessions(store, now);
 
-  const headers = new Headers(response.headers);
+  const headers = new Headers();
   if (!cookies[DEVICE_COOKIE]) headers.append("set-cookie", cookie(DEVICE_COOKIE, rawDeviceId, 365 * 24 * 60 * 60));
   headers.append("set-cookie", cookie(SESSION_COOKIE, String(startedAt), THIRTY_MINUTES));
-  return cloneWithHeaders(response, headers);
+  return new Response(null, { status: 204, headers });
 }
 
 function period(sessions, since) {
@@ -127,6 +113,7 @@ function period(sessions, since) {
 }
 
 async function summary(store, now) {
+  await pruneSessions(store, now);
   const todayStart = Math.floor((now + CHINA_TIME_OFFSET) / (24 * 60 * 60)) * (24 * 60 * 60) - CHINA_TIME_OFFSET;
   const sessions = (await readSessions(store)).filter((session) => session.startedAt >= now - NINETY_DAYS);
   const daily = new Map();
@@ -160,9 +147,11 @@ async function authorized(request, token) {
   return provided.length > 0 && (await sha256(provided)) === (await sha256(token));
 }
 
-export async function handleMainlandPortfolioAnalyticsApi(request, env, now = Math.floor(Date.now() / 1000)) {
+export async function handleMainlandPortfolioAnalyticsApi(request, store, env, now = Math.floor(Date.now() / 1000)) {
   const url = new URL(request.url);
-  const store = analyticsStore(env);
+  if (url.pathname === "/api/portfolio-visits/visit" && request.method === "POST") {
+    return recordMainlandPortfolioVisit(request, store, env, now);
+  }
   if (url.pathname === "/api/portfolio-visits/summary" && request.method === "GET") {
     if (!store || !(await authorized(request, env.PORTFOLIO_DASHBOARD_TOKEN))) {
       return jsonResponse({ error: "unauthorized" }, { status: 401 });

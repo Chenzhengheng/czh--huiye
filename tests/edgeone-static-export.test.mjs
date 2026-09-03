@@ -35,8 +35,9 @@ test("exports an EdgeOne-ready PublicPortfolioDeployment", async (t) => {
     "portfolio/demo/index.html",
     "portfolio/demo/evaluation/index.html",
     "edgeone.json",
-    "middleware.js",
     "lib/portfolio-analytics.js",
+    "portfolio-visit.js",
+    "edge-functions/api/portfolio-visits/visit.js",
     "edge-functions/api/portfolio-visits/summary.js",
     "edge-functions/api/portfolio-visits/admin/enroll.js",
   ];
@@ -46,6 +47,7 @@ test("exports an EdgeOne-ready PublicPortfolioDeployment", async (t) => {
 
   await assert.rejects(stat(path.join(outputDir, "app/index.html")));
   await assert.rejects(stat(path.join(outputDir, "local-data")));
+  await assert.rejects(stat(path.join(outputDir, "middleware.js")));
   const assets = await readdir(path.join(outputDir, "assets"));
   assert.equal(assets.some((name) => name.includes("portfolio-visit-beacon")), false);
   assert.equal(
@@ -64,6 +66,10 @@ test("exports an EdgeOne-ready PublicPortfolioDeployment", async (t) => {
     assert.match(html, /粤ICP备2026122805号/);
     assert.match(html, /https:\/\/beian\.miit\.gov\.cn\//);
   }
+  assert.match(
+    await readFile(path.join(outputDir, "index.html"), "utf8"),
+    /<script src="\/portfolio-visit\.js" defer><\/script>/,
+  );
 
   const config = JSON.parse(
     await readFile(path.join(outputDir, "edgeone.json"), "utf8"),

@@ -8,7 +8,7 @@ export async function onRequest(context) {
       context.env,
     );
   } catch (error) {
-    console.error("Portfolio summary failed", error);
+    console.error("Portfolio visit recording failed", error);
     return new Response(JSON.stringify({ error: "storage_unavailable" }), {
       status: 503,
       headers: { "content-type": "application/json; charset=utf-8" },

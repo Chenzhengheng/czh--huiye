@@ -93,7 +93,13 @@ for (const route of routes) {
 
   const target = path.join(outputDir, route.file);
   await mkdir(path.dirname(target), { recursive: true });
-  const html = await response.text();
+  const renderedHtml = await response.text();
+  const html = route.pathname === "/"
+    ? renderedHtml.replace(
+        "</body>",
+        '<script src="/portfolio-visit.js" defer></script></body>',
+      )
+    : renderedHtml;
   renderedPages.set(route.file, html);
   await writeFile(target, html, "utf8");
 }
@@ -130,7 +136,10 @@ for (const publicFile of ["og.png"]) {
     .catch(() => undefined);
 }
 
-await copyFile(path.join("edgeone", "middleware.js"), path.join(outputDir, "middleware.js"));
+await copyFile(
+  path.join("edgeone", "portfolio-visit.js"),
+  path.join(outputDir, "portfolio-visit.js"),
+);
 await cp(path.join("edgeone", "edge-functions"), path.join(outputDir, "edge-functions"), {
   recursive: true,
 });
