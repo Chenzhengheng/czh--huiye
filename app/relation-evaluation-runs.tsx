@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { EchoCard, type EchoRecordV2 } from "./echo-card";
+import { EchoCard, type EchoEntry, type EchoRecordV2 } from "./echo-card";
 import PairedRelationExperiment, { type PairedRelationRun } from "./paired-relation-experiment";
 import { RELATION_JUDGMENT_PROMPT_VERSION } from "./thought-line-context-prompts";
 import type { Entry } from "./huiye-app";
 
-type AgentTraceStep = { step: string; input: unknown; output: unknown };
+type AgentTraceStep = { step: string; input: unknown; output?: unknown; error?: { name: string; message: string } };
 type EvaluationRun = {
   runId: string;
   thoughtLineId: string;
@@ -14,8 +14,10 @@ type EvaluationRun = {
   promptVersions?: Record<string, string>;
   model?: string;
   evaluatedAt: string;
-  decision: "accepted" | "silent";
+  decision: "accepted" | "silent" | "failed";
   echoCard?: EchoRecordV2;
+  sourceEntries?: EchoEntry[];
+  error?: { name: string; message: string };
   agentTrace?: AgentTraceStep[];
   ruleTrace?: unknown[];
 };
@@ -88,7 +90,7 @@ export default function RelationEvaluationRuns({
             <nav aria-label="C 方案评测运行">
               {workbench.runs.map((run) => (
                 <button key={run.runId} className={selectedRun?.runId === run.runId ? "selected" : ""} onClick={() => setSelectedRunId(run.runId)}>
-                  <strong>{run.decision === "accepted" ? "已形成测试回响" : "保持沉默"}</strong>
+                  <strong>{run.decision === "accepted" ? "已形成测试回响" : run.decision === "failed" ? "运行失败" : "保持沉默"}</strong>
                   <small>{new Date(run.evaluatedAt).toLocaleString("zh-CN")}</small>
                   <code>{thoughtLineName(run.thoughtLineId)}</code>
                 </button>
@@ -101,7 +103,9 @@ export default function RelationEvaluationRuns({
                   <div><code>{selectedRun.model ?? "模型未记录"}</code><code>{selectedRun.promptVersions?.relationJudgment ?? RELATION_JUDGMENT_PROMPT_VERSION}</code></div>
                 </header>
                 {selectedRun.echoCard ? (
-                  <EchoCard record={selectedRun.echoCard} entries={entries} lineNames={[thoughtLineName(selectedRun.thoughtLineId)]} renderContent={renderContent} readOnly />
+                  <EchoCard record={selectedRun.echoCard} entries={selectedRun.sourceEntries ?? []} lineNames={[thoughtLineName(selectedRun.thoughtLineId)]} renderContent={renderContent} readOnly sourcesInitiallyOpen={false} />
+                ) : selectedRun.decision === "failed" ? (
+                  <div className="paired-relation-silent"><strong>运行失败</strong><p>{selectedRun.error?.message ?? "未记录失败原因"}</p></div>
                 ) : <div className="paired-relation-silent">本次没有候选通过门槛，评测保持沉默。</div>}
                 <section className="evaluation-agent-trace">
                   <header><strong>Agent 完整过程</strong><small>{selectedRun.agentTrace?.length ?? 0} 步</small></header>
@@ -109,7 +113,7 @@ export default function RelationEvaluationRuns({
                     <details key={`${step.step}-${index}`}>
                       <summary><span>{String(index + 1).padStart(2, "0")}</span><strong>{step.step}</strong></summary>
                       <JsonDetails label="输入" value={step.input} />
-                      <JsonDetails label="结构化输出" value={step.output} />
+                      {step.error ? <JsonDetails label="失败" value={step.error} /> : <JsonDetails label="结构化输出" value={step.output} />}
                     </details>
                   ))}
                   {!!selectedRun.ruleTrace?.length && <JsonDetails label="规则门禁与候选顺序" value={selectedRun.ruleTrace} />}

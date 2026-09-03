@@ -44,9 +44,9 @@ ID 稳定唯一，非 merged 线名称唯一。新线只随 Entry 保存物化�
 
 ## EvaluationRunArtifact v1
 
-Context + Relation 的每次开发评测只在 `local-context/evaluation/runs/<runId>/result.json` 写一份自足产物，并由同目录 `index.json` 建立运行索引。字段包含 `runId`、`thoughtLineId`、`sourceGenerationId`、四模块 `promptVersions`、`model`、`evaluatedAt`、`decision: accepted | silent`、完整 `agentTrace` 与确定性的 `ruleTrace`；接受时另含 `echoCard`。该卡片可由只读 EchoCard 渲染，但不属于 `local-data/echoes`，不参与正式来源使用计数与历史。
+Context + Relation 的每次开发评测只在 `local-context/evaluation/runs/<runId>/result.json` 写一份自足产物，并由同目录 `index.json` 建立运行索引。字段包含 `runId`、`thoughtLineId`、本次运行冻结的 `sourceGenerationId`、四模块 `promptVersions`、`model`、`evaluatedAt`、`decision: accepted | silent | failed`、完整 `agentTrace` 与确定性的 `ruleTrace`；失败时另含 `error`，接受时另含 `echoCard` 与只覆盖其来源的 `sourceEntries` 展示投影。该卡片可脱离当前日记 generation 由只读 EchoCard 渲染，但不属于 `local-data/echoes`，不参与正式来源使用计数与历史。
 
-`agentTrace` 按实际调用顺序保存每步输入和结构化输出；`ruleTrace` 按候选顺序保存硬门禁／历史门禁的通过或拒绝及原因。历史配对 B/C 继续保存在 `local-context/evaluation/paired-runs/`，由统一 EvaluationWorkbench 读取为“历史实验”。
+`agentTrace` 按实际调用顺序保存每步输入和结构化输出，Agent 抛错时保存该步输入与错误；`ruleTrace` 按候选顺序保存硬门禁／历史门禁的通过或拒绝及原因。失败运行也写入索引供工作台诊断。历史配对 B/C 继续保存在 `local-context/evaluation/paired-runs/`，由统一 EvaluationWorkbench 读取为“历史实验”。
 
 运行前以当前有效 Entry 的 `entrySourceFingerprint` 与 ContextSnapshot 的 EntryCard 比较，分别计算新增、变化和移除；只有这些差异进入 `entry_increment`。若主数据 generation 改变但线内有效 Entry 未变，发布 `source_generation_sync` 快照，只同步 `sourceGenerationId`，不调用 Context Agent，也不伪造 Entry 变化。
 
@@ -95,8 +95,8 @@ Context + Relation 的每次开发评测只在 `local-context/evaluation/runs/<r
 - `thought-line-context/thought-lines/<thoughtLineId>/state.json`：当前发布门。Entry 增量或 Prompt 重建开始后先切为 `stale`，完整新快照与索引发布完毕后才切回 `ready`；失败时保持 `stale`；
 - `thought-line-context/thought-lines/<thoughtLineId>/history/<snapshotId>/snapshot.json`：不可变历史完整快照。检查视图按 `createdAt`、再按 `snapshotId` 稳定排序，并对相邻快照用代码生成宏观章节、EntryCard 引用和 Prompt 版本三类 diff；
 - 旧实验的 `entries/<entryId>/card.json`、`context.md`、`record.json` 与 `history/*/{context.md,change.json}` 暂时保留只读兼容，不是新版写入契约；
-- `evaluation/runs/<runId>/result.json`：旧实验 runtime 与新版隔离评测运行器共用的关系评测结果位置；新版只记录最终 accepted/silent 结果，不保留临时候选组合；
-- 开发版 `local-data/echoes/<echoRecordId>.json`：新版运行 accepted 后，经 `writeEchoRecord` 门禁写入的 `evaluation_only` EchoRecord；稳定版目录不写入。
+- `evaluation/runs/<runId>/result.json`：旧实验 runtime 与新版隔离评测运行器共用的关系评测结果位置；新版记录 accepted/silent/failed、完整 Agent trace 与确定性规则 trace；
+- 新版运行不会向开发版或稳定版 `local-data/echoes` 写入评测 Echo；旧 `evaluation_only` 文件只作兼容输入，迁移时仅提取卡片展示字段。
 
 新版 ThoughtLineContext 不保存具体 Entry 关系、关系类型或核验状态。测试夹具的 accepted 结果不构成真实候选或质量证据。
 
@@ -111,6 +111,6 @@ Context + Relation 的每次开发评测只在 `local-context/evaluation/runs/<r
 - `feedback`：上述回响对应的用户反馈与补充说明；
 - `sourceUsage`：仍有效候选及 `evaluation_only` 的逐篇累计来源次数。
 
-同一个 Agent 随后返回 `next_candidate` 或 `output`；前者继续已有下一组，首个 `output` 立即结束，全部失败则返回 `{ decision: "silent" }`。`RelationModule.run()` 本身仍只返回内存 `StructuredEchoDraft`。显式调用 `runContextRelationEvaluation()` 时，外层运行器才会把 accepted 草稿映射为原有 `EchoRecordV2`，补充 ID、`evaluation_only`、时间、模型与空事件数组，并经 `writeEchoRecord` 再次执行来源复用门禁。
+同一个 Agent 随后返回 `next_candidate` 或 `output`；前者继续已有下一组，全部放弃则返回 `{ decision: "silent" }`。`RelationModule.run()` 本身仍只返回内存 `StructuredEchoDraft`。显式调用 `runContextRelationEvaluation()` 时，外层运行器把 accepted 草稿与来源展示投影嵌入 EvaluationRunArtifact；Agent 或运行校验抛错则保存 failed artifact 后继续向调用方抛错。该路径不调用 `writeEchoRecord`。
 
 一次性 B/C 配对实验使用独立目录 `local-context/evaluation/paired-runs/<runId>/result.json`，索引为 `paired-runs/index.json`。记录冻结的共享候选、Snapshot 与 History 身份、B/C 各自 attempts、只供诊断的 `assessment` 与可选内存草稿；同目录 `data-protection.json` 保存真实运行前后的稳定版与隔离版 `current.json` 哈希及 Echo 文件名集合。实验不会写入 `EchoRecord`、`CaseRecord`、Prompt 正式评测维度或来源使用历史。B 的逐组输入不含 Context；C 只额外得到所选线的宏观六段 Context 与全部有效 EntryCard 摘要。该 Context 是 AI 生成的参考认识，不能充当用户事实或回响证据。

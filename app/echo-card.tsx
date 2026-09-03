@@ -140,11 +140,13 @@ function EchoSource({
   quote,
   label,
   renderContent,
+  initiallyOpen,
 }: {
   entry: EchoEntry;
   quote: string;
   label: string;
   renderContent: (content: string) => ReactNode;
+  initiallyOpen: boolean;
 }) {
   return (
     <section className="echo-v2-source" aria-label={`${label}：${entry.title}`}>
@@ -154,7 +156,7 @@ function EchoSource({
           <time dateTime={entry.createdAt}>{displayDate(entry)}</time>
         </div>
         <p className="echo-v2-quote">“{quote}”</p>
-        <details className="echo-v2-preview" open>
+        <details className="echo-v2-preview" open={initiallyOpen}>
           <summary>
             <span className="echo-v2-book" aria-hidden="true">
               □
@@ -200,6 +202,7 @@ export function EchoCard({
   onFeedback,
   onOpenEntry,
   readOnly = false,
+  sourcesInitiallyOpen = true,
 }: {
   record: EchoRecordV2;
   entries: EchoEntry[];
@@ -212,6 +215,7 @@ export function EchoCard({
   onFeedback?: (record: EchoRecordV2, feedback: EchoFeedback) => void;
   onOpenEntry?: (entryId: number) => void;
   readOnly?: boolean;
+  sourcesInitiallyOpen?: boolean;
 }) {
   const [replyOpen, setReplyOpen] = useState(Boolean(reply));
   const [replyDraft, setReplyDraft] = useState(reply?.content ?? "");
@@ -269,6 +273,7 @@ export function EchoCard({
                 : "过去留下的一页"
             }
             renderContent={renderContent}
+            initiallyOpen={sourcesInitiallyOpen}
           />
         ))}
       </div>

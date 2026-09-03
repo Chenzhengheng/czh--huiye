@@ -108,7 +108,8 @@ test("one Harness run publishes a self-contained evaluation artifact without wri
   };
 
   try {
-    await writeLocalData(sourceRoot, sourceData, { source: "test" });
+    const initialWrite = await writeLocalData(sourceRoot, sourceData, { source: "test" });
+    let duringRunWrite;
     const result = await runContextRelationEvaluation({
       sourceRoot,
       contextRoot,
@@ -130,7 +131,10 @@ test("one Harness run publishes a self-contained evaluation artifact without wri
           tensions: "尚无面试结果。",
         } }),
         decideMaintenance: async () => { throw new Error("首次构建不应调用维护判断"); },
-        selectCandidates: async () => ({ candidates: [{ thoughtLineId: "line-autumn", entryIds: ["101", "102"], navigationBasis: structuredNavigationBasis }] }),
+        selectCandidates: async () => {
+          duringRunWrite = await writeLocalData(sourceRoot, { ...sourceData, exportedAt: "2026-08-28T07:30:00.000Z" }, { source: "concurrent-test" });
+          return { candidates: [{ thoughtLineId: "line-autumn", entryIds: ["101", "102"], navigationBasis: structuredNavigationBasis }] };
+        },
         judgeCandidate: async ({ selectedLineContext }) => {
           assert.equal(selectedLineContext.thoughtLine.id, "line-autumn");
           return { decision: "output", assessment: {
@@ -161,6 +165,9 @@ test("one Harness run publishes a self-contained evaluation artifact without wri
     assert.equal(result.evaluation.echoCard.schemaVersion, 2);
     assert.match(result.evaluation.echoCard.reason, /不确定性：尚未获得面试结果/);
     assert.deepEqual(result.evaluation.echoCard.sourceEntryIds, [101, 102]);
+    assert.deepEqual(result.evaluation.sourceEntries, sourceData.entries.map(({ id, title, content, createdAt }) => ({ id, title, content, createdAt })));
+    assert.equal(result.evaluation.sourceGenerationId, initialWrite.generationId);
+    assert.notEqual(duringRunWrite.generationId, result.evaluation.sourceGenerationId);
     assert.deepEqual(result.evaluation.agentTrace.map((step) => step.step), [
       "generate_entry_cards",
       "generate_thought_line_context",
@@ -174,6 +181,7 @@ test("one Harness run publishes a self-contained evaluation artifact without wri
 
     const artifact = JSON.parse(await readFile(result.evaluationPath, "utf8"));
     assert.deepEqual(artifact.echoCard, result.evaluation.echoCard);
+    assert.deepEqual(artifact.sourceEntries, result.evaluation.sourceEntries);
     assert.equal(artifact.agentTrace[3].output.decision, "output");
 
     const contextModule = createContextModule({ contextRoot, evaluationRoot });
@@ -181,6 +189,38 @@ test("one Harness run publishes a self-contained evaluation artifact without wri
     assert.equal(snapshot.entryCards.length, 2);
     assert.equal(snapshot.relationshipEvaluation.status, "accepted");
     assert.equal(snapshot.relationshipEvaluation.latest.echoCard.id, "echo-context-eval-test");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("persists a failed Agent evaluation with the trace collected before failure", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "huiye-context-relation-failure-"));
+  const sourceRoot = path.join(root, "local-data");
+  const contextRoot = path.join(root, "local-context", "thought-line-context");
+  const evaluationRoot = path.join(root, "local-context", "evaluation");
+  try {
+    await writeLocalData(sourceRoot, {
+      format: "huiye-backup", version: 1, exportedAt: "2026-09-03T00:00:00.000Z",
+      entries: [{ id: 101, title: "A", content: "正文", createdAt: "2026-09-03T00:00:00.000Z", aiLink: true, thoughtLineIds: ["line-autumn"] }],
+      thoughtLines: [{ id: "line-autumn", name: "秋招", status: "active", allowEcho: true }],
+      echoes: [], caseRecords: [], echoReplies: [], echoCheckedIds: [],
+    }, { source: "test" });
+    await assert.rejects(() => runContextRelationEvaluation({
+      sourceRoot, contextRoot, evaluationRoot, thoughtLineId: "line-autumn", prompts, promptVersions,
+      model: "test-model", now: () => new Date("2026-09-03T01:00:00.000Z"),
+      agentAdapter: {
+        generateEntryCards: async () => { throw new Error("adapter unavailable"); },
+        generateThoughtLineContext: async () => { throw new Error("not reached"); },
+        decideMaintenance: async () => { throw new Error("not reached"); },
+        selectCandidates: async () => { throw new Error("not reached"); },
+        judgeCandidate: async () => { throw new Error("not reached"); },
+      },
+    }), /adapter unavailable/);
+    const workbench = await readEvaluationWorkbench(evaluationRoot);
+    assert.equal(workbench.runs[0].decision, "failed");
+    assert.equal(workbench.runs[0].error.message, "adapter unavailable");
+    assert.equal(workbench.runs[0].agentTrace[0].step, "generate_entry_cards");
   } finally {
     await rm(root, { recursive: true, force: true });
   }

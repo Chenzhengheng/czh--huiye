@@ -24,7 +24,7 @@
 - `app/thought-line-context-prompts.ts`：EntryCard、ThoughtLineContext、ContextMaintenance、RelationJudgment 四份 Prompt 的唯一正文与版本记录；
 - `build/codex-json-agent-adapter.mjs`、`build/context-relation-evaluation-runner.mjs`：仅供显式授权的开发评测使用，以 Structured Outputs 调用 Codex CLI，经 ContextModule、RelationModule 生成自足 EvaluationRunArtifact；来源 `local-data` 只读；
 - `build/evaluation-workbench-store.mjs`、`app/relation-evaluation-runs.tsx`：统一读取和展示当前 C runs 与历史 B/C；
-- `app/thought-line-context-workbench.tsx`：新版 ContextSnapshot、历史 diff、四模块 Prompt 与关系状态的内部只读看板；
+- `app/thought-line-context-workbench.tsx`：新版 ContextSnapshot、EntryCards、历史 diff 与四模块 Prompt 的内部只读看板；
 - `app/echo-card.tsx`：回响的证据、AI 初判、卡片内 EchoReply 和反馈呈现；
 - `build/local-data-store.mjs`：本地不可变代次读写；
 - `build/thought-line-context-module.mjs`、`build/context-maintenance.mjs`、`build/thought-line-context-store.mjs`：新版 Context 深模块、维护路由与只读检查；

@@ -64,6 +64,35 @@ function deriveRuleTrace(trace) {
     }));
 }
 
+function projectEvaluationEchoCard(record) {
+  return {
+    schemaVersion: 2,
+    id: record.id,
+    mode: record.mode,
+    thoughtLineId: record.thoughtLineId,
+    relationType: record.relationType,
+    lifecycle: "evaluation_only",
+    sourceEntryIds: record.sourceEntryIds,
+    ...(record.triggerEntryId === undefined ? {} : { triggerEntryId: record.triggerEntryId }),
+    evidence: record.evidence,
+    sourceSummaries: record.sourceSummaries,
+    reason: record.reason,
+    ...(record.question === undefined ? {} : { question: record.question }),
+    discoveredAt: record.discoveredAt,
+    eligibleAfter: record.eligibleAfter,
+    ruleVersion: record.ruleVersion,
+    model: record.model,
+    events: [],
+  };
+}
+
+function projectEvaluationSources(entries, sourceEntryIds) {
+  const wanted = new Set(sourceEntryIds.map(String));
+  return entries
+    .filter((entry) => wanted.has(String(entry.id)))
+    .map(({ id, title, content, createdAt, date }) => ({ id, title, content, ...(createdAt ? { createdAt } : {}), ...(date ? { date } : {}) }));
+}
+
 if (sourceProjectRoot === targetProjectRoot) throw new Error("迁移源与目标不能相同");
 if (await exists(targetContextRoot) && !resume) throw new Error(`目标 local-context 已存在，拒绝覆盖：${targetContextRoot}`);
 
@@ -94,21 +123,17 @@ await cp(
   await exists(activePairedIndex) ? activePairedIndex : archivedPairedIndex,
   path.join(targetEvaluationRoot, "paired-runs", "index.json"),
 );
-await cp(
-  path.join(sourceContextRoot, "reproduction-reset", "20260903-selected-c"),
-  path.join(targetContextRoot, "reproduction-reset", "20260903-selected-c"),
-  { recursive: true },
-);
-
 const [legacyResult, rawTrace] = await Promise.all([
   readJson(path.join(sourceRunRoot, "result.json")),
   readJson(path.join(sourceRunRoot, "agent-trace.json")),
 ]);
-const echoCard = await readJson(path.join(sourceDataRoot, "echoes", `${legacyResult.echoRecordId}.json`));
+const legacyEchoRecord = await readJson(path.join(sourceDataRoot, "echoes", `${legacyResult.echoRecordId}.json`));
+const echoCard = projectEvaluationEchoCard(legacyEchoRecord);
 const migratedResult = {
   ...legacyResult,
   sourceGenerationId: targetData.generationId,
   echoCard,
+  sourceEntries: projectEvaluationSources(sourceData.data.entries, echoCard.sourceEntryIds),
   agentTrace: normalizeTrace(rawTrace),
   ruleTrace: deriveRuleTrace(rawTrace),
 };

@@ -68,7 +68,7 @@ type ContextSnapshot = {
   };
 };
 
-type WorkbenchTab = "context" | "cards" | "history" | "prompts" | "relationship";
+type WorkbenchTab = "context" | "cards" | "history" | "prompts";
 
 export function ThoughtLinePromptCatalog() {
   return (
@@ -138,19 +138,13 @@ export default function ThoughtLineContextWorkbench() {
     return () => { cancelled = true; };
   }, []);
 
-  const relationStatus = snapshot?.relationshipEvaluation.status === "accepted"
-    ? "已接受一组候选"
-    : snapshot?.relationshipEvaluation.status === "silent"
-      ? "已运行，保持沉默"
-      : "尚未运行";
-
   return (
     <div className="page context-workbench-page">
       <header className="context-workbench-head">
         <div>
           <div className="eyebrow">开发评测 · 只读实验</div>
-          <h1>Context + 关系模型</h1>
-          <p className="lead">先看 AI 如何认识整条思考线，再决定是否让关系模块回看原文。</p>
+          <h1>思考线 Context</h1>
+          <p className="lead">查看 AI 对整条思考线的暂时认识、来源卡片与版本变化。</p>
         </div>
         <span className="context-readonly-badge">只读 · 不生成回响</span>
       </header>
@@ -160,7 +154,6 @@ export default function ThoughtLineContextWorkbench() {
         <button role="tab" aria-selected={tab === "cards"} className={tab === "cards" ? "selected" : ""} onClick={() => setTab("cards")}>EntryCards</button>
         <button role="tab" aria-selected={tab === "history"} className={tab === "history" ? "selected" : ""} onClick={() => setTab("history")}>历史 Diff</button>
         <button role="tab" aria-selected={tab === "prompts"} className={tab === "prompts" ? "selected" : ""} onClick={() => setTab("prompts")}>Prompt 版本</button>
-        <button role="tab" aria-selected={tab === "relationship"} className={tab === "relationship" ? "selected" : ""} onClick={() => setTab("relationship")}>关系运行</button>
       </div>
 
       {tab === "prompts" ? (
@@ -174,7 +167,6 @@ export default function ThoughtLineContextWorkbench() {
           <section className="context-overview">
             <article><span>主思考线</span><strong>{snapshot.thoughtLine.name}</strong><small>{snapshot.thoughtLine.id}</small></article>
             <article><span>EntryCards</span><strong>{snapshot.entryCards.length} 张</strong><small>全部可回到原文</small></article>
-            <article><span>关系运行</span><strong>{relationStatus}</strong><small>确认 Context 后才运行</small></article>
             <article><span>Context 状态</span><strong>{snapshot.status ?? "旧版快照"}</strong><small>{snapshot.snapshotId ?? snapshot.model ?? "未记录快照 ID"}</small></article>
           </section>
 
@@ -258,26 +250,7 @@ export default function ThoughtLineContextWorkbench() {
             </section>
           )}
 
-          {tab === "relationship" && (
-            <section className="context-panel relationship-panel">
-              <header><span>RelationJudgment loop</span><strong>{relationStatus}</strong></header>
-              {snapshot.relationshipEvaluation.latest ? (
-                <div>
-                  <p>候选组合：{snapshot.relationshipEvaluation.latest.candidates?.length ?? 0} 组</p>
-                  <p>已核验：{snapshot.relationshipEvaluation.latest.attempts?.length ?? 0} 组</p>
-                  {snapshot.relationshipEvaluation.latest.reason && <p>{snapshot.relationshipEvaluation.latest.reason}</p>}
-                  {snapshot.relationshipEvaluation.latest.uncertainty && <small>{snapshot.relationshipEvaluation.latest.uncertainty}</small>}
-                </div>
-              ) : (
-                <div className="relationship-not-run">
-                  <strong>关系模块还没有读取原文</strong>
-                  <p>当前页面只展示 Context Agent 的暂时认识。同一个 RelationJudgment Agent 会先从全部 Context 给出最多三组候选，再按顺序读取原文和历史状态逐组判断。</p>
-                </div>
-              )}
-            </section>
-          )}
-
-          <footer className="context-source-note">源 generation：{snapshot.sourceGenerationId} · Context 与关系评测均保存在独立私有目录</footer>
+          <footer className="context-source-note">源 generation：{snapshot.sourceGenerationId} · Context 保存在独立私有目录</footer>
         </>
       )}
     </div>

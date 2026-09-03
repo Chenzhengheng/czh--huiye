@@ -42,7 +42,7 @@
 
 **EvaluationWorkbook（评测工作簿）**：EvaluationWorkbench 的回响人工评测区，用于浏览、比较和展开既有 EvaluationSet。包含“评测总表”“评测标准”和“Prompt 版本”三个 Sheet；分别承担跨 Case 比较、判定尺度和生成规则追溯。“Prompt 版本”必须同时标明 Prompt 所属模块与该模块版本，至少区分 EntryCard、ThoughtLineContext、ContextMaintenance 与 RelationJudgment，不能把四条版本线混成一个编号。避免：把全部完整卡片连续铺开、把评测标准或 Prompt 历史散落在备注中、只显示版本号而无法知道影响模块。
 
-**EvaluationRunArtifact（评测运行产物）**：一次 Context + Relation 开发评测在 `local-context/evaluation` 中持久化的自足记录，保存源 generation、Prompt/模型/时间、Agent trace、候选顺序、规则门禁与最终测试回响卡片或沉默。测试回响卡片只由该产物渲染，不创建 EchoRecord，也不改变正式回响资格、历史或来源使用次数。避免：依赖 `local-data/echoes` 才能展示、把运行产物称为正式回响。
+**EvaluationRunArtifact（评测运行产物）**：一次 Context + Relation 开发评测在 `local-context/evaluation` 中持久化的自足记录，保存冻结的源 generation、Prompt/模型/时间、Agent trace、候选顺序、规则门禁，以及最终测试回响卡片、沉默或失败；测试卡片同时保存渲染所需的来源原文投影。它不创建 EchoRecord，也不改变正式回响资格、历史或来源使用次数。避免：依赖当前 `local-data` 或 `local-data/echoes` 才能展示、把运行产物称为正式回响。
 
 **EvaluationDimension（评测维度）**：EvaluationCriteria 中可独立判断的一条质量轴。首批维度为关系成立度、显化增量和重逢感，每项使用高／中／低尺度；Case 的 good / bad 仍由人最终判断，不由维度机械计算。关系成立度为低时原则上是 bad；关系成立但其余两项都低时通常也是 bad。避免：把用户是否回应当作质量维度、用单一总分遮蔽失败原因。
 

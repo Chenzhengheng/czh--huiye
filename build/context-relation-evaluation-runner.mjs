@@ -63,7 +63,7 @@ export function detectContextSourceChanges(snapshot, entries) {
   };
 }
 
-function buildEchoRecord(draft, { id, model, evaluatedAt }) {
+function buildEvaluationEchoCard(draft, { id, model, evaluatedAt }) {
   const uncertainty = String(draft.uncertainty ?? "").trim();
   return {
     schemaVersion: 2,
@@ -95,14 +95,34 @@ function createTracedAgentAdapter(agentAdapter, trace) {
     judgeCandidate: "judge_candidate",
   };
   return Object.fromEntries(Object.entries(stepNames).map(([method, fallbackStep]) => [method, async (input) => {
-    const output = await agentAdapter[method](input);
-    trace.push({
-      step: input?.step ?? fallbackStep,
-      input: structuredClone(input),
-      output: structuredClone(output),
-    });
-    return output;
+    const step = input?.step ?? fallbackStep;
+    const tracedInput = structuredClone(input);
+    try {
+      const output = await agentAdapter[method](input);
+      trace.push({ step, input: tracedInput, output: structuredClone(output) });
+      return output;
+    } catch (error) {
+      trace.push({
+        step,
+        input: tracedInput,
+        error: { name: error instanceof Error ? error.name : "Error", message: error instanceof Error ? error.message : String(error) },
+      });
+      throw error;
+    }
   }]));
+}
+
+function projectEvaluationSources(entries, sourceEntryIds) {
+  const wanted = new Set(sourceEntryIds.map(String));
+  return entries
+    .filter((entry) => wanted.has(String(entry.id)))
+    .map(({ id, title, content, createdAt, date }) => ({
+      id,
+      title,
+      content,
+      ...(createdAt ? { createdAt } : {}),
+      ...(date ? { date } : {}),
+    }));
 }
 
 async function publishEvaluation(evaluationRoot, record) {
@@ -146,8 +166,12 @@ export async function runContextRelationEvaluation({
   const agentTrace = [];
   const ruleTrace = [];
   const tracedAgentAdapter = createTracedAgentAdapter(agentAdapter, agentTrace);
-  const readSource = async () => normalizeSource(await readLocalData(sourceRoot));
-  const source = await readSource();
+  const source = normalizeSource(await readLocalData(sourceRoot));
+  // One evaluation is a snapshot-isolated observation. A concurrent save is
+  // picked up by the next run instead of mixing generations inside one trace.
+  const readSource = async () => source;
+  const evaluatedAt = now().toISOString();
+  const runId = `run-${evaluatedAt.replace(/[:.]/g, "-")}-${randomUUID()}`;
   const eligibleEntries = source.data.entries
     .filter((entry) => entry.aiLink && entry.thoughtLineIds?.includes(thoughtLineId));
   const contextModule = createContextModule({
@@ -159,6 +183,7 @@ export async function runContextRelationEvaluation({
     promptVersions,
     now,
   });
+  try {
   const existing = await contextModule.inspect(thoughtLineId).catch((error) => {
     if (/不包含思考线|manifest/.test(String(error?.message))) return null;
     throw error;
@@ -220,8 +245,6 @@ export async function runContextRelationEvaluation({
     promptVersion: promptVersions.relationJudgment,
   });
   const draft = await relationModule.run({ type: "evaluation", thoughtLineId });
-  const evaluatedAt = now().toISOString();
-  const runId = `run-${evaluatedAt.replace(/[:.]/g, "-")}-${randomUUID()}`;
   if (draft.decision === "silent") {
     const evaluation = {
       format: "huiye-thought-line-relation-evaluation",
@@ -241,7 +264,7 @@ export async function runContextRelationEvaluation({
     return { decision: "silent", evaluation, evaluationPath };
   }
 
-  const echoCard = buildEchoRecord(draft, {
+  const echoCard = buildEvaluationEchoCard(draft, {
     id: idFactory(),
     model,
     evaluatedAt,
@@ -258,6 +281,7 @@ export async function runContextRelationEvaluation({
     evaluatedAt,
     decision: "accepted",
     echoCard,
+    sourceEntries: projectEvaluationSources(source.data.entries, echoCard.sourceEntryIds),
     sourceEntryIds: echoCard.sourceEntryIds,
     relationType: echoCard.relationType,
     reason: echoCard.reason,
@@ -266,4 +290,30 @@ export async function runContextRelationEvaluation({
   };
   const evaluationPath = await publishEvaluation(evaluationRoot, evaluation);
   return { decision: "accepted", evaluation, evaluationPath };
+  } catch (error) {
+    const evaluation = {
+      format: "huiye-thought-line-relation-evaluation",
+      version: 1,
+      lifecycle: "evaluation_only",
+      runId,
+      thoughtLineId,
+      sourceGenerationId: source.generationId,
+      promptVersions,
+      model,
+      evaluatedAt,
+      decision: "failed",
+      error: {
+        name: error instanceof Error ? error.name : "Error",
+        message: error instanceof Error ? error.message : String(error),
+      },
+      agentTrace,
+      ruleTrace,
+    };
+    const evaluationPath = await publishEvaluation(evaluationRoot, evaluation);
+    if (error instanceof Error) {
+      error.evaluationPath = evaluationPath;
+      throw error;
+    }
+    throw new Error(String(error));
+  }
 }

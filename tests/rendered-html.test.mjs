@@ -325,7 +325,8 @@ test("uses the confirmed three-level source disclosure without embedding private
   assert.match(card, /原文节选/);
   assert.match(card, /展开整篇/);
   assert.match(card, /完整原文/);
-  assert.match(card, /<details className="echo-v2-preview" open>/);
+  assert.match(card, /sourcesInitiallyOpen = true/);
+  assert.match(card, /<details className="echo-v2-preview" open=\{initiallyOpen\}>/);
   assert.match(card, /<details className="echo-v2-full">/);
   assert.match(card, /AI 暂时看见 · 由你判断/);
   assert.match(card, /看清了一点/);
@@ -452,6 +453,7 @@ test("keeps the historical B/C experiment isolated but no longer mounts it as th
 test("shows C in the unified Context and Echo evaluation workbench", async () => {
   const app = await readFile(new URL("../app/huiye-app.tsx", import.meta.url), "utf8");
   const runs = await readFile(new URL("../app/relation-evaluation-runs.tsx", import.meta.url), "utf8");
+  const context = await readFile(new URL("../app/thought-line-context-workbench.tsx", import.meta.url), "utf8");
   assert.match(app, /评测工作台/);
   assert.match(app, />\s*Context\s*</);
   assert.match(app, />\s*回响\s*</);
@@ -459,6 +461,9 @@ test("shows C in the unified Context and Echo evaluation workbench", async () =>
   assert.match(runs, /当前方案 · \{workbench\.currentScheme\}/);
   assert.match(runs, /候选判断继续携带宏观 Context/);
   assert.match(runs, /Agent 完整过程/);
+  assert.match(runs, /entries=\{selectedRun\.sourceEntries \?\? \[\]\}/);
+  assert.match(runs, /sourcesInitiallyOpen=\{false\}/);
+  assert.doesNotMatch(context, /关系运行|tab === "relationship"/);
   assert.doesNotMatch(app, /<PairedRelationExperiment/);
 });
 
