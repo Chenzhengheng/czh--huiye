@@ -40,9 +40,10 @@ Agent Prompt v0.3 已完成一条新 good case 的首轮验证：它从完整主
 - [x] #63：通过 Fake Agent Adapter 建立 `ContextModule.maintain()`，传入三份 Context 侧 Prompt 正文与版本，覆盖全局 EntryCardVersion、六章节 Context、跨线复用、`not_quite` 维护判断、stale/ready、增量与 Prompt 全量重建；
 - [x] #64：把同一 RelationJudgment Prompt 接入候选导航与逐组判断，保留规则门禁、原文与历史读取、最多三轮 loop，并只返回沉默或内存草稿；
 - [x] #66：内部 Context 检查入口展示新版快照、历史 Diff 与四模块 Prompt；评测工作台按新机制与冻结 Echo 基线分组显示模块、版本、状态和全文；
-- [x] 分模块确认并记录 EntryCard、ThoughtLineContext、ContextMaintenance、RelationJudgment 四份 v0.1 Prompt；四份 Prompt 以回页产品价值观开头，当前均为 `pending_evaluation`；
+- [x] 分模块确认并记录四份 Prompt；EntryCard、ThoughtLineContext、ContextMaintenance 为 v0.1，RelationJudgment 在 B/C 诊断后选择 C 并升级为 v0.2；四份 Prompt 均以回页产品价值观开头，当前仍为 `pending_evaluation`；
 - [x] 在隔离开发 generation 中接入 Codex JSON Agent Adapter，完成一次“秋招”线 9 篇真实 Harness 运行，并生成一条开发版 `evaluation_only` EchoRecord；尚待人工评测，不进入生产调度；
-- [x] #68–#70：建立 RelationJudgment B/C 一次性配对 Harness、独立只读评测区与真实运行入口；B/C 使用不同完整 Prompt，实验诊断字段不进入原评测资产；真实结果仍需人工比较，不能视为生产结论；
+- [x] #68–#70：建立 RelationJudgment B/C 一次性配对 Harness并完成真实诊断；产品负责人选择 C 作为当前 canonical 实验方案，旧配对数据只作追溯，不再占据当前评测工作台；C 的真实结果仍需人工判断，不能视为生产结论；
+- [x] #61–#64：将 Context 与回响收进统一 EvaluationWorkbench；收紧 Context generation 与结构化 navigation 门禁；按真实 Entry 差异维护 Context；每次 C 评测只写自足 EvaluationRunArtifact，不再写 `local-data/echoes`；历史 B/C 归入“回响 → 历史实验”。
 - [ ] 用隔离数据与冻结旧基线完成两层评测后，再决定是否接真实模型或扩大实验。
 
 本实验不表示动态排序已被生产机制取代，也不创建正式回响。自动化回归使用 Fake Adapter；显式授权的真实开发评测只形成隔离证据，不运行旧实验的 Navigation/Verification，也不写稳定版 `local-data`。旧机制冻结为对照基线；新机制如果不如更简单的 LLM + Prompt，可以在清晰模块边界上直接替换。

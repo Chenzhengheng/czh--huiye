@@ -9,7 +9,7 @@ AI 不替用户建立人生图谱，也不替用户下结论。它只说：“�
 export const ENTRY_CARD_PROMPT_VERSION = "entry-card-v0.1";
 export const THOUGHT_LINE_CONTEXT_PROMPT_VERSION = "thought-line-context-v0.1";
 export const CONTEXT_MAINTENANCE_PROMPT_VERSION = "context-maintenance-v0.1";
-export const RELATION_JUDGMENT_PROMPT_VERSION = "relation-judgment-v0.1";
+export const RELATION_JUDGMENT_PROMPT_VERSION = "relation-judgment-v0.2";
 export const RELATION_CANDIDATE_SELECTION_PROMPT_VERSION = "relation-candidate-selection-v0.2";
 export const RELATION_JUDGMENT_B_PROMPT_VERSION = "relation-judgment-b-v0.2";
 export const RELATION_JUDGMENT_C_PROMPT_VERSION = "relation-judgment-c-v0.2";
@@ -172,7 +172,12 @@ export const RELATION_JUDGMENT_PROMPT = `${HUIYE_PRODUCT_VALUES}
     {
       "thoughtLineId": "候选所属思考线",
       "entryIds": ["按时间正序排列的 2–3 个 Entry ID"],
-      "navigationBasis": "为什么值得回原文检查的简短依据"
+      "navigationBasis": {
+        "attentionSignal": "Context 中什么变化、张力或阶段信号值得检查",
+        "whyTheseEntries": "为什么选择这 2–3 篇",
+        "minimalityBasis": "为什么它是最小充分来源集合",
+        "checkFocus": "回原文后必须核查什么"
+      }
     }
   ]
 }
@@ -184,18 +189,36 @@ export const RELATION_JUDGMENT_PROMPT = `${HUIYE_PRODUCT_VALUES}
 3. 两篇是默认；第三篇只有在移除后会造成思想变化断层时才加入；绝不超过三篇。
 4. entryIds 保持规范时间顺序，不为叙事重排。
 5. 同标签、同实体、同情绪或同抽象主题只是定位信号。
-6. navigationBasis 只说明值得检查的原因，不宣布关系成立。
+6. navigationBasis 的四个字段只说明值得检查的原因、来源选择、最小性和待核查点，不宣布关系成立。
 7. 不读取或推测原文，不生成结构化回响。
 
 # currentStep: check_candidate_1 | check_candidate_2 | check_candidate_3
 
-你会看到当前候选、该组合的两至三篇原文，以及包含 exactEchoes、overlappingEchoes、feedback 和 sourceUsage 的 CandidateHistoryBundle。
+你会看到当前候选、该组合的两至三篇原文、包含 exactEchoes、overlappingEchoes、feedback 和 sourceUsage 的 CandidateHistoryBundle，以及导航阶段使用的同一份 selectedLineContext。
+
+selectedLineContext 只包含 Snapshot ID、源 generation、六个宏观章节，以及该线全部有效 EntryCard 的 entryId、occurredAt、summary 与 uncertainty；不包含非候选 Entry 原文。
+
+## selectedLineContext 边界
+
+1. Context 与 EntryCard 只用于理解候选在整条轨迹中的位置、检查是否遗漏不可省略的中间 Entry，以及校准解释风险。
+2. 它们是 AI 生成、可修正的宏观认识，不是用户事实，不能证明关系，也不能成为 Echo evidence。
+3. 候选原文是关系、显化增量与证据的最高依据；与 Context 冲突时以原文为准，并提高风险或放弃。
+4. 若非候选 EntryCard 显示某篇可能不可省略，返回 next_candidate，并在 indispensableMissingEntryIds 中列出其 ID；不得自行扩大候选。
 
 只能返回以下两种结果之一。
 
 ## 放弃
 
-{ "decision": "next_candidate" }
+{
+  "decision": "next_candidate",
+  "assessment": {
+    "decisionReason": "为什么放弃",
+    "candidateCompleteness": "sufficient | missing_indispensable_entry | uncertain",
+    "indispensableMissingEntryIds": ["不可省略但不在候选中的 Entry ID"],
+    "contextEffect": "no_material_effect | changed_interpretation | revealed_gap"
+  },
+  "echo": null
+}
 
 以下情况应放弃：只有话题相似；缺少可由原文证明的共同具体事情或持续问题；组合没有显化增量；依赖补写动机或人格；只是重复旧表达；用户否定过同一解释且没有新证据；来源频繁使用但没有不可替代的新价值；三篇中的任意一篇并非必要。
 
@@ -205,6 +228,12 @@ export const RELATION_JUDGMENT_PROMPT = `${HUIYE_PRODUCT_VALUES}
 
 {
   "decision": "output",
+  "assessment": {
+    "decisionReason": "为什么达到输出门槛",
+    "candidateCompleteness": "sufficient",
+    "indispensableMissingEntryIds": [],
+    "contextEffect": "no_material_effect | changed_interpretation"
+  },
   "echo": {
     "mode": "relational",
     "thoughtLineId": "当前候选 ThoughtLine ID",
@@ -225,10 +254,14 @@ export const RELATION_JUDGMENT_PROMPT = `${HUIYE_PRODUCT_VALUES}
 
 1. 关系必须由原文支持，evidence 必须逐字可核验。
 2. 来源与候选一致并保持时间顺序；relationType 只表达一种主要关系。
-3. 历史相同不自动等于重复，需要判断是否补全旧断层或出现新证据；增加一篇来源也不自动构成新关系。
-4. 用户反馈是判断输入，不是强制答案；sourceUsage 是负面信号，不替代语义判断。
-5. 只有决定 output 后才形成 echo；output 后立即结束。
-6. 不创建 EchoRecord ID、生命周期、时间、事件或评测结论。`;
+3. navigationBasis、ThoughtLineContext 和 EntryCard 都不能成为关系证据。
+4. 历史相同不自动等于重复，需要判断是否补全旧断层或出现新证据；增加一篇来源也不自动构成新关系。
+5. 用户反馈是判断输入，不是强制答案；sourceUsage 是负面信号，不替代语义判断。
+6. indispensableMissingEntryIds 只能引用 selectedLineContext 中存在且不属于当前候选的 Entry。
+7. output 时 candidateCompleteness 必须为 sufficient，不能有遗漏，也不能使用 revealed_gap。
+8. 只有决定 output 后才形成 echo；output 后立即结束。
+9. assessment 只供本次内部判断，不进入 EchoRecord，也不是 good/bad 结论。
+10. 不创建 EchoRecord ID、生命周期、时间、事件或评测结论。`;
 
 export const RELATION_CANDIDATE_SELECTION_PROMPT = `${HUIYE_PRODUCT_VALUES}
 
@@ -427,7 +460,7 @@ export const thoughtLinePromptVersions = [
     version: RELATION_JUDGMENT_PROMPT_VERSION,
     status: "pending_evaluation",
     prompt: RELATION_JUDGMENT_PROMPT,
-    changeSummary: "合并旧 Navigation 与 Verification，由同一 Agent 在 Harness 阶段中完成全局导航和逐组输出判断。",
+    changeSummary: "在同一 Agent loop 中采用 C：导航后候选判断继续携带所选线 Context，用它检查完整性与必要中间 Entry，但不把 Context 当作证据。",
     baseline: "echo-eval-v0.4 冻结 Echo 评测基线",
     evaluationMethod: "同输入对照冻结旧基线，检查候选连续性、关系成立度、显化增量、重逢感、重复和三篇必要性。",
     rollback: "停用 RelationModule，继续把 echo-eval-v0.4 作为只读评测对照；不迁移或删除既有 EchoRecord。",

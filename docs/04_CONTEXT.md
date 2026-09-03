@@ -38,7 +38,11 @@
 
 **EvaluationCriteria（评测标准）**：用于判断模型输出质量的明确维度。当前首先观察 ManifestationValue，并以 clarified、already_known、not_quite 区分新增显化、重复认知和偏差；完整归因标准待 good case 稳定后建立。避免：只看相关性、只看是否继续写。
 
-**EvaluationWorkbook（评测工作簿）**：用于浏览、比较和展开 EvaluationSet 的工作台。包含“评测总表”“评测标准”和“Prompt 版本”三个 Sheet；分别承担跨 Case 比较、判定尺度和生成规则追溯。“Prompt 版本”必须同时标明 Prompt 所属模块与该模块版本，至少区分 EntryCard、ThoughtLineContext、ContextMaintenance 与 RelationJudgment，不能把四条版本线混成一个编号。避免：把全部完整卡片连续铺开、把评测标准或 Prompt 历史散落在备注中、只显示版本号而无法知道影响模块。
+**EvaluationWorkbench（评测工作台）**：本地开发评测的统一入口，只有 `Context` 与`回响`两个一级类别。Context 直接展示思考线认识、EntryCards、历史 Diff 与 Prompt，不增加人工评分；回响展示当前 C 方案运行、Agent 每步输入与结构化输出、候选及规则门禁、最终测试回响或沉默、既有人工评测和历史 B/C。避免：独立 Context 导航、把 B/C 当当前并列方案、用“展示模式”切换评测数据。
+
+**EvaluationWorkbook（评测工作簿）**：EvaluationWorkbench 的回响人工评测区，用于浏览、比较和展开既有 EvaluationSet。包含“评测总表”“评测标准”和“Prompt 版本”三个 Sheet；分别承担跨 Case 比较、判定尺度和生成规则追溯。“Prompt 版本”必须同时标明 Prompt 所属模块与该模块版本，至少区分 EntryCard、ThoughtLineContext、ContextMaintenance 与 RelationJudgment，不能把四条版本线混成一个编号。避免：把全部完整卡片连续铺开、把评测标准或 Prompt 历史散落在备注中、只显示版本号而无法知道影响模块。
+
+**EvaluationRunArtifact（评测运行产物）**：一次 Context + Relation 开发评测在 `local-context/evaluation` 中持久化的自足记录，保存源 generation、Prompt/模型/时间、Agent trace、候选顺序、规则门禁与最终测试回响卡片或沉默。测试回响卡片只由该产物渲染，不创建 EchoRecord，也不改变正式回响资格、历史或来源使用次数。避免：依赖 `local-data/echoes` 才能展示、把运行产物称为正式回响。
 
 **EvaluationDimension（评测维度）**：EvaluationCriteria 中可独立判断的一条质量轴。首批维度为关系成立度、显化增量和重逢感，每项使用高／中／低尺度；Case 的 good / bad 仍由人最终判断，不由维度机械计算。关系成立度为低时原则上是 bad；关系成立但其余两项都低时通常也是 bad。避免：把用户是否回应当作质量维度、用单一总分遮蔽失败原因。
 
@@ -62,7 +66,7 @@
 
 **MinimalSufficientSourceSet（最小充分来源集）**：一次关系判断与回响只使用两篇或三篇 Entry。两篇是默认形态；只有移除中间 Entry 会造成思想变化断层或使解释失真时才使用三篇，绝不超过三篇。“约八成为两篇”是产品预期而非机械配额。避免：固定只选两篇、为了显得完整而加入可替代来源、把整条 ThoughtLine 塞进一次回响。
 
-**RelationSearchLoop（关系搜索循环）**：一个关系判断 Agent 使用同一份 RelationJudgment Prompt 完成导航与输出判断；Agent Harness 以 `select_candidates`、`check_candidate_1..3`、`complete` 等确定性状态保存当前步骤并控制工具调用与停止，LLM 只执行当前状态允许的语义判断。Agent 先读取全部允许 AI 使用的 ThoughtLineContext，从全局一次生成零至三个按优先级排列的候选组合，再按顺序运行最多三次判断。没有明显候选时可以直接保持沉默；只有一个强候选时不为凑数补足。每个组合包含一个 `thoughtLineId`、两至三个按 Entry 时间正序排列的 `entryId`，时间相同以稳定 Entry ID 排序，并附带说明为什么值得回原文检查的简短导航依据；同一组合内的 Entry 必须共同属于指定 ThoughtLine。LLM 选择来源但不能改变时间顺序，最终回响证据沿用该顺序，关系方向也据此解释。每次判断先由 RelationRuleEngine 检查权限、同线归属、来源数量、ID 与版本一致性；硬门禁失败时不读取原文、不补充新候选，直接尝试已有的下一组合。通过后才读取该组合原文，再获取组合是否出现过、以前以何种形式出现、用户给过什么反馈及来源使用情况等 CandidateHistoryBundle；同一 Agent 随后决定直接输出或放弃并尝试下一组合。只有决定输出后才形成结构化回响，放弃的候选不生成回响结构，也不持久化。输出后立即停止，全部候选均未输出则保持沉默。全局读取只分配当前注意力，不授权跨线组合。避免：让 LLM 伪造或跳过运行阶段、把导航和关系判断拆成两份 Prompt 或两个语义模型、强制凑足候选、让模型重排来源制造叙事、先读原文再检查权限、在读取历史状态前先形成结构化回响、把每条 ThoughtLine 分别启动三轮搜索、输出后继续比较候选、把候选持久化为关系事实、为了跑满次数而勉强建立关系。
+**RelationSearchLoop（关系搜索循环）**：一个关系判断 Agent 使用同一份 RelationJudgment Prompt 完成导航与输出判断；Agent Harness 以 `select_candidates`、`check_candidate_1..3`、`complete` 等确定性状态保存当前步骤并控制工具调用与停止，LLM 只执行当前状态允许的语义判断。Agent 先读取全部允许 AI 使用的 ThoughtLineContext，从全局一次生成零至三个按优先级排列的候选组合，再按顺序运行最多三次判断。没有明显候选时可以直接保持沉默；只有一个强候选时不为凑数补足。每个组合包含一个 `thoughtLineId`、两至三个按 Entry 时间正序排列的 `entryId`，时间相同以稳定 Entry ID 排序，并附带结构化导航依据；同一组合内的 Entry 必须共同属于指定 ThoughtLine。LLM 选择来源但不能改变时间顺序，最终回响证据沿用该顺序，关系方向也据此解释。每次判断先由 RelationRuleEngine 检查权限、同线归属、来源数量、ID 与版本一致性；硬门禁失败时不读取原文、不补充新候选，直接尝试已有的下一组合。通过后才读取该组合原文，再获取组合是否出现过、以前以何种形式出现、用户给过什么反馈及来源使用情况等 CandidateHistoryBundle；同一 Agent 同时继续持有导航阶段使用的同一份候选所属线 ContextSnapshot 投影，其中包含六个宏观章节和该线全部有效 EntryCard 概要，但不包含非候选原文。该投影只用于检查候选完整性、不可省略的中间 Entry 与解释风险，不能成为用户事实、关系证据或 Echo evidence；若发现必要来源缺失，只能放弃当前候选并尝试已有下一组合，不能自行扩写候选。同一 Agent 随后决定直接输出或放弃。只有决定输出后才形成结构化回响，放弃的候选不生成回响结构，也不持久化。输出后立即停止，全部候选均未输出则保持沉默。全局读取只分配当前注意力，不授权跨线组合。避免：让 LLM 伪造或跳过运行阶段、把导航和关系判断拆成两份 Prompt 或两个语义模型、强制凑足候选、让模型重排来源制造叙事、把 Context 当作关系证据、读取非候选原文、先读原文再检查权限、在读取历史状态前先形成结构化回响、把每条 ThoughtLine 分别启动三轮搜索、输出后继续比较候选、把候选持久化为关系事实、为了跑满次数而勉强建立关系。
 
 **CandidateHistoryBundle（候选历史包）**：系统在关系判断 LLM 读取一组候选原文后返回的确定性历史状态。它不仅包含来源完全相同的既有回响，还包含来源有重叠的回响、过去的关系与表达、对应用户反馈和明确校准，以及每篇来源的累计使用情况。历史包只提供事实，不替 LLM 判断本次候选是重复、补全旧断层还是产生了新的看见。它是单次运行输入，不因查询而创建新的持久对象。避免：只按完全相同的 Entry ID 集合查重、把增加一篇来源自动视为新关系、让规则系统代替 LLM 判断语义重复。
 
@@ -94,7 +98,7 @@
 
 **LegacyEvaluation（历史评测）**：旧单页回看或无共同用户思考线的关系记录。只供评测和兼容读取，永不成为正式候选。
 
-**EvaluationOnly（仅评测候选）**：使用真实线内 Entry 构造、只进入评测工作台的 EchoRecord 生命周期。它用于高频校准，不得出现在正式回响入口；与只负责兼容旧机制的 LegacyEvaluation 不同。
+**EvaluationOnly（仅评测候选）**：旧开发评测曾写入 EchoRecord 的兼容生命周期，只能进入评测读取，永不成为正式候选。新 Context + Relation 评测改用 EvaluationRunArtifact，不再创建此类 EchoRecord。避免：继续把它作为新评测持久化格式、迁移进稳定 `local-data`。
 
 **OptionalEchoFeedback（可选反馈）**：用户对 AI 观察质量的可选判断：`clarified` 看清了一点、`already_known` 我已经知道了、`not_quite` 不太对。选择“不太对”后可以额外填写一段只针对当前 Echo 的可选说明，用于指出这次理解哪里偏了；该说明不进入日记池、不替代 EchoReply，也不自动成为整条 ThoughtLine 的用户校准，只触发 ContextMaintenance 判断是否需要修改 ThoughtLineContext。它与 EchoReply 相互独立：用户可以只反馈、只回应、两者都做或两者都不做；任何一方都不能自动推断另一方。旧反馈值只兼容读取。避免：把“不太对”自动解释为某一种错误、把局部说明直接推广成线级事实、因用户填写说明而自动创建 Entry。
 

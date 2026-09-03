@@ -48,9 +48,9 @@ import {
   LINED_EDITOR_MAX_LINES,
 } from "./lined-editor-model";
 import ThoughtLineContextWorkbench, { ThoughtLinePromptCatalog } from "./thought-line-context-workbench";
-import PairedRelationExperiment, { type PairedRelationRun } from "./paired-relation-experiment";
+import RelationEvaluationRuns from "./relation-evaluation-runs";
 
-type View = "write" | "pool" | "lines" | "context" | "echo" | "evaluation" | "settings";
+type View = "write" | "pool" | "lines" | "echo" | "evaluation" | "settings";
 type Attachment = { name: string; type: string; data: string };
 export type Entry = {
   id: number;
@@ -116,6 +116,7 @@ type Echo = {
 };
 type StorageStatus = "loading" | "saving" | "saved" | "error";
 type EvaluationSheet = "cases" | "criteria" | "versions";
+type EvaluationCategory = "context" | "echo";
 export type HuiyeRuntimeMode = "private" | "portfolio";
 export type PortfolioSeed = {
   data: HuiyeBackup;
@@ -125,6 +126,7 @@ type HuiyeAppProps = {
   mode?: HuiyeRuntimeMode;
   seed?: PortfolioSeed;
   initialView?: View;
+  initialEvaluationCategory?: EvaluationCategory;
 };
 const DRAFT_KEY = "huiye-writing-draft-v1";
 const WRITE_LINE_HEIGHT = LINED_EDITOR_LINE_HEIGHT;
@@ -168,7 +170,6 @@ const nav: { id: View; icon: string; label: string }[] = [
   { id: "write", icon: "✎", label: "写下" },
   { id: "pool", icon: "□", label: "日记池" },
   { id: "lines", icon: "⌁", label: "思考线" },
-  { id: "context", icon: "◎", label: "Context 实验" },
   { id: "echo", icon: "↗", label: "回响" },
 ];
 
@@ -997,6 +998,7 @@ export default function Home({
   mode = "private",
   seed,
   initialView = "write",
+  initialEvaluationCategory = "echo",
 }: HuiyeAppProps = {}) {
   const portfolioMode = mode === "portfolio";
   const seededData = seed?.data;
@@ -1027,7 +1029,6 @@ export default function Home({
   const [currentEchoId, setCurrentEchoId] = useState<string | null>(null);
   const [echoSeenThisSession, setEchoSeenThisSession] = useState(false);
   const [echoLoadError, setEchoLoadError] = useState(false);
-  const [pairedRelationEvaluation, setPairedRelationEvaluation] = useState<PairedRelationRun | null>(null);
   const [storageReady, setStorageReady] = useState(false);
   const [storageStatus, setStorageStatus] = useState<StorageStatus>("loading");
   const [storageUpdatedAt, setStorageUpdatedAt] = useState<string | null>(null);
@@ -1045,9 +1046,7 @@ export default function Home({
   const [expandedLineEntryIds, setExpandedLineEntryIds] = useState<number[]>(
     [],
   );
-  const [evaluationMode, setEvaluationMode] = useState<"private" | "demo">(
-    "private",
-  );
+  const [evaluationCategory, setEvaluationCategory] = useState<EvaluationCategory>(initialEvaluationCategory);
   const [evaluationSheet, setEvaluationSheet] =
     useState<EvaluationSheet>("cases");
   const [selectedEvaluationId, setSelectedEvaluationId] = useState<
@@ -1187,20 +1186,6 @@ export default function Home({
             setEchoRecords([]);
             setEchoLoadError(true);
           }
-        }
-        try {
-          const pairedResponse = await fetch("/api/paired-relation-evaluation", {
-            cache: "no-store",
-          });
-          const pairedResult = (await pairedResponse.json()) as {
-            evaluation?: PairedRelationRun | null;
-            error?: string;
-          };
-          if (!pairedResponse.ok)
-            throw new Error(pairedResult.error || "无法读取 B/C 配对评测");
-          if (!cancelled) setPairedRelationEvaluation(pairedResult.evaluation ?? null);
-        } catch {
-          if (!cancelled) setPairedRelationEvaluation(null);
         }
       } catch {
         if (cancelled) return;
@@ -2055,7 +2040,7 @@ export default function Home({
           </span>
         </div>
         <nav>
-          {nav.filter((item) => !portfolioMode || item.id !== "context").map((item) => (
+          {nav.map((item) => (
             <button
               key={item.id}
               className={view === item.id ? "active" : ""}
@@ -2081,7 +2066,7 @@ export default function Home({
             className={view === "evaluation" ? "active" : ""}
             onClick={() => setView("evaluation")}
           >
-            <i>◇</i>回响评测
+            <i>◇</i>评测工作台
           </button>
           <button onClick={() => setView("settings")}>
             <i>⚙</i>设置
@@ -2553,44 +2538,39 @@ export default function Home({
             <div className="page-title">
               <div>
                 <div className="eyebrow">只用于校准，不打扰正式体验</div>
-                <h1>回响评测</h1>
+                <h1>评测工作台</h1>
                 <p className="lead">
                   高频检查 AI 的观察是否真的显化了你已经隐约记录的变化。
                 </p>
               </div>
             </div>
             <div className="evaluation-switch">
+              {!portfolioMode && (
+                <button
+                  className={evaluationCategory === "context" ? "selected" : ""}
+                  onClick={() => setEvaluationCategory("context")}
+                >
+                  Context
+                </button>
+              )}
               <button
-                className={evaluationMode === "private" ? "selected" : ""}
-                onClick={() => setEvaluationMode("private")}
+                className={evaluationCategory === "echo" ? "selected" : ""}
+                onClick={() => setEvaluationCategory("echo")}
               >
-                私人评测
-              </button>
-              <button
-                className={evaluationMode === "demo" ? "selected" : ""}
-                onClick={() => setEvaluationMode("demo")}
-              >
-                展示模式
+                回响
               </button>
             </div>
-            {evaluationMode === "demo" ? (
-              <section className="demo-case">
-                <span>脱敏示例</span>
-                <h2>从“我要替人管理”，到“让人自己看清”</h2>
-                <p>
-                  两次产品记录共享一条「回页-产品」思考线。AI
-                  只指出重心变化，并把判断留给用户。
-                </p>
-                <strong>展示模式永不读取或展示私人日记。</strong>
-              </section>
+            {evaluationCategory === "context" ? (
+              <ThoughtLineContextWorkbench />
             ) : (
               <div className="evaluation-workbench">
-                <PairedRelationExperiment
-                  run={pairedRelationEvaluation}
-                  entries={entries}
-                  thoughtLineName={thoughtLines.find((line) => line.id === pairedRelationEvaluation?.thoughtLineId)?.name}
-                  renderContent={(content) => <Markdown content={content} />}
-                />
+                {!portfolioMode && (
+                  <RelationEvaluationRuns
+                    entries={entries}
+                    thoughtLineName={(thoughtLineId) => thoughtLines.find((line) => line.id === thoughtLineId)?.name ?? thoughtLineId}
+                    renderContent={(content) => <Markdown content={content} />}
+                  />
+                )}
                 <div className="evaluation-stage">
                   <span>GOOD CASE 探索期</span>
                   <strong>{echoRecords.length} 个 case</strong>
@@ -2826,7 +2806,6 @@ export default function Home({
             )}
           </div>
         )}
-        {view === "context" && !portfolioMode && <ThoughtLineContextWorkbench />}
         {view === "settings" && (
           <div className="page settings-page">
             <div className="eyebrow">你的思考，只属于你</div>

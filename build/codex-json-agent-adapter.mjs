@@ -53,6 +53,18 @@ const maintenanceSchema = {
   },
 };
 
+const structuredNavigationBasisSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["attentionSignal", "whyTheseEntries", "minimalityBasis", "checkFocus"],
+  properties: {
+    attentionSignal: STRING,
+    whyTheseEntries: STRING,
+    minimalityBasis: STRING,
+    checkFocus: STRING,
+  },
+};
+
 const candidatesSchema = {
   type: "object",
   additionalProperties: false,
@@ -68,22 +80,10 @@ const candidatesSchema = {
         properties: {
           thoughtLineId: STRING,
           entryIds: { type: "array", minItems: 2, maxItems: 3, items: ENTRY_ID },
-          navigationBasis: STRING,
+          navigationBasis: structuredNavigationBasisSchema,
         },
       },
     },
-  },
-};
-
-const structuredNavigationBasisSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["attentionSignal", "whyTheseEntries", "minimalityBasis", "checkFocus"],
-  properties: {
-    attentionSignal: STRING,
-    whyTheseEntries: STRING,
-    minimalityBasis: STRING,
-    checkFocus: STRING,
   },
 };
 
@@ -148,16 +148,6 @@ const echoSchema = {
   },
 };
 
-const judgmentSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["decision", "echo"],
-  properties: {
-    decision: { type: "string", enum: ["next_candidate", "output"] },
-    echo: { anyOf: [echoSchema, { type: "null" }] },
-  },
-};
-
 function pairedJudgmentSchema({ completeness, contextEffects }) {
   return {
     type: "object",
@@ -189,6 +179,7 @@ const judgmentCSchema = pairedJudgmentSchema({
   completeness: ["sufficient", "missing_indispensable_entry", "uncertain"],
   contextEffects: ["no_material_effect", "changed_interpretation", "revealed_gap"],
 });
+const judgmentSchema = judgmentCSchema;
 
 function promptFor(prompt, promptVersion, step, input) {
   const { prompt: _prompt, promptVersion: _version, ...payload } = input;
@@ -251,13 +242,7 @@ export function createCodexJsonAgentAdapter(options = {}) {
     generateThoughtLineContext: (input) => call(input, "generate_thought_line_context", macroSchema),
     decideMaintenance: (input) => call(input, "decide_maintenance", maintenanceSchema),
     selectCandidates: (input) => call(input, input.step, candidatesSchema),
-    judgeCandidate: async (input) => {
-      const output = await call(input, input.step, judgmentSchema);
-      if (output.decision === "next_candidate") return { decision: "next_candidate" };
-      if (!output.echo) throw new Error("Codex JSON Agent 决定 output 时缺少 echo");
-      if (output.decision === "output" && output.echo.question === null) delete output.echo.question;
-      return output;
-    },
+    judgeCandidate: async (input) => normalizePairedJudgment(await call(input, input.step, judgmentSchema), "C"),
     selectRelationCandidates: (input) => call(input, input.step, pairedCandidatesSchema),
     judgeRelationCandidateB: async (input) => normalizePairedJudgment(await call(input, input.step, judgmentBSchema), "B"),
     judgeRelationCandidateC: async (input) => normalizePairedJudgment(await call(input, input.step, judgmentCSchema), "C"),

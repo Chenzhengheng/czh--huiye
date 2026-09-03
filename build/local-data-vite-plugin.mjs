@@ -2,7 +2,7 @@ import path from "node:path";
 import { appendEchoEvent, readEchoRecords } from "./echo-record-store.mjs";
 import { readLocalData, writeLocalData } from "./local-data-store.mjs";
 import { createContextModule } from "./thought-line-context-module.mjs";
-import { readLatestPairedRelationEvaluation } from "./paired-relation-evaluation.mjs";
+import { readEvaluationWorkbench } from "./evaluation-workbench-store.mjs";
 
 function sendJson(response, statusCode, value) {
   response.statusCode = statusCode;
@@ -58,7 +58,7 @@ export function localDataPlugin(options = {}) {
       server.middlewares.use(async (request, response, next) => {
         const requestUrl = new URL(request.url || "/", "http://127.0.0.1");
         const pathname = requestUrl.pathname;
-        if (!["/api/data", "/api/echo-records", "/api/echo-events", "/api/thought-line-context", "/api/paired-relation-evaluation"].includes(pathname)) return next();
+        if (!["/api/data", "/api/echo-records", "/api/echo-events", "/api/thought-line-context", "/api/evaluation-workbench"].includes(pathname)) return next();
         try {
           if (!isLocalDataRequestAllowed(request)) return sendJson(response, 403, { error: "拒绝非本地同源的数据请求" });
           if (pathname === "/api/thought-line-context") {
@@ -70,13 +70,13 @@ export function localDataPlugin(options = {}) {
             const snapshot = await serialize(() => contextModule.inspect(thoughtLineId));
             return sendJson(response, 200, { snapshot, storageKind: "local-context" });
           }
-          if (pathname === "/api/paired-relation-evaluation") {
+          if (pathname === "/api/evaluation-workbench") {
             if (request.method !== "GET") {
               response.setHeader("allow", "GET");
               return sendJson(response, 405, { error: "Method Not Allowed" });
             }
-            const evaluation = await serialize(() => readLatestPairedRelationEvaluation(evaluationRootDir));
-            return sendJson(response, 200, { evaluation, storageKind: "local-context" });
+            const workbench = await serialize(() => readEvaluationWorkbench(evaluationRootDir));
+            return sendJson(response, 200, { workbench, storageKind: "local-context" });
           }
           if (pathname === "/api/echo-records") {
             if (request.method !== "GET") {

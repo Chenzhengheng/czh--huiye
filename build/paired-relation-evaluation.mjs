@@ -180,11 +180,14 @@ async function runVariant({
     agentAdapter: {
       selectCandidates: async () => structuredClone(candidates),
       judgeCandidate: async (input) => {
+        const { selectedLineContext: canonicalSelectedLineContext, ...candidateInput } = input;
         const lineContext = contextByLine.get(input.candidate.thoughtLineId);
         if (!lineContext) throw new Error(`${variant} 找不到候选所属 Context`);
         const output = await judge({
-          ...input,
-          ...(variant === "C" ? { selectedLineContext: structuredClone(lineContext) } : {}),
+          ...candidateInput,
+          ...(variant === "C"
+            ? { selectedLineContext: structuredClone(canonicalSelectedLineContext ?? lineContext) }
+            : {}),
         });
         const assessment = validateAssessment(output, variant, input.candidate, lineContext);
         attempts.push({
@@ -193,7 +196,12 @@ async function runVariant({
           decision: output.decision,
           assessment,
         });
-        return output;
+        // The canonical RelationModule now enforces the C assessment contract.
+        // Keep B's historical output in `attempts`, but adapt its unavailable
+        // Context effect at this compatibility seam before returning to core.
+        return variant === "B"
+          ? { ...output, assessment: { ...output.assessment, contextEffect: "no_material_effect" } }
+          : output;
       },
     },
   });

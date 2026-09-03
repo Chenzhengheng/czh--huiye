@@ -16,7 +16,7 @@ import {
 const [thoughtLineId, model = "gpt-5.6-sol"] = process.argv.slice(2);
 if (!thoughtLineId) throw new Error("用法：node scripts/run-context-relation-evaluation.mjs <ThoughtLine ID> [model]");
 
-const sourceRoot = path.resolve("local-data");
+const sourceRoot = path.resolve(process.env.HUIYE_EVALUATION_SOURCE_ROOT || "local-data");
 const contextRoot = path.resolve("local-context", "thought-line-context");
 const evaluationRoot = path.resolve("local-context", "evaluation");
 const codexPath = process.env.HUIYE_CODEX_PATH || "codex";
@@ -43,4 +43,4 @@ const result = await runContextRelationEvaluation({
   model,
 });
 
-process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+process.stdout.write(`${JSON.stringify({ sourceRoot, sourceMode: "read_only", ...result }, null, 2)}\n`);

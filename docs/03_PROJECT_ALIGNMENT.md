@@ -89,10 +89,12 @@ AI 先展示用户原文，再给出“暂时看见、由你判断”的初判�
 1. EntryCard Agent 为每篇允许 AI 的 Entry 建立跨 ThoughtLine 共用的不可变 CardVersion；每条线的完整引用章节由代码维护，所有合格 Entry 恰好出现一次；
 2. ThoughtLineContext Agent 只维护 discusses、majorConcerns、thoughtStages、stableView、currentFocus、tensions 六个宏观章节，不保存 A→B 等具体关系、关系类型或核验状态；
 3. ContextMaintenance Agent 接收 Entry 增量、Prompt 变化或单次 Echo 的 `not_quite` 反馈，判断宏观 Context 保持不变、局部修订或全量重建；来源变化后受影响线先进入 `stale`，完整新快照发布后才恢复 `ready`；
-4. 同一个 RelationJudgment Agent 使用同一份 Prompt：先读取全部 `ready` Context，一次给出零至三个两至三篇的有序候选，再在规则门禁通过后按顺序读取原文与历史状态；首个输出立即停止，全部放弃则沉默；
+4. 同一个 RelationJudgment Agent 使用同一份 Prompt：先读取全部 `ready` Context，一次给出零至三个两至三篇的有序候选；规则门禁通过后，候选判断继续携带导航时同一份所选线 ContextSnapshot 投影，并读取候选原文与历史状态。Context 只检查完整性、必要中间 Entry 与解释风险，不作为证据；首个输出立即停止，全部放弃则沉默；
 5. ContextModule 与 RelationModule 是两个深模块；正式产品调度不调用该实验链路，显式开发评测可接 Fake 或真实 Agent Adapter，RelationModule 自身只返回内存草稿。
 
-一次性 B/C 配对评测是上述正式结构之外的诊断实验：候选选择仍只执行一次，但 Step 2 分成两份完整 Prompt。B 仅依赖增强后的结构化 `navigationBasis`、候选原文与冻结历史；C 在相同输入上额外读取所选线的宏观 ContextSnapshot。C 必须把 Context 当作发现断层与校准解释风险的参考，不能把它当作用户事实或证据。两分支结果只进入独立只读实验区，不改变 EvaluationWorkbook、EchoRecord 或正式评测维度。
+一次性 B/C 配对评测是上述结构之外的历史诊断实验：候选选择只执行一次，B 仅依赖结构化 `navigationBasis`、候选原文与冻结历史；C 额外读取所选线的宏观 ContextSnapshot。产品负责人已选择 C 作为当前实验方案，因此 canonical RelationJudgment 使用 C 的上下文连续性边界；旧 B/C 结果保留为可追溯实验数据，不再作为开发评测工作台的当前并列方案。该选择仍不等于质量已验证或可以接入生产。
+
+本地只保留一个 EvaluationWorkbench，一级类别为 Context 与回响：Context 复用现有快照、EntryCards、历史 Diff 和 Prompt 展示，不增加评分；回响保存并展开每次评测的完整 Agent trace、候选与规则门禁、最终测试回响或沉默、既有人工评测和历史 B/C。运行产物只写评测目录并直接渲染测试回响卡片，不写 `local-data/echoes`，也不改变正式回响资格或历史。
 
 这个实验保留 ThoughtLine 权限边界：交汇 Entry 可以显示全部思考线身份，但不能借交汇点读取其他线 Entry。它也保留沉默、两篇默认而三篇只补足必要断层、原文证据与解释风险门槛。`echo-eval-v0.4` 及更早 Echo Prompt 只作为冻结评测基线，不是新版 RelationModule 的调用路径，也不被描述为已经替换；只有完成 Context 与最终回响两层真实 Case 对比后，才决定是否接真实模型、继续调整或停用新模块。
 

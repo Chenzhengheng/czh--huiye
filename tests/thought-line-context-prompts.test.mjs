@@ -13,7 +13,7 @@ test("records four independent Prompt modules that begin with Huiye product valu
       { module: "EntryCard", version: "entry-card-v0.1", status: "pending_evaluation" },
       { module: "ThoughtLineContext", version: "thought-line-context-v0.1", status: "pending_evaluation" },
       { module: "ContextMaintenance", version: "context-maintenance-v0.1", status: "pending_evaluation" },
-      { module: "RelationJudgment", version: "relation-judgment-v0.1", status: "pending_evaluation" },
+      { module: "RelationJudgment", version: "relation-judgment-v0.2", status: "pending_evaluation" },
     ],
   );
   assert.match(HUIYE_PRODUCT_VALUES, /AI 不替用户建立人生图谱，也不替用户下结论/u);
@@ -28,4 +28,6 @@ test("records four independent Prompt modules that begin with Huiye product valu
   assert.equal(activeThoughtLineModel.thoughtLinePromptVersions, thoughtLinePromptVersions);
   assert.equal("THOUGHT_LINE_RELATION_NAVIGATION_PROMPT" in activeThoughtLineModel, false);
   assert.equal("THOUGHT_LINE_RELATION_VERIFICATION_PROMPT" in activeThoughtLineModel, false);
+  assert.match(thoughtLinePromptVersions.at(-1).prompt, /selectedLineContext/u);
+  assert.match(thoughtLinePromptVersions.at(-1).prompt, /不能成为 Echo evidence/u);
 });

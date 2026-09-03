@@ -17,7 +17,7 @@ const promptVersions = {
   entryCard: "entry-card-v0.1",
   thoughtLineContext: "thought-line-context-v0.1",
   contextMaintenance: "context-maintenance-v0.1",
-  relationJudgment: "relation-judgment-v0.1",
+  relationJudgment: "relation-judgment-v0.2",
 };
 
 const contextPrompts = {
@@ -121,6 +121,15 @@ function historyAdapter(index = { echoes: [], caseRecords: [] }) {
   };
 }
 
+function navigationBasis(label = "检查候选") {
+  return {
+    attentionSignal: `${label}的阶段信号。`,
+    whyTheseEntries: `${label}选择这些来源。`,
+    minimalityBasis: `${label}是最小充分组合。`,
+    checkFocus: `${label}需要回原文核查。`,
+  };
+}
+
 test("run stays silent when the ready Contexts produce no candidate combinations", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "huiye-relation-select-"));
   const contextRoot = path.join(root, "context");
@@ -202,7 +211,7 @@ test("run rejects a cross-line candidate before reading any original Entry", asy
           candidates: [{
             thoughtLineId: "line-autumn",
             entryIds: ["101", "103"],
-            navigationBasis: "两篇看似都涉及工具。",
+            navigationBasis: navigationBasis("跨线候选"),
           }],
         }),
         judgeCandidate: async () => {
@@ -259,14 +268,19 @@ test("run reads originals and deterministic candidate history before returning a
             candidates: [{
               thoughtLineId: "line-autumn",
               entryIds: ["101", "102"],
-              navigationBasis: "准备方式在投递前后可能发生延续。",
+              navigationBasis: navigationBasis("准备方式延续"),
             }],
           };
         },
-        judgeCandidate: async ({ step, originals, historyBundle, prompt, promptVersion }) => {
+        judgeCandidate: async ({ step, originals, historyBundle, selectedLineContext, prompt, promptVersion }) => {
           assert.equal(step, "check_candidate_1");
           assert.equal(prompt, RELATION_JUDGMENT_PROMPT);
           assert.deepEqual(originals.map((entry) => entry.id), [101, 102]);
+          assert.equal(selectedLineContext.thoughtLine.id, "line-autumn");
+          assert.equal(selectedLineContext.sourceGenerationId, "generation-dev-1");
+          assert.deepEqual(selectedLineContext.entryCards.map((card) => card.entryId), ["101", "102", "105"]);
+          assert.equal(Object.hasOwn(selectedLineContext, "relationshipEvaluation"), false);
+          assert.equal(Object.hasOwn(selectedLineContext.entryCards[0], "source"), false);
           assert.deepEqual(historyBundle, {
             exactEchoes: [{ id: "echo-exact", thoughtLineId: "line-autumn", lifecycle: "evaluation_only", sourceEntryIds: [101, 102], relationType: "continuation", reason: "旧表达。" }],
             overlappingEchoes: [{ id: "echo-overlap", thoughtLineId: "line-autumn", lifecycle: "candidate", sourceEntryIds: [102, 105], relationType: "revision", reason: "另一种表达。" }],
@@ -276,9 +290,15 @@ test("run reads originals and deterministic candidate history before returning a
               { entryId: "102", sourceUsageCount: 2 },
             ],
           });
-          assert.equal(promptVersion, "relation-judgment-v0.1");
+          assert.equal(promptVersion, "relation-judgment-v0.2");
           return {
             decision: "output",
+            assessment: {
+              decisionReason: "候选原文充分，Context 未暴露必要中间篇。",
+              candidateCompleteness: "sufficient",
+              indispensableMissingEntryIds: [],
+              contextEffect: "no_material_effect",
+            },
             echo: {
               mode: "relational",
               thoughtLineId: "line-autumn",
@@ -314,7 +334,7 @@ test("run reads originals and deterministic candidate history before returning a
       manifestationGain: "把等待前后的行动串联起来。",
       explanationRisk: "low",
       uncertainty: "仍需用户判断这是否是一条连续变化。",
-      ruleVersion: "relation-judgment-v0.1",
+      ruleVersion: "relation-judgment-v0.2",
     });
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -351,7 +371,7 @@ test("run rejects a candidate whose EntryCard source version is stale before rea
       historyAdapter: historyAdapter(),
       agentAdapter: {
         selectCandidates: async () => ({
-          candidates: [{ thoughtLineId: "line-autumn", entryIds: ["101", "102"], navigationBasis: "可能存在延续。" }],
+          candidates: [{ thoughtLineId: "line-autumn", entryIds: ["101", "102"], navigationBasis: navigationBasis("过期卡片") }],
         }),
         judgeCandidate: async () => {
           throw new Error("EntryCard 过期时不得判断关系");
@@ -398,7 +418,7 @@ test("run rejects stale CandidateHistory before reading originals", async () => 
       },
       agentAdapter: {
         selectCandidates: async () => ({
-          candidates: [{ thoughtLineId: "line-autumn", entryIds: ["101", "102"], navigationBasis: "可能存在延续。" }],
+          candidates: [{ thoughtLineId: "line-autumn", entryIds: ["101", "102"], navigationBasis: navigationBasis("过期历史") }],
         }),
         judgeCandidate: async () => {
           throw new Error("历史状态过期时不得判断关系");
@@ -446,17 +466,32 @@ test("run consumes at most three candidates and stops at the first output decisi
       agentAdapter: {
         selectCandidates: async () => ({
           candidates: [
-            { thoughtLineId: "line-autumn", entryIds: ["101"], navigationBasis: "来源不足。" },
-            { thoughtLineId: "line-autumn", entryIds: ["101", "102"], navigationBasis: "先检查准备和交汇。" },
-            { thoughtLineId: "line-autumn", entryIds: ["102", "105"], navigationBasis: "再检查等待和行动。" },
+            { thoughtLineId: "line-autumn", entryIds: ["101"], navigationBasis: navigationBasis("来源不足") },
+            { thoughtLineId: "line-autumn", entryIds: ["101", "102"], navigationBasis: navigationBasis("准备和交汇") },
+            { thoughtLineId: "line-autumn", entryIds: ["102", "105"], navigationBasis: navigationBasis("等待和行动") },
           ],
         }),
         judgeCandidate: async ({ step, candidate }) => {
-          if (step === "check_candidate_2") return { decision: "next_candidate" };
+          if (step === "check_candidate_2") return {
+            decision: "next_candidate",
+            assessment: {
+              decisionReason: "本组没有足够显化增量。",
+              candidateCompleteness: "uncertain",
+              indispensableMissingEntryIds: [],
+              contextEffect: "no_material_effect",
+            },
+            echo: null,
+          };
           assert.equal(step, "check_candidate_3");
           assert.deepEqual(candidate.entryIds, ["102", "105"]);
           return {
             decision: "output",
+            assessment: {
+              decisionReason: "两篇来源充分。",
+              candidateCompleteness: "sufficient",
+              indispensableMissingEntryIds: [],
+              contextEffect: "changed_interpretation",
+            },
             echo: {
               mode: "relational",
               thoughtLineId: "line-autumn",
@@ -480,6 +515,88 @@ test("run consumes at most three candidates and stops at the first output decisi
     const result = await relationModule.run({ type: "evaluation" });
     assert.equal(result.decision, "output");
     assert.deepEqual(result.sourceEntryIds, [102, 105]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("run excludes ready Context from an older source generation before navigation", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "huiye-relation-stale-generation-"));
+  const contextRoot = path.join(root, "context");
+  const evaluationRoot = path.join(root, "evaluation");
+  const source = sourceFixture();
+  const contextModule = createContextModule({
+    contextRoot,
+    evaluationRoot,
+    sourceReader: async () => source,
+    agentAdapter: contextAgentAdapter(),
+    prompts: contextPrompts,
+    promptVersions,
+    now: () => new Date("2026-08-24T05:00:00.000Z"),
+  });
+
+  try {
+    await contextModule.maintain({ type: "initial_build", thoughtLineId: "line-autumn" });
+    source.generationId = "generation-dev-2";
+    const relationModule = createRelationModule({
+      contextRoot,
+      evaluationRoot,
+      sourceAdapter: relationSourceAdapter(source),
+      historyAdapter: historyAdapter(),
+      agentAdapter: {
+        selectCandidates: async ({ contexts }) => {
+          assert.deepEqual(contexts, []);
+          return { candidates: [] };
+        },
+        judgeCandidate: async () => { throw new Error("旧 generation Context 不得进入判断"); },
+      },
+      prompt: RELATION_JUDGMENT_PROMPT,
+      promptVersion: promptVersions.relationJudgment,
+    });
+
+    assert.deepEqual(await relationModule.run({ type: "evaluation" }), { decision: "silent" });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("run rejects legacy string navigationBasis before reading originals", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "huiye-relation-navigation-contract-"));
+  const contextRoot = path.join(root, "context");
+  const evaluationRoot = path.join(root, "evaluation");
+  const source = sourceFixture();
+  const contextModule = createContextModule({
+    contextRoot,
+    evaluationRoot,
+    sourceReader: async () => source,
+    agentAdapter: contextAgentAdapter(),
+    prompts: contextPrompts,
+    promptVersions,
+    now: () => new Date("2026-08-24T05:00:00.000Z"),
+  });
+
+  try {
+    await contextModule.maintain({ type: "initial_build", thoughtLineId: "line-autumn" });
+    const relationModule = createRelationModule({
+      contextRoot,
+      evaluationRoot,
+      sourceAdapter: relationSourceAdapter(source, async () => {
+        throw new Error("字符串 navigationBasis 不得越过硬门禁");
+      }),
+      historyAdapter: historyAdapter(),
+      agentAdapter: {
+        selectCandidates: async () => ({ candidates: [{
+          thoughtLineId: "line-autumn",
+          entryIds: ["101", "102"],
+          navigationBasis: "旧字符串契约",
+        }] }),
+        judgeCandidate: async () => { throw new Error("字符串 navigationBasis 不得进入判断"); },
+      },
+      prompt: RELATION_JUDGMENT_PROMPT,
+      promptVersion: promptVersions.relationJudgment,
+    });
+
+    assert.deepEqual(await relationModule.run({ type: "evaluation" }), { decision: "silent" });
   } finally {
     await rm(root, { recursive: true, force: true });
   }

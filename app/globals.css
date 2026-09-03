@@ -4156,6 +4156,90 @@ h1 {
 .paired-relation-sources blockquote { margin: 8px 0; padding-left: 10px; border-left: 2px solid #c9b895; color: #625b50; }
 .paired-relation-silent,
 .paired-relation-empty { padding: 24px; border: 1px dashed #d1cabd; border-radius: 10px; text-align: center; color: #746e64; }
+
+.relation-evaluation-runs,
+.evaluation-agent-trace {
+  display: grid;
+  gap: 16px;
+}
+.evaluation-run-browser,
+.evaluation-history-experiments {
+  padding: 18px;
+  border: 1px solid #ddd6c9;
+  border-radius: 12px;
+  background: #fbfaf6;
+}
+.evaluation-run-browser > header,
+.evaluation-history-experiments > header,
+.evaluation-agent-trace > header,
+.evaluation-run-detail > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.evaluation-run-layout {
+  display: grid;
+  grid-template-columns: minmax(210px, 0.28fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-top: 14px;
+}
+.evaluation-run-layout > nav {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+.evaluation-run-layout > nav button {
+  display: grid;
+  gap: 4px;
+  padding: 11px;
+  border: 1px solid #ddd6c9;
+  border-radius: 9px;
+  background: #fff;
+  text-align: left;
+}
+.evaluation-run-layout > nav button.selected {
+  border-color: #9c7a4c;
+  background: #f5efe4;
+}
+.evaluation-run-detail,
+.evaluation-agent-trace > details {
+  display: grid;
+  gap: 12px;
+}
+.evaluation-run-detail > header code {
+  display: block;
+  margin-top: 4px;
+  text-align: right;
+}
+.evaluation-agent-trace > details,
+.evaluation-trace-json {
+  padding: 10px 12px;
+  border: 1px solid #e2ddd3;
+  border-radius: 8px;
+  background: #fff;
+}
+.evaluation-agent-trace summary {
+  cursor: pointer;
+}
+.evaluation-agent-trace summary > span {
+  margin-right: 10px;
+  color: #9c7a4c;
+}
+.evaluation-trace-json {
+  margin-top: 10px;
+}
+.evaluation-trace-json pre {
+  max-height: 440px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 900px) {
+  .evaluation-run-layout { grid-template-columns: 1fr; }
+  .evaluation-run-detail > header { align-items: flex-start; flex-direction: column; }
+  .evaluation-run-detail > header code { text-align: left; }
+}
 @media (max-width: 760px) {
   .write-page {
     padding-top: 24px !important;

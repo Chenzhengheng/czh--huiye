@@ -342,15 +342,16 @@ test("uses the confirmed three-level source disclosure without embedding private
   assert.doesNotMatch(card, /第一份工作强调的是|出类拔萃，一定是热爱|腾讯、Joe/);
 });
 
-test("uses the real date and keeps demo data isolated from private evaluation", async () => {
+test("uses the real date and removes the private/demo evaluation display switch", async () => {
   const page = await readFile(new URL("../app/huiye-app.tsx", import.meta.url), "utf8");
 
   assert.match(page, /function formatWritingDate/);
   assert.match(page, /formatWritingDate\(now\)/);
   assert.doesNotMatch(page, /2026 年 7 月 17 日/);
   assert.doesNotMatch(page, /你在 4 月留下的疑问|引用了 3 篇你允许关联的记录/);
-  assert.match(page, /展示模式永不读取或展示私人日记/);
-  assert.match(page, /evaluationMode === "demo"/);
+  assert.doesNotMatch(page, /evaluationMode/);
+  assert.match(page, /evaluationCategory/);
+  assert.doesNotMatch(page, />展示模式</);
 });
 
 test("keeps two ThoughtLine assignment entries and formal echo boundary", async () => {
@@ -422,8 +423,9 @@ test("reads ThoughtLine Context through the ContextModule inspection seam", asyn
   assert.doesNotMatch(plugin, /readThoughtLineContextSnapshot/);
 });
 
-test("keeps the one-off B/C Relation experiment isolated and read-only", async () => {
+test("keeps the historical B/C experiment isolated but no longer mounts it as the current scheme", async () => {
   const page = await readFile(new URL("../app/huiye-app.tsx", import.meta.url), "utf8");
+  const runs = await readFile(new URL("../app/relation-evaluation-runs.tsx", import.meta.url), "utf8");
   const experiment = await readFile(
     new URL("../app/paired-relation-experiment.tsx", import.meta.url),
     "utf8",
@@ -433,16 +435,31 @@ test("keeps the one-off B/C Relation experiment isolated and read-only", async (
     "utf8",
   );
 
-  assert.match(page, /\/api\/paired-relation-evaluation/);
-  assert.match(page, /<PairedRelationExperiment/);
+  assert.doesNotMatch(page, /\/api\/paired-relation-evaluation/);
+  assert.doesNotMatch(page, /<PairedRelationExperiment/);
+  assert.match(runs, /历史实验/);
+  assert.match(runs, /<PairedRelationExperiment/);
   assert.match(experiment, /B\/C 单次对照/);
   assert.match(experiment, /宏观 Context 仅供参考/);
   assert.match(experiment, /只读草稿预览/);
   assert.match(experiment, /<EchoCard/);
   assert.match(experiment, /没有形成回响/);
   assert.doesNotMatch(experiment, /onFeedback|onSaveReply|textarea/);
-  assert.match(plugin, /readLatestPairedRelationEvaluation/);
-  assert.match(plugin, /\/api\/paired-relation-evaluation/);
+  assert.doesNotMatch(plugin, /readLatestPairedRelationEvaluation/);
+  assert.doesNotMatch(plugin, /\/api\/paired-relation-evaluation/);
+});
+
+test("shows C in the unified Context and Echo evaluation workbench", async () => {
+  const app = await readFile(new URL("../app/huiye-app.tsx", import.meta.url), "utf8");
+  const runs = await readFile(new URL("../app/relation-evaluation-runs.tsx", import.meta.url), "utf8");
+  assert.match(app, /评测工作台/);
+  assert.match(app, />\s*Context\s*</);
+  assert.match(app, />\s*回响\s*</);
+  assert.doesNotMatch(app, /Context 实验/);
+  assert.match(runs, /当前方案 · \{workbench\.currentScheme\}/);
+  assert.match(runs, /候选判断继续携带宏观 Context/);
+  assert.match(runs, /Agent 完整过程/);
+  assert.doesNotMatch(app, /<PairedRelationExperiment/);
 });
 
 test("keeps evaluation criteria, Chinese relation labels and traceable Prompt versions in one shared module", async () => {

@@ -15,51 +15,89 @@ function validateSelectedCandidates(output) {
   });
 }
 
-function candidatePassesHardGate(candidate, readyContexts, sourceIndex) {
-  if (
-    !candidate.thoughtLineId ||
-    candidate.entryIds.length < 2 ||
-    candidate.entryIds.length > 3 ||
-    new Set(candidate.entryIds).size !== candidate.entryIds.length ||
-    !navigationBasisPasses(candidate.navigationBasis) ||
-    candidate.duplicate
-  ) return false;
+function candidateHardGate(candidate, readyContexts, sourceIndex) {
+  if (!candidate.thoughtLineId) return { passes: false, reason: "missing_thought_line" };
+  if (candidate.entryIds.length < 2 || candidate.entryIds.length > 3) return { passes: false, reason: "invalid_source_count" };
+  if (new Set(candidate.entryIds).size !== candidate.entryIds.length) return { passes: false, reason: "duplicate_source" };
+  if (!navigationBasisPasses(candidate.navigationBasis)) return { passes: false, reason: "invalid_navigation_basis" };
+  if (candidate.duplicate) return { passes: false, reason: "duplicate_candidate" };
   const context = readyContexts.find((item) => item.thoughtLine.id === candidate.thoughtLineId);
-  if (!context) return false;
+  if (!context) return { passes: false, reason: "context_not_ready_for_generation" };
   const line = sourceIndex.thoughtLines.find((item) => item.id === candidate.thoughtLineId);
-  if (!line || line.status !== "active" || !line.allowEcho) return false;
+  if (!line || line.status !== "active" || !line.allowEcho) return { passes: false, reason: "thought_line_not_eligible" };
   const entriesById = new Map(sourceIndex.entries.map((entry) => [String(entry.id), entry]));
   const referencesById = new Map(context.thoughtLineContext.entryCardReferences.map((reference) => [String(reference.entryId), reference]));
   const cardsById = new Map(context.entryCards.map((card) => [String(card.entryId), card]));
   const entries = candidate.entryIds.map((entryId) => entriesById.get(entryId));
-  if (entries.some((entry) => !entry)) return false;
-  if (entries.some((entry) => !entry.aiLink || !entry.thoughtLineIds?.includes(candidate.thoughtLineId))) return false;
+  if (entries.some((entry) => !entry)) return { passes: false, reason: "source_missing" };
+  if (entries.some((entry) => !entry.aiLink || !entry.thoughtLineIds?.includes(candidate.thoughtLineId))) return { passes: false, reason: "source_not_eligible" };
   if (candidate.entryIds.some((entryId) => {
     const entry = entriesById.get(entryId);
     const reference = referencesById.get(entryId);
     const card = cardsById.get(entryId);
     return !reference || !card || card.cardVersion !== reference.cardVersion || card.sourceFingerprint !== entry.sourceFingerprint;
-  })) return false;
+  })) return { passes: false, reason: "entry_card_stale" };
   const chronologicalIds = [...entries]
     .sort((left, right) => String(left.createdAt ?? "").localeCompare(String(right.createdAt ?? "")) || String(left.id).localeCompare(String(right.id)))
     .map((entry) => String(entry.id));
-  return chronologicalIds.every((entryId, index) => entryId === candidate.entryIds[index]);
+  return chronologicalIds.every((entryId, index) => entryId === candidate.entryIds[index])
+    ? { passes: true, reason: null }
+    : { passes: false, reason: "source_order_invalid" };
 }
 
 function normalizeNavigationBasis(value) {
-  if (typeof value === "string") return value;
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const fields = ["attentionSignal", "whyTheseEntries", "minimalityBasis", "checkFocus"];
+  if (Object.keys(value).length !== fields.length || Object.keys(value).some((field) => !fields.includes(field))) return null;
   if (fields.some((field) => typeof value[field] !== "string" || !value[field].trim())) return null;
   return Object.fromEntries(fields.map((field) => [field, value[field]]));
 }
 
 function navigationBasisPasses(value) {
-  return typeof value === "string" ? Boolean(value.trim()) : Boolean(normalizeNavigationBasis(value));
+  return Boolean(normalizeNavigationBasis(value));
 }
 
 const COUNTED_LIFECYCLES = new Set([undefined, "candidate", "evaluation_only"]);
 const RELATION_TYPES = new Set(["continuation", "revision", "branch", "conflict", "unresolved_question", "other"]);
+const CANDIDATE_COMPLETENESS = new Set(["sufficient", "missing_indispensable_entry", "uncertain"]);
+const CONTEXT_EFFECTS = new Set(["no_material_effect", "changed_interpretation", "revealed_gap"]);
+
+function selectedLineContext(snapshot) {
+  return {
+    snapshotId: snapshot.snapshotId,
+    sourceGenerationId: snapshot.sourceGenerationId,
+    thoughtLine: snapshot.thoughtLine,
+    macroSections: snapshot.thoughtLineContext.macroSections,
+    entryCards: snapshot.entryCards.map((card) => ({
+      entryId: String(card.entryId),
+      occurredAt: card.occurredAt ?? null,
+      summary: card.summary,
+      uncertainty: card.uncertainty ?? [],
+    })),
+  };
+}
+
+function validateContextAssessment(output, candidate, lineContext) {
+  const assessment = output?.assessment;
+  if (!assessment || typeof assessment !== "object" || Array.isArray(assessment)) {
+    throw new Error("Relation Agent 的 C 方案判断缺少 assessment");
+  }
+  requireText(assessment.decisionReason, "assessment.decisionReason");
+  if (!CANDIDATE_COMPLETENESS.has(assessment.candidateCompleteness)) throw new Error("assessment.candidateCompleteness 无效");
+  if (!CONTEXT_EFFECTS.has(assessment.contextEffect)) throw new Error("assessment.contextEffect 无效");
+  if (!Array.isArray(assessment.indispensableMissingEntryIds)) throw new Error("assessment.indispensableMissingEntryIds 必须是数组");
+  const missingIds = assessment.indispensableMissingEntryIds.map(String);
+  if (new Set(missingIds).size !== missingIds.length) throw new Error("遗漏 Entry ID 不能重复");
+  const allowedIds = new Set(lineContext.entryCards.map((card) => card.entryId));
+  const candidateIds = new Set(candidate.entryIds);
+  if (missingIds.some((entryId) => !allowedIds.has(entryId) || candidateIds.has(entryId))) {
+    throw new Error("遗漏 Entry 必须来自 selectedLineContext 且不属于当前候选");
+  }
+  if (output.decision === "output" && (assessment.candidateCompleteness !== "sufficient" || missingIds.length || assessment.contextEffect === "revealed_gap")) {
+    throw new Error("C 方案只有来源充分且没有遗漏时才能 output");
+  }
+  return { ...assessment, indispensableMissingEntryIds: missingIds };
+}
 
 function sourceSetKey(entryIds) {
   return [...new Set(entryIds.map(String))].sort((left, right) => left.localeCompare(right)).join("\u0000");
@@ -170,6 +208,7 @@ export function createRelationModule({
   sourceAdapter,
   historyAdapter,
   agentAdapter,
+  traceAdapter,
   prompt,
   promptVersion,
 }) {
@@ -200,9 +239,13 @@ export function createRelationModule({
       const linesById = new Map(sourceIndex.thoughtLines.map((line) => [line.id, line]));
       const readyContexts = contexts.filter((context) => {
         const line = linesById.get(context.thoughtLine.id);
-        return context.status === "ready" && line?.status === "active" && line.allowEcho;
+        return context.status === "ready"
+          && context.sourceGenerationId === sourceIndex.generationId
+          && line?.status === "active"
+          && line.allowEcho;
       });
       const navigationContexts = readyContexts.map((context) => ({
+        snapshotId: context.snapshotId,
         status: context.status,
         sourceGenerationId: context.sourceGenerationId,
         thoughtLine: context.thoughtLine,
@@ -219,7 +262,15 @@ export function createRelationModule({
       }));
       if (!candidates.length) return { decision: "silent" };
       for (const [index, candidate] of candidates.entries()) {
-        if (!candidatePassesHardGate(candidate, readyContexts, sourceIndex)) continue;
+        const hardGate = candidateHardGate(candidate, readyContexts, sourceIndex);
+        traceAdapter?.record?.({
+          candidateIndex: index,
+          candidate: structuredClone(candidate),
+          stage: "hard_gate",
+          decision: hardGate.passes ? "passed" : "rejected",
+          reason: hardGate.reason,
+        });
+        if (!hardGate.passes) continue;
         const checkedCandidate = {
           thoughtLineId: candidate.thoughtLineId,
           entryIds: candidate.entryIds,
@@ -229,21 +280,34 @@ export function createRelationModule({
           thoughtLineId: checkedCandidate.thoughtLineId,
           entryIds: checkedCandidate.entryIds,
         });
-        if (historyStatus?.status !== "ready") continue;
+        if (historyStatus?.status !== "ready") {
+          traceAdapter?.record?.({
+            candidateIndex: index,
+            candidate: structuredClone(checkedCandidate),
+            stage: "history_gate",
+            decision: "rejected",
+            reason: "candidate_history_not_ready",
+          });
+          continue;
+        }
         const originals = normalizeOriginals(await sourceAdapter.readOriginalEntries({
           thoughtLineId: checkedCandidate.thoughtLineId,
           entryIds: checkedCandidate.entryIds,
         }), checkedCandidate);
         const historyBundle = buildCandidateHistoryBundle(await historyAdapter.readIndex(), checkedCandidate);
+        const lineContext = readyContexts.find((context) => context.thoughtLine.id === checkedCandidate.thoughtLineId);
+        const selectedContext = selectedLineContext(lineContext);
         const judgment = await agentAdapter.judgeCandidate({
           step: `check_candidate_${index + 1}`,
           trigger,
           candidate: checkedCandidate,
           originals,
           historyBundle,
+          selectedLineContext: selectedContext,
           prompt,
           promptVersion,
         });
+        validateContextAssessment(judgment, checkedCandidate, selectedContext);
         if (judgment?.decision === "next_candidate") continue;
         return validateEchoDraft(judgment, checkedCandidate, originals, promptVersion);
       }

@@ -42,6 +42,14 @@ ID 稳定唯一，非 merged 线名称唯一。新线只随 Entry 保存物化�
 
 `relationType` 继续使用英文枚举 `continuation | revision | branch | conflict | unresolved_question | other`。Prompt 输出和界面展示使用对应中文“延续、修正、分支、冲突、未解决问题、其他”，这只是展示映射，不改变存储契约。
 
+## EvaluationRunArtifact v1
+
+Context + Relation 的每次开发评测只在 `local-context/evaluation/runs/<runId>/result.json` 写一份自足产物，并由同目录 `index.json` 建立运行索引。字段包含 `runId`、`thoughtLineId`、`sourceGenerationId`、四模块 `promptVersions`、`model`、`evaluatedAt`、`decision: accepted | silent`、完整 `agentTrace` 与确定性的 `ruleTrace`；接受时另含 `echoCard`。该卡片可由只读 EchoCard 渲染，但不属于 `local-data/echoes`，不参与正式来源使用计数与历史。
+
+`agentTrace` 按实际调用顺序保存每步输入和结构化输出；`ruleTrace` 按候选顺序保存硬门禁／历史门禁的通过或拒绝及原因。历史配对 B/C 继续保存在 `local-context/evaluation/paired-runs/`，由统一 EvaluationWorkbench 读取为“历史实验”。
+
+运行前以当前有效 Entry 的 `entrySourceFingerprint` 与 ContextSnapshot 的 EntryCard 比较，分别计算新增、变化和移除；只有这些差异进入 `entry_increment`。若主数据 generation 改变但线内有效 Entry 未变，发布 `source_generation_sync` 快照，只同步 `sourceGenerationId`，不调用 Context Agent，也不伪造 Entry 变化。
+
 ## CaseRecord
 
 `CaseRecord` 引用 `echoRecordId`，分别保存可选 `verdict: good | bad`、可选 `feedback: clarified | already_known | not_quite`、reasonCodes、可选 `userFeedbackText`、可选 notes、可选 `promptVersion`、可选 dimensions 和 createdAt。dimensions 的三个固定键为 `relationValidity`、`manifestationGain`、`reencounterFeeling`，每项只允许 `high | medium | low`。旧记录缺少这些字段时按“待评测”和 EchoRecord 自身 ruleVersion 兼容显示。feedback、dimensions 和 verdict 互不自动推断；userFeedbackText 逐字保存用户对反馈的说明。它不复制来源 Entry 原文，也不改变正式候选状态。

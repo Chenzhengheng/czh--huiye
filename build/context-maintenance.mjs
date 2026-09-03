@@ -139,7 +139,7 @@ export async function maintainContext({
   prompts,
   now,
 }) {
-  if (!new Set(["initial_build", "entry_increment", "prompt_change", "feedback_not_quite"]).has(signal?.type)) {
+  if (!new Set(["initial_build", "entry_increment", "prompt_change", "feedback_not_quite", "source_generation_sync"]).has(signal?.type)) {
     throw new Error(`ContextMaintenance 暂不支持信号：${signal?.type ?? ""}`);
   }
   if (typeof sourceReader !== "function") throw new Error("ContextModule 缺少来源读取 Adapter");
@@ -203,7 +203,14 @@ export async function maintainContext({
     await markAffectedContextsStale();
   }
   let maintenanceDecision = null;
-  if (signal.type !== "initial_build") {
+  if (signal.type === "source_generation_sync") {
+    maintenanceDecision = {
+      decision: "no_context_change",
+      affectedEntryIds: [],
+      affectedSections: [],
+      reason: "线内有效 Entry 未变化，仅同步来源 generation。",
+    };
+  } else if (signal.type !== "initial_build") {
     if (typeof agentAdapter.decideMaintenance !== "function") throw new Error("ContextModule 缺少 ContextMaintenance Agent Adapter");
     if (!prompts?.contextMaintenance) throw new Error("ContextModule 缺少 ContextMaintenance Prompt");
     const relatedEntryIds = signal.type === "feedback_not_quite"
