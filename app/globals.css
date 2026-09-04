@@ -4229,6 +4229,14 @@ h1 {
   margin-top: 4px;
   text-align: right;
 }
+.evaluation-run-detail > header > div:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.evaluation-run-detail > header > div:first-child small {
+  display: block;
+  margin-top: 4px;
+}
 .evaluation-agent-trace > details,
 .evaluation-trace-json {
   padding: 10px 12px;
