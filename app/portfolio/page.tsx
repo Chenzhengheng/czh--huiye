@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
+import userFlowAsset from "../../docs/assets/huiye-user-path-bpmn.svg";
 import styles from "./portfolio.module.css";
-import { PortfolioVisitBeacon } from "./portfolio-visit-beacon";
 
 const githubUrl = "https://github.com/Chenzhengheng/czh--huiye";
-const userFlowUrl =
-  "https://raw.githubusercontent.com/Chenzhengheng/czh--huiye/main/docs/assets/huiye-user-path-bpmn.svg";
+const userFlowUrl = userFlowAsset.src;
 
 export const metadata: Metadata = {
   title: "回页｜让思考继续生长",
@@ -41,7 +40,6 @@ const productThoughtLine = [
 export default function PortfolioPage() {
   return (
     <main className={styles.page}>
-      <PortfolioVisitBeacon />
       <nav className={styles.nav} aria-label="作品集导航">
         <a className={styles.brand} href="#top" aria-label="回到页首">
           <span>回</span>
@@ -49,7 +47,7 @@ export default function PortfolioPage() {
           <em>让思考继续生长</em>
         </a>
         <div className={styles.navLinks}>
-          <a href="#product">产品核心</a>
+          <a href="#product">核心体验</a>
           <a href="#flow">用户流程图</a>
           <a href="#evaluation">回响评测</a>
           <a href="#delivery">工程交付</a>
@@ -87,7 +85,7 @@ export default function PortfolioPage() {
           <dl className={styles.stats} aria-label="项目摘要">
             <div><dt>10</dt><dd>真实评测 Case</dd></div>
             <div><dt>3</dt><dd>Prompt 版本</dd></div>
-            <div><dt>33+</dt><dd>自动化测试</dd></div>
+            <div><dt>5</dt><dd>类思考关系</dd></div>
           </dl>
           <aside className={styles.heroThesis}>
             <strong>过去的记录没有消失，只是很少再被真正看见。</strong>
@@ -97,14 +95,22 @@ export default function PortfolioPage() {
       </section>
 
       <section className={styles.product} id="product">
-        <header className={styles.sectionHeader}>
+        <header className={`${styles.sectionHeader} ${styles.productHeader}`}>
           <div>
-            <p className={styles.sectionIndex}>01 · 产品核心</p>
+            <p className={styles.sectionIndex}>01 · 核心体验</p>
             <h2>人先归线，AI 再观察。</h2>
           </div>
-          <p>
-            思考线（ThoughtLine）是用户亲手给出的意图边界；回响（Echo）是 AI 在边界内基于原文证据形成的暂时看见。
-          </p>
+          <div className={styles.coreEssay}>
+            <p>
+              人会不断记录，也会在生活、阅读、交流和新经历中改变。关于同一件事的思考常散落在许多日记里，变化已经发生，却未必能及时看清。
+            </p>
+            <p>
+              回页让用户用特殊标签建立思考线，AI 只在线内观察，把原文中的延续、修正、分支、冲突或未解决问题显化出来。
+            </p>
+            <p>
+              AI 不建立人生图谱，也不替用户下结论。它只提出一次可以被修正的暂时看见。用户可以回味、回应、继续写，也可以沉默离开。
+            </p>
+          </div>
         </header>
 
         <ol className={styles.principles}>
@@ -153,8 +159,8 @@ export default function PortfolioPage() {
         <article className={styles.realCase}>
           <header className={styles.caseHeader}>
             <div>
-              <p className={styles.caseLabel}>真实产品判断</p>
-              <h3>当“主导权在人”从一句原则，变成产品结构</h3>
+              <p className={styles.caseLabel}>AI 暂时看见 · 由你判断</p>
+              <h3>AI 发现：回页对 AI 职责的设想，从替每篇记录做轻量整理，逐渐收窄为只在用户划定的思考线内观察。</h3>
             </div>
             <span>来自思考线 · 回页</span>
           </header>
@@ -178,22 +184,13 @@ export default function PortfolioPage() {
           </div>
           <p className={styles.privacyNote}>均来自真实脱敏笔记</p>
 
-          <div className={styles.aiObservation}>
-            <p>AI 暂时看见 · 由你判断</p>
-            <strong>
-              两次思考都坚持“主导权在人”，但 AI 的职责发生了收窄：先是替内容做轻量整理，后来变成只观察用户已经亲手划定的思考线。
-            </strong>
-            <span>
-              真正新增的不是一句价值观，而是一种把价值观落实为产品结构的办法：人不只说 AI 不应越界，而是用思考线亲手画出边界。
-            </span>
-          </div>
         </article>
       </section>
 
       <section className={styles.flow} id="flow">
         <div className={styles.flowIntro}>
           <p className={styles.sectionIndex}>02 · 用户流程图</p>
-          <h2>从写下一页，<br />到再次遇见。</h2>
+          <h2>从写下一页，到再次遇见。</h2>
           <p>流程覆盖写下、归线、AI 在线内观察、低打扰出现、回应与评测。点击图面可查看完整尺寸。</p>
         </div>
         <a className={styles.flowCanvas} href={userFlowUrl} target="_blank" rel="noreferrer">
@@ -206,10 +203,10 @@ export default function PortfolioPage() {
         <header className={styles.sectionHeader}>
           <div>
             <p className={styles.sectionIndex}>03 · 回响评测</p>
-            <h2>不是“有没有联系”，<br />而是“有没有看清一点”。</h2>
+            <h2>评测 AI 的观察，是否让变化更清楚。</h2>
           </div>
           <p>
-            回响以关系成立度、显化增量和重逢感三项维度评测。good / bad 由人判断，不由分数自动决定。
+            从关系成立度、显化增量和重逢感三个维度检查回响，并结合用户原话判断 good / bad、定位偏差和迭代 Prompt。
           </p>
         </header>
 
@@ -275,7 +272,7 @@ export default function PortfolioPage() {
         <header className={styles.sectionHeader}>
           <div>
             <p className={styles.sectionIndex}>04 · 工程交付</p>
-            <h2>产品判断，最终落到<br />可运行、可验证、可追踪。</h2>
+            <h2>产品判断，最终落到可运行、可验证、可追踪。</h2>
           </div>
           <p>从产品定位到公开部署，所有核心决策、Prompt 版本、评测 Case 与实现均保留可追踪证据。</p>
         </header>

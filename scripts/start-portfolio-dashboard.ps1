@@ -11,14 +11,22 @@ if (!(Test-Path -LiteralPath $configPath)) {
   $random.Dispose()
   $token = [Convert]::ToBase64String($tokenBytes).TrimEnd('=').Replace('+','-').Replace('/','_')
   New-Item -ItemType Directory -Force -Path (Split-Path $configPath) | Out-Null
-  @{ siteOrigin = "https://huiye-ai-diary.zhenghengchen13.chatgpt.site"; token = $token; port = 4321; proxy = "http://127.0.0.1:12000" } |
-    ConvertTo-Json | Set-Content -LiteralPath $configPath -Encoding UTF8
+  @{ port = 4321; sources = @{ overseas = @{ origin = "https://huiye-ai-diary.zhenghengchen13.chatgpt.site"; token = $token; proxy = "http://127.0.0.1:12000" }; mainland = @{ origin = "https://huiye-ai.cn"; token = $token; proxy = "" } } } |
+    ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $configPath -Encoding UTF8
 }
 
 $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
-if (!$config.PSObject.Properties["proxy"]) {
-  $config | Add-Member -NotePropertyName proxy -NotePropertyValue "http://127.0.0.1:12000"
-  $config | ConvertTo-Json | Set-Content -LiteralPath $configPath -Encoding UTF8
+if (!$config.PSObject.Properties["sources"]) {
+  Add-Type -AssemblyName System.Security
+  $tokenBytes = New-Object byte[] 32
+  $random = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+  $random.GetBytes($tokenBytes)
+  $random.Dispose()
+  $mainlandToken = [Convert]::ToBase64String($tokenBytes).TrimEnd('=').Replace('+','-').Replace('/','_')
+  $overseasProxy = if ($config.PSObject.Properties["proxy"]) { $config.proxy } else { "http://127.0.0.1:12000" }
+  $migrated = @{ port = [int]$config.port; sources = @{ overseas = @{ origin = $config.siteOrigin; token = $config.token; proxy = $overseasProxy }; mainland = @{ origin = "https://huiye-ai.cn"; token = $mainlandToken; proxy = "" } } }
+  $migrated | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $configPath -Encoding UTF8
+  $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
 }
 $port = [int]$config.port
 $dashboardUrl = "http://127.0.0.1:$port"

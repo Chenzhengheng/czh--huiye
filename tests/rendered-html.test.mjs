@@ -9,12 +9,17 @@ async function loadWorker() {
   return worker;
 }
 
-async function render(pathname = "/") {
+async function render(pathname = "/", origin = "http://localhost") {
   const worker = await loadWorker();
+  const url = new URL(pathname, origin);
 
   return worker.fetch(
-    new Request(`http://localhost${pathname}`, {
-      headers: { accept: "text/html" },
+    new Request(url, {
+      headers: {
+        accept: "text/html",
+        "x-forwarded-host": url.host,
+        "x-forwarded-proto": url.protocol.slice(0, -1),
+      },
     }),
     {
       ASSETS: {
@@ -28,6 +33,46 @@ async function render(pathname = "/") {
   );
 }
 
+test("shows the ICP filing link on every mainland public page", async () => {
+  for (const pathname of ["/", "/portfolio/demo", "/portfolio/demo/evaluation"]) {
+    const response = await render(pathname, "https://huiye-ai.cn");
+    assert.equal(response.status, 200);
+    const html = await response.text();
+
+    assert.match(html, /粤ICP备2026122805号/);
+    assert.match(html, /href="https:\/\/beian\.miit\.gov\.cn\/"/);
+  }
+});
+
+test("does not add mainland compliance copy to the overseas backup", async () => {
+  const response = await render(
+    "/",
+    "https://huiye-ai-diary.zhenghengchen13.chatgpt.site",
+  );
+  assert.equal(response.status, 200);
+  assert.doesNotMatch(await response.text(), /粤ICP备2026122805号/);
+});
+
+test("keeps public portfolio pages free of the retired confirmation beacon", async () => {
+  const rootResponse = await render("/", "https://huiye-ai.cn");
+  assert.equal(rootResponse.status, 200);
+  assert.doesNotMatch(await rootResponse.text(), /portfolio-visit-beacon/);
+
+  const overseasRootResponse = await render(
+    "/",
+    "https://huiye-ai-diary.zhenghengchen13.chatgpt.site",
+  );
+  assert.equal(overseasRootResponse.status, 200);
+  assert.doesNotMatch(await overseasRootResponse.text(), /portfolio-visit-beacon/);
+
+  const legacyResponse = await render(
+    "/portfolio",
+    "https://huiye-ai-diary.zhenghengchen13.chatgpt.site",
+  );
+  assert.equal(legacyResponse.status, 200);
+  assert.doesNotMatch(await legacyResponse.text(), /portfolio-visit-beacon/);
+});
+
 test("renders the portfolio at the public root instead of the private writing canvas", async () => {
   const response = await render("/");
   assert.equal(response.status, 200);
@@ -35,7 +80,10 @@ test("renders the portfolio at the public root instead of the private writing ca
 
   assert.match(html, /让思考/);
   assert.match(html, /继续生长/);
-  assert.match(html, /从 0 到 1 独立负责回页的产品定位/);
+  assert.match(
+    html,
+    /我从 0 到 1 独立负责回页的产品定位、交互设计、Agent Prompt、评测体系与工程交付（Codex）。/,
+  );
   assert.match(html, /体验回页/);
   assert.match(html, /查看完整评测/);
   assert.match(html, /负责人：陈政亨/);
@@ -43,6 +91,12 @@ test("renders the portfolio at the public root instead of the private writing ca
   assert.match(html, /回页<\/b><em>让思考继续生长<\/em>/);
   assert.match(html, /回页完整用户流程图/);
   assert.match(html, /github\.com\/Chenzhengheng\/czh--huiye/);
+  assert.match(
+    html,
+    /href="\/assets\/huiye-user-path-bpmn[^"']*\.svg"[^>]*><img src="\/assets\/huiye-user-path-bpmn[^"']*\.svg"/,
+  );
+  assert.doesNotMatch(html, /(?:href|src)="\[object Object\]"/);
+  assert.doesNotMatch(html, /raw\.githubusercontent\.com/);
   assert.doesNotMatch(html, /此刻，想留下什么？/);
 });
 
@@ -51,12 +105,34 @@ test("presents the portfolio as a Chinese evidence-led project archive", async (
   assert.equal(response.status, 200);
   const html = await response.text();
 
-  assert.match(html, /产品核心/);
+  assert.match(html, /01 · 核心体验/);
+  assert.match(
+    html,
+    /关于同一件事的思考常散落在许多日记里，变化已经发生，却未必能及时看清。/,
+  );
+  assert.match(
+    html,
+    /AI 只在线内观察，把原文中的延续、修正、分支、冲突或未解决问题显化出来。/,
+  );
+  assert.match(
+    html,
+    /它只提出一次可以被修正的暂时看见。用户可以回味、回应、继续写，也可以沉默离开。/,
+  );
   assert.match(html, /用户流程图/);
   assert.match(html, /回响评测/);
-  assert.match(html, /思考线（ThoughtLine）/);
-  assert.match(html, /回响（Echo）/);
+  assert.match(html, /用特殊标签建立思考线/);
+  assert.match(html, /检查回响/);
   assert.match(html, /工程交付/);
+  assert.match(html, /AI 暂时看见 · 由你判断/);
+  assert.match(
+    html,
+    /AI 发现：回页对 AI 职责的设想，从替每篇记录做轻量整理，逐渐收窄为只在用户划定的思考线内观察。/,
+  );
+  assert.match(html, /评测 AI 的观察，是否让变化更清楚。/);
+  assert.match(html, /<dt>5<\/dt><dd>类思考关系<\/dd>/);
+  assert.doesNotMatch(html, /真实产品判断/);
+  assert.doesNotMatch(html, /当“主导权在人”从一句原则，变成产品结构/);
+  assert.doesNotMatch(html, /真正新增的不是一句价值观/);
   assert.doesNotMatch(html, /AI PRODUCT|CASE STUDY|USER FLOW|EVALUATION|PRODUCT/);
 
   const productIndex = html.indexOf('id="product"');
@@ -164,15 +240,16 @@ test("server-renders the private Huiye writing canvas at its dedicated entry", a
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|Codex is working/i);
 });
 
-test("server-renders the read-only Context experiment at its dedicated private entry", async () => {
+test("server-renders the unified workbench Context category at its compatibility entry", async () => {
   const response = await render("/app/context");
   assert.equal(response.status, 200);
   const html = await response.text();
 
-  assert.match(html, /Context \+ 关系模型/);
+  assert.match(html, /评测工作台/);
+  assert.match(html, /思考线 Context/);
   assert.match(html, /思考线认识/);
   assert.match(html, /EntryCards/);
-  assert.match(html, /关系运行/);
+  assert.doesNotMatch(html, /关系运行/);
   assert.match(html, /Prompt 版本/);
   assert.match(html, /只读实验/);
   assert.doesNotMatch(html, /运行关系核验|生成正式回响/);

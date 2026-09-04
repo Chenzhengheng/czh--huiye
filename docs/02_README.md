@@ -9,6 +9,9 @@
 - `pnpm local`：本地私人模式，默认 `127.0.0.1:4317/app`
 - `scripts/start-huiye-local.ps1 -Port <端口>`：为独立开发 worktree 使用不同端口启动私人模式；Context/关系模型开发版固定使用 `4324`，避免碰撞稳定版与其他实验版；
 - `pnpm test`：构建并运行回归测试
+- `pnpm build:edgeone`：从当前源码生成 `.site-artifacts/edgeone-public/` 国内公开静态产物和可直接上传的 `.site-artifacts/huiye-edgeone.zip`；
+- `pnpm test:edgeone-export`：验证 EdgeOne 产物的公开路由、备案展示和隐私边界；
+- `pnpm test:portfolio-dashboard`：验证双部署汇总、单站故障降级和本地私有配置迁移；
 - `pnpm local:verify`：校验本地不可变数据代次
 - `pnpm local:verify-echoes`：校验 EchoRecord
 
@@ -31,6 +34,8 @@
 - `build/relation-module.mjs`：新版 RelationJudgment 导航、规则门禁与最多三组判断 loop；
 - `build/thought-line-context-runtime.mjs`：仍可写入隔离 `local-context` 的旧三段式实验执行器，只供回归对照；不得把它接入新版路径或稳定数据；
 - `build/echo-record-store.mjs`：回响事件存储与校验；
+- `scripts/export-edgeone-static.mjs`：将已构建页面、访问脚本与统计 Edge Functions 导出为 EdgeOne Makers 可直接上传的目录和 ZIP；
+- `edgeone/`：国内主站的同源访问上报脚本、EdgeOne Functions、KV 统计逻辑和受保护汇总接口；
 - `worker/index.ts`：公开托管入口，不接触私人本地数据；
 - `tests/`：数据、领域规则和服务端渲染回归测试；
 - `local-data/`：私人数据，忽略于 Git。
@@ -41,6 +46,8 @@
 本地模式的 `local-data/` 是私人内容的唯一主数据源。公开托管构建不提供私人数据 API，也不绑定私人存储。完整备份包含 Entry、ThoughtLine、CaseRecord 和 EchoReply；旧 v1 回响不会被误映射进正式回响。
 
 公开根网址只展示作品集；桌面快捷方式和本地启动脚本均打开 `/app`。公开演示只读取代码内经用户审核的 MinimumRedaction 固定数据，不会回退到私人模式。
+
+国内 `PublicPortfolioDeployment` 只导出 `/`、`/portfolio/demo`、`/portfolio/demo/evaluation`、所需静态资源与 EdgeOne 统计运行时代码；`edgeone.json` 将旧 `/portfolio` 入口永久跳转到 `/`。产物不生成 `/app` 页面，不复制 `local-data`。根首页加载同源 `portfolio-visit.js`，页面成功加载后向 `/api/portfolio-visits/visit` 发出一次 POST；是否形成新访问会话仍由服务端 Cookie 与 30 分钟窗口判定。
 
 开发时不得用演示数据冒充用户日记，不得自动清空或覆盖旧代次，不得让 `legacy_evaluation` 进入正式候选。
 

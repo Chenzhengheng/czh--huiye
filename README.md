@@ -8,7 +8,7 @@
 
 AI 不替用户建立人生图谱，也不替用户下结论。它只说：“我暂时看见了这里，是否值得你再看一眼？”用户可以回味、回应、继续写，也可以沉默离开。
 
-[打开回页作品集](https://huiye-ai-diary.zhenghengchen13.chatgpt.site) · [体验脱敏演示](https://huiye-ai-diary.zhenghengchen13.chatgpt.site/portfolio/demo) · [查看完整评测](https://huiye-ai-diary.zhenghengchen13.chatgpt.site/portfolio/demo/evaluation)
+[打开回页作品集](https://huiye-ai.cn) · [体验脱敏演示](https://huiye-ai.cn/portfolio/demo) · [查看完整评测](https://huiye-ai.cn/portfolio/demo/evaluation)
 
 ## 核心体验
 

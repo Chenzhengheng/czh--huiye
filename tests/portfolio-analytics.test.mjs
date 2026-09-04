@@ -28,9 +28,10 @@ class FakeStatement {
     }
     if (this.sql.includes("COUNT(DISTINCT device_id)")) {
       const rows = this.db.rows.filter((row) => row.started_at >= since);
-      return { devices: new Set(rows.map((row) => row.device_id)).size, confirmed: rows.filter((row) => row.confirmed_at != null).length, unconfirmed: rows.filter((row) => row.confirmed_at == null).length };
+      return { devices: new Set(rows.map((row) => row.device_id)).size, visits: rows.length };
     }
-    if (this.sql.startsWith("SELECT MAX")) return { latest: Math.max(0, ...this.db.rows.map((row) => row.confirmed_at ?? 0)) || null };
+    if (this.sql.startsWith("SELECT MIN")) return { earliest: Math.min(...this.db.rows.map((row) => row.started_at)) || null };
+    if (this.sql.startsWith("SELECT MAX")) return { latest: Math.max(0, ...this.db.rows.map((row) => row.latest_at ?? 0)) || null };
     return null;
   }
   async all() {
@@ -38,12 +39,12 @@ class FakeStatement {
     const days = new Map();
     for (const row of this.db.rows.filter((item) => item.started_at >= since)) {
       const day = new Date(row.started_at * 1000).toISOString().slice(0, 10);
-      const value = days.get(day) ?? { day, deviceIds: new Set(), confirmed: 0, unconfirmed: 0 };
+      const value = days.get(day) ?? { day, deviceIds: new Set(), visits: 0 };
       value.deviceIds.add(row.device_id);
-      row.confirmed_at == null ? value.unconfirmed++ : value.confirmed++;
+      value.visits++;
       days.set(day, value);
     }
-    return { results: [...days.values()].map((value) => ({ day: value.day, devices: value.deviceIds.size, confirmed: value.confirmed, unconfirmed: value.unconfirmed })) };
+    return { results: [...days.values()].map((value) => ({ day: value.day, devices: value.deviceIds.size, visits: value.visits })) };
   }
 }
 
@@ -56,20 +57,47 @@ function cookieHeader(response) {
   return response.headers.get("set-cookie") ?? "";
 }
 
-test("tracks only a confirmed portfolio session and deduplicates within 30 minutes", async () => {
+test("records successful overseas homepage responses and deduplicates both entry routes within 30 minutes", async () => {
   const DB = new FakeD1();
   const env = { DB, PORTFOLIO_DASHBOARD_TOKEN: "secret" };
-  const first = await recordPortfolioPage(new Request("https://example.test/portfolio"), new Response("ok"), env, 1_800_000_000);
+  const first = await recordPortfolioPage(new Request("https://example.test/"), new Response("ok"), env, 1_800_000_000);
   const setCookies = cookieHeader(first);
   const device = /huiye_portfolio_device=([^;,]+)/.exec(setCookies)[1];
-  const session = /huiye_portfolio_session=([^;,]+)/.exec(setCookies)[1];
   assert.equal(DB.rows.length, 1);
 
-  const headers = { cookie: `huiye_portfolio_device=${device}; huiye_portfolio_session=${session}` };
-  await handlePortfolioAnalyticsApi(new Request("https://example.test/api/portfolio-visits/confirm", { method: "POST", headers }), env, 1_800_000_005);
+  const headers = { cookie: `huiye_portfolio_device=${device}` };
   await recordPortfolioPage(new Request("https://example.test/portfolio", { headers }), new Response("ok"), env, 1_800_000_300);
   assert.equal(DB.rows.length, 1);
-  assert.equal(DB.rows[0].confirmed_at, 1_800_000_005);
+  assert.equal(DB.rows[0].latest_at, 1_800_000_300);
+});
+
+test("excludes unsuccessful pages, non-home routes, crawlers and prefetches", async () => {
+  const DB = new FakeD1();
+  const env = { DB, PORTFOLIO_DASHBOARD_TOKEN: "secret" };
+  await recordPortfolioPage(new Request("https://example.test/"), new Response("no", { status: 500 }), env);
+  await recordPortfolioPage(new Request("https://example.test/portfolio/demo"), new Response("ok"), env);
+  await recordPortfolioPage(new Request("https://example.test/", { headers: { "user-agent": "Googlebot" } }), new Response("ok"), env);
+  await recordPortfolioPage(new Request("https://example.test/", { headers: { purpose: "prefetch" } }), new Response("ok"), env);
+  assert.equal(DB.rows.length, 0);
+});
+
+test("summarizes every legacy session as a visit regardless of its former confirmation state", async () => {
+  const DB = new FakeD1();
+  DB.rows.push(
+    { id: "a", device_id: "one", started_at: 1_800_000_000, latest_at: 1_800_000_010, confirmed_at: null },
+    { id: "b", device_id: "one", started_at: 1_800_004_000, latest_at: 1_800_004_010, confirmed_at: 1_800_004_005 },
+    { id: "c", device_id: "two", started_at: 1_800_005_000, latest_at: 1_800_005_010, confirmed_at: null },
+  );
+  const response = await handlePortfolioAnalyticsApi(
+    new Request("https://example.test/api/portfolio-visits/summary", { headers: { authorization: "Bearer secret" } }),
+    { DB, PORTFOLIO_DASHBOARD_TOKEN: "secret" },
+    1_800_006_000,
+  );
+  const summary = await response.json();
+  assert.equal(summary.source, "overseas");
+  assert.deepEqual(summary.last30Days, { visits: 3, devices: 2 });
+  assert.equal(summary.daily.reduce((total, day) => total + day.visits, 0), 3);
+  assert.equal(summary.latestVisitAt, 1_800_005_010);
 });
 
 test("protects summaries and excludes an enrolled admin browser", async () => {

@@ -40,7 +40,7 @@ const worker = {
     }
 
     const response = await handler.fetch(request, env, ctx);
-    if (request.method === "GET" && url.pathname === "/portfolio") {
+    if (request.method === "GET") {
       try {
         return await recordPortfolioPage(request, response, env);
       } catch (error) {

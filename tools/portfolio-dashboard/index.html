@@ -12,10 +12,11 @@
       <div>
         <p class="eyebrow">仅保存在这台电脑</p>
         <h1>回页 · 访问看板</h1>
-        <p class="subtitle">只统计作品集首页的匿名设备，不记录访问者身份。</p>
+        <p class="subtitle">大陆站与海外站共同计数，不记录访问者身份。</p>
       </div>
       <div class="actions">
-        <a href="/exclude">排除本机访问</a>
+        <a href="/exclude/mainland">排除大陆站本机访问</a>
+        <a href="/exclude/overseas">排除海外站本机访问</a>
         <button id="refresh">刷新</button>
       </div>
     </header>
@@ -26,18 +27,23 @@
     </section>
 
     <section class="periods" aria-label="访问概览">
-      <article><p>今天</p><strong id="today-devices">—</strong><span>匿名设备</span><small id="today-detail">—</small></article>
-      <article><p>近 7 天</p><strong id="week-devices">—</strong><span>匿名设备</span><small id="week-detail">—</small></article>
-      <article><p>近 30 天</p><strong id="month-devices">—</strong><span>匿名设备</span><small id="month-detail">—</small></article>
-      <article><p>近 30 天成功率</p><strong id="success-rate">—</strong><span>已确认 / 全部会话</span><small id="latest">最近成功：—</small></article>
+      <article><p>今天</p><strong id="today-visits">—</strong><span>次访问</span><small id="today-detail">—</small></article>
+      <article><p>近 7 天</p><strong id="week-visits">—</strong><span>次访问</span><small id="week-detail">—</small></article>
+      <article><p>近 30 天</p><strong id="month-visits">—</strong><span>次访问</span><small id="month-detail">—</small></article>
+      <article><p>近 30 天</p><strong id="month-devices">—</strong><span>分站匿名设备数之和</span><small id="latest">最近访问：—</small></article>
+    </section>
+
+    <section class="sources" aria-label="分站状态">
+      <article id="source-mainland"><div><p class="eyebrow">MAINLAND</p><h2>大陆站 · huiye-ai.cn</h2></div><p class="source-status">读取中</p><dl></dl><small></small></article>
+      <article id="source-overseas"><div><p class="eyebrow">OVERSEAS</p><h2>海外站 · chatgpt.site</h2></div><p class="source-status">读取中</p><dl></dl><small></small></article>
     </section>
 
     <section class="chart-card">
-      <div class="section-head"><div><p class="eyebrow">TREND</p><h2>近 30 天访问趋势</h2></div><p>绿色为已确认，浅色为未确认。</p></div>
+      <div class="section-head"><div><p class="eyebrow">TREND</p><h2>近 30 天合计访问趋势</h2></div><p>两站都正常时显示合计。</p></div>
       <div id="chart" class="chart" aria-label="近 30 天访问趋势"></div>
     </section>
 
-    <footer>每 60 秒自动更新 · 数据保留 90 天 · 未确认不等于失败</footer>
+    <footer>每 60 秒自动更新 · 数据保留 90 天 · 30 分钟内同站同设备重复打开计一次</footer>
   </main>
   <script type="module" src="/app.js"></script>
 </body>

@@ -1,19 +1,9 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import "./globals.css";
+import { getPublicRequestContext } from "./public-deployment";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const requestHeaders = await headers();
-  const host =
-    requestHeaders.get("x-forwarded-host") ??
-    requestHeaders.get("host") ??
-    "localhost:4317";
-  const protocol =
-    requestHeaders.get("x-forwarded-proto") ??
-    (host.startsWith("localhost") || host.startsWith("127.0.0.1")
-      ? "http"
-      : "https");
-  const origin = `${protocol}://${host}`;
+  const { origin } = await getPublicRequestContext();
   const description =
     "由你建立思考线，让 AI 显化已经隐约记录的延续、修正、分支与冲突。";
 
@@ -38,12 +28,23 @@ export async function generateMetadata(): Promise<Metadata> {
     },
   };
 }
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const { isMainland } = await getPublicRequestContext();
+
   return (
     <html lang="zh-CN">
-      <body>{children}</body>
+      <body>
+        {children}
+        {isMainland ? (
+          <footer className="mainland-compliance-footer">
+            <a href="https://beian.miit.gov.cn/" target="_blank" rel="noreferrer">
+              粤ICP备2026122805号
+            </a>
+          </footer>
+        ) : null}
+      </body>
     </html>
   );
 }
